@@ -23,6 +23,9 @@ struct du_cell_context {
   mac_cell_sys_info_config si_cfg;
   /// Current cell state.
   state_t state;
+  /// Whether the cell has been started at least once. Used to skip the MIB cellBarred restore on the very
+  /// first start (where the live MIB already matches the configured value); it is only needed on restart.
+  bool started_once = false;
 };
 
 /// Result of the reconfiguration of a DU cell.
@@ -92,6 +95,20 @@ public:
 
   /// Stop a specific cell in the DU.
   async_task<void> stop(du_cell_index_t cell_index) const;
+
+  /// \brief Update the MIB cellBarred flag of a cell at runtime.
+  ///
+  /// Used by the cell stop procedure to bar the cell before draining UEs (so idle UEs reselect away
+  /// before connected UE drain begins) and by the cell start path to restore the configured cellBarred
+  /// state after a prior bar-first stop. The new value takes effect on the next SSB build (one SSB period).
+  async_task<void> set_cell_barred(du_cell_index_t cell_index, bool barred) const;
+
+  /// \brief Bar a cell and wait for the change to settle on air.
+  ///
+  /// Bars the cell (cellBarred=true) and then waits a settling window derived from the cell's configured SSB
+  /// period, so the barred MIB is transmitted at least once. Intended to run concurrently with the UE drain
+  /// in the graceful cell stop path, so the wait adds no latency in the common case.
+  async_task<void> set_cell_barred_and_wait(du_cell_index_t cell_index) const;
 
   /// Stop all cells in the DU.
   async_task<void> stop_all() const;

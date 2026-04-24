@@ -11,6 +11,9 @@
 #include "ocudu/mac/mac_cell_manager.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/band_helper.h"
+#include "ocudu/support/async/async_no_op_task.h"
+#include "ocudu/support/async/async_timer.h"
+#include "ocudu/support/enum_utils.h"
 
 using namespace ocudu;
 using namespace odu;
@@ -228,9 +231,66 @@ async_task<bool> du_cell_manager::start(du_cell_index_t cell_index) const
     // Start cell in the MAC.
     CORO_AWAIT(cfg.mac.mgr.get_cell_manager().get_cell_controller(cell_index).start());
 
+    // On restart, restore the configured MIB cellBarred state: a prior bar-first cell stop may have left the
+    // live MIB flag set to true, so bring it back to the user-configured intent. Skipped on the first start,
+    // where the live MIB already matches the configured value (the MAC cell was created from it).
+    if (cells[cell_index]->started_once) {
+      CORO_AWAIT(set_cell_barred(cell_index, cells[cell_index]->cfg.cell_barred));
+    }
+    cells[cell_index]->started_once = true;
+
     cells[cell_index]->state = du_cell_context::state_t::active;
 
     CORO_RETURN(true);
+  });
+}
+
+async_task<void> du_cell_manager::set_cell_barred(du_cell_index_t cell_index, bool barred) const
+{
+  mac_cell_reconfig_request mac_req;
+  mac_req.cell_barred_mod.emplace(barred);
+
+  return launch_async([this, cell_index, barred, mac_req](coro_context<async_task<void>>& ctx) mutable {
+    CORO_BEGIN(ctx);
+
+    if (!has_cell(cell_index)) {
+      logger.warning("cell={}: set_cell_barred called for a cell that does not exist.", fmt::underlying(cell_index));
+      CORO_EARLY_RETURN();
+    }
+
+    CORO_AWAIT(cfg.mac.mgr.get_cell_manager().get_cell_controller(cell_index).reconfigure(mac_req));
+
+    logger.info("cell={}: MIB cellBarred set to {}", fmt::underlying(cell_index), barred);
+
+    CORO_RETURN();
+  });
+}
+
+async_task<void> du_cell_manager::set_cell_barred_and_wait(du_cell_index_t cell_index) const
+{
+  if (!has_cell(cell_index)) {
+    logger.warning("cell={}: set_cell_barred_and_wait called for a cell that does not exist.",
+                   fmt::underlying(cell_index));
+    return launch_no_op_task();
+  }
+
+  // Derive the settling window from the cell's configured SSB period: the barred MIB only needs to reach the
+  // air before released/idle UEs reselect, so hold a couple of SSB periods to guarantee it is transmitted at
+  // least once with margin. Meant to run concurrently with the UE drain, so it adds no latency in the common
+  // case.
+  const unsigned                  ssb_period_ms = to_value(get_cell_cfg(cell_index).ran.ssb_cfg.ssb_period);
+  const std::chrono::milliseconds bar_settling_window{2 * ssb_period_ms};
+  unique_timer                    settling_timer = cfg.services.timers.create_unique_timer(cfg.services.du_mng_exec);
+
+  return launch_async([this, cell_index, bar_settling_window, settling_timer = std::move(settling_timer)](
+                          coro_context<async_task<void>>& ctx) mutable {
+    CORO_BEGIN(ctx);
+
+    CORO_AWAIT(set_cell_barred(cell_index, true));
+
+    CORO_AWAIT(async_wait_for(settling_timer, bar_settling_window));
+
+    CORO_RETURN();
   });
 }
 
