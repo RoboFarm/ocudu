@@ -17,10 +17,6 @@ using namespace ocudu;
 
 static unsigned rep_to_rv(const cg_configuration::repetitions_t& reps, unsigned rep_idx)
 {
-  constexpr std::array<unsigned, 4> rv_0303 = {0, 3, 0, 3};
-
-  // TODO review if last rep idx 8 is correct.
-
   // RV index for the first repetition is always 0.
   if (reps.rep_k == cg_configuration::rep_k_t::n1 or reps.rv_seq == cg_configuration::rep_k_rv::s3_0000) {
     return 0U;
@@ -29,6 +25,7 @@ static unsigned rep_to_rv(const cg_configuration::repetitions_t& reps, unsigned 
     constexpr std::array<unsigned, 4> rv_0231 = {0, 2, 3, 1};
     return rv_0231[rep_idx % static_cast<unsigned>(reps.rep_k)];
   }
+  constexpr std::array<unsigned, 4> rv_0303 = {0, 3, 0, 3};
   return rv_0303[rep_idx % static_cast<unsigned>(reps.rep_k)];
 }
 
@@ -50,6 +47,9 @@ configured_grant_scheduler_impl::configured_grant_scheduler_impl(const cell_conf
   cell_cfg(cell_cfg_), uci_alloc(uci_alloc_), ues(ues_), logger(ocudulog::fetch_basic_logger("SCHED"))
 {
   periodic_pusch_slot_wheel.resize(max_cg_slot_periodicity);
+
+  // Pre-reserve space for the UEs that will be added.
+  updated_ues.reserve(MAX_NOF_DU_UES);
 }
 
 const ue_cell_configuration* configured_grant_scheduler_impl::get_ue_cfg(rnti_t rnti) const
@@ -110,6 +110,10 @@ void configured_grant_scheduler_impl::add_ue_to_wheel(const ue_cell_configuratio
     }
     slot_wheel.push_back(ue_cfg.crnti);
   }
+
+  // Register the UE in the list of recently updated UEs, so that its CG resources get pre-reserved over the whole
+  // resource grid at the next run_slot().
+  updated_ues.push_back(ue_cfg.crnti);
 }
 
 void configured_grant_scheduler_impl::rem_ue(const ue_cell_configuration& ue_cfg)
@@ -164,10 +168,89 @@ void configured_grant_scheduler_impl::add_reconf_ue(const ue_cell_configuration&
 
 void configured_grant_scheduler_impl::run_slot(cell_resource_allocator& cell_alloc)
 {
+  // For UEs whose CG configuration was recently added/updated, pre-reserve their CG PUSCH resources over the whole
+  // resource grid, so that dynamic PUSCH grants scheduled in advance do not use these resources.
+  reserve_updated_ues_resources(cell_alloc);
+
+  // Only pre-reserve in the farthest slot in the grid, as the previous part of the grid has been filled in earlier
+  // calls to this function.
+  reserve_slot_cg_resources(cell_alloc[cell_alloc.max_ul_slot_alloc_delay]);
+
   // We only allocate CG PUSCH for the current slot; else, we incur the possibility that the PUSCH gets allocated before
   // the PUCCH.
   static constexpr unsigned look_ahead_alloc_slots = 0U;
   allocate_slot_cg_opportunities(cell_alloc[look_ahead_alloc_slots]);
+}
+
+void configured_grant_scheduler_impl::reserve_updated_ues_resources(cell_resource_allocator& res_alloc)
+{
+  // For all UEs whose CG config has been recently updated, reserve their CG resources up until one slot before the
+  // farthest slot in the resource grid (the farthest slot is handled by reserve_slot_cg_resources()).
+  for (const rnti_t rnti : updated_ues) {
+    const ue_cell_configuration* ue_cfg = get_ue_cfg(rnti);
+    if (ue_cfg == nullptr) {
+      logger.error("rnti={}: UE for which CG resources are being reserved was not found", rnti);
+      continue;
+    }
+
+    for (unsigned n = 0; n != res_alloc.max_ul_slot_alloc_delay; ++n) {
+      cell_slot_resource_allocator& slot_alloc = res_alloc[n];
+      const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint() % max_cg_slot_periodicity];
+      if (std::find(rnti_list.begin(), rnti_list.end(), rnti) != rnti_list.end()) {
+        reserve_cg_resources(slot_alloc, *ue_cfg);
+      }
+    }
+  }
+
+  // Clear the list of updated UEs.
+  updated_ues.clear();
+}
+
+void configured_grant_scheduler_impl::reserve_slot_cg_resources(cell_slot_resource_allocator& slot_alloc) const
+{
+  const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint() % max_cg_slot_periodicity];
+  for (const rnti_t rnti : rnti_list) {
+    const ue_cell_configuration* ue_cfg = get_ue_cfg(rnti);
+    if (ue_cfg == nullptr) {
+      continue;
+    }
+    reserve_cg_resources(slot_alloc, *ue_cfg);
+  }
+}
+
+void configured_grant_scheduler_impl::reserve_cg_resources(cell_slot_resource_allocator& slot_alloc,
+                                                           const ue_cell_configuration&  ue_cfg) const
+{
+  // Skip if UL is not enabled in this slot (e.g., TDD DL slot).
+  if (not ue_cfg.is_ul_enabled(slot_alloc.slot)) {
+    return;
+  }
+
+  if (not cell_cfg.params.ul_cfg_common.init_ul_bwp.pusch_cfg_common.has_value()) {
+    return;
+  }
+  const auto& pusch_td_list = cell_cfg.params.ul_cfg_common.init_ul_bwp.pusch_cfg_common->pusch_td_alloc_list;
+
+  // NOTE: the CG and UL grant configs were validated when the UE was added to the wheel.
+  const auto& ul_grant = ue_cfg.init_bwp().ul.ded()->cg_cfg.value().rrc_configured_ul_grant_cfg.value();
+
+  // Compute CRBs: CG PUSCH uses non-interleaved VRB-to-PRB mapping, so VRBs = PRBs.
+  const bwp_configuration& ul_bwp_cfg    = cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params;
+  const auto&              cg_freq_alloc = std::get<ra_frequency_type1_configuration>(ul_grant.freq_domain_res);
+  const auto               cg_vrbs = vrb_interval::start_and_len(cg_freq_alloc.start_vrb, cg_freq_alloc.length_vrb);
+  const crb_interval       crbs    = prb_to_crb(ul_bwp_cfg, cg_vrbs.convert_to<prb_interval>());
+
+  // Mark the CG PUSCH resources as allocated in the UL resource grid.
+  // NOTE: the validity ul_grant.time_domain_allocation w.r.t. pusch_td_list has been verified in the config validator.
+  slot_alloc.ul_res_grid.fill(grant_info{ul_bwp_cfg.scs, pusch_td_list[ul_grant.time_domain_allocation].symbols, crbs});
+}
+
+void configured_grant_scheduler_impl::stop()
+{
+  updated_ues.clear();
+  for (auto& sl : periodic_pusch_slot_wheel) {
+    sl.clear();
+  }
 }
 
 void configured_grant_scheduler_impl::allocate_slot_cg_opportunities(cell_slot_resource_allocator& slot_alloc) const
@@ -178,7 +261,7 @@ void configured_grant_scheduler_impl::allocate_slot_cg_opportunities(cell_slot_r
   }
 }
 
-bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource_allocator& slot_alloc,
+bool configured_grant_scheduler_impl::validate_cg_opportunity(cell_slot_resource_allocator& slot_alloc,
                                                               rnti_t                        rnti) const
 {
   // Fetch UE and its cell context.
@@ -205,35 +288,43 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
 
   const slot_point pusch_slot = slot_alloc.slot;
 
-  // CG and UL grant configs — already validated when the UE was added to the wheel.
-  const auto* ul_ded   = ue_cfg.init_bwp().ul.ded();
-  const auto& cg_cfg   = ul_ded->cg_cfg.value();
-  const auto& ul_grant = cg_cfg.rrc_configured_ul_grant_cfg.value();
+  // Check that the PUSCH result list has capacity.
+  if (slot_alloc.result.ul.puschs.full()) {
+    logger.warning("rnti={}: CG PUSCH cannot be allocated at slot={}: PUSCH list is full", rnti, pusch_slot);
+    return false;
+  }
 
-  // Retrieve the PUSCH time-domain resource allocation entry.
-  // TODO: also check the dedicated PUSCH time-domain list when available in UE config.
-  if (not cell_cfg.params.ul_cfg_common.init_ul_bwp.pusch_cfg_common.has_value()) {
-    logger.error("rnti={}: Common PUSCH config absent, cannot schedule CG PUSCH", rnti);
+  return true;
+}
+
+bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource_allocator& slot_alloc,
+                                                              rnti_t                        rnti) const
+{
+  if (not validate_cg_opportunity(slot_alloc, rnti)) {
     return false;
   }
+
+  // NOTE: the existence of u and ue_cc has been validated above.
+  auto*                        u      = ues.find_by_rnti(rnti);
+  auto*                        ue_cc  = u->find_cell(cell_cfg.cell_index);
+  const ue_cell_configuration& ue_cfg = ue_cc->cfg();
+
+  const slot_point pusch_slot = slot_alloc.slot;
+  const auto*      ul_ded     = ue_cfg.init_bwp().ul.ded();
+  const auto&      cg_cfg     = ul_ded->cg_cfg.value();
+  const auto&      ul_grant   = cg_cfg.rrc_configured_ul_grant_cfg.value();
+
   const auto& pusch_td_list = cell_cfg.params.ul_cfg_common.init_ul_bwp.pusch_cfg_common->pusch_td_alloc_list;
-  if (ul_grant.time_domain_allocation >= pusch_td_list.size()) {
-    logger.error("rnti={}: CG time_domain_allocation={} is out of range (list size={})",
-                 rnti,
-                 ul_grant.time_domain_allocation,
-                 pusch_td_list.size());
-    return false;
-  }
+
   const pusch_time_domain_resource_allocation& pusch_td_cfg = pusch_td_list[ul_grant.time_domain_allocation];
   pusch_config_params                          pusch_params;
   pusch_params.symbols = pusch_td_cfg.symbols;
 
-  // TODO: verify max nof HARQ retx
-  // TODO: verify normal mode for CG.
   static constexpr unsigned nof_harq_retx = 0;
   const harq_id_t           h_id =
       get_harq_id(pusch_slot, pusch_params.symbols.start(), cg_cfg.periodicity, cg_cfg.nof_harq_processes);
-  auto h_ul = ue_cc->harqs.alloc_ul_harq(pusch_slot, nof_harq_retx, h_id, /*select_normal_mode*/ true);
+  const unsigned cg_harq_timeout = cg_configuration::configured_grant_timer * static_cast<unsigned>(cg_cfg.periodicity);
+  auto h_ul = ue_cc->harqs.alloc_ul_harq(pusch_slot, nof_harq_retx, h_id, /*select_normal_mode*/ true, cg_harq_timeout);
   ocudu_assert(h_ul.has_value(), "Failed to allocate UL HARQ id={}", fmt::underlying(h_id));
 
   // Build DMRS information from the CG-specific DMRS configuration.
@@ -265,24 +356,12 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
   pusch_params.aperiodic_csi     = false;
   pusch_params.nof_harq_ack_bits = uci_alloc.get_scheduled_pdsch_counter_in_ue_uci(pusch_slot, u->crnti);
 
-  // Compute CRBs: CG PUSCH uses non-interleaved VRB-to-PRB mapping, so VRBs = PRBs.
-  const bwp_configuration& ul_bwp_cfg    = cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params;
-  const auto&              cg_freq_alloc = std::get<ra_frequency_type1_configuration>(ul_grant.freq_domain_res);
-  const auto               cg_vrbs = vrb_interval::start_and_len(cg_freq_alloc.start_vrb, cg_freq_alloc.length_vrb);
-  const crb_interval       crbs    = prb_to_crb(ul_bwp_cfg, cg_vrbs.convert_to<prb_interval>());
-
-  // Check for resource collision in the UL grid.
-  const grant_info grant{ul_bwp_cfg.scs, pusch_td_cfg.symbols, crbs};
-  if (slot_alloc.ul_res_grid.collides(grant)) {
-    logger.warning("rnti={}: CG PUSCH at slot={} collides with an existing allocation, skipping", rnti, pusch_slot);
-    return false;
-  }
-
-  // Check that the PUSCH result list has capacity.
-  if (slot_alloc.result.ul.puschs.full()) {
-    logger.warning("rnti={}: CG PUSCH cannot be allocated at slot={}: PUSCH list is full", rnti, pusch_slot);
-    return false;
-  }
+  // Compute VRBs: CG PUSCH uses non-interleaved VRB-to-PRB mapping, so VRBs = PRBs.
+  const auto& cg_freq_alloc = std::get<ra_frequency_type1_configuration>(ul_grant.freq_domain_res);
+  const auto  cg_vrbs       = vrb_interval::start_and_len(cg_freq_alloc.start_vrb, cg_freq_alloc.length_vrb);
+  // NOTE: the CG PUSCH RBs and symbols have already been pre-reserved in the UL resource grid, either by
+  // reserve_slot_cg_resources() when this slot entered the resource grid, or by reserve_updated_ues_resources() right
+  // after the UE was added; hence, no collision check nor grid fill is needed here.
 
   // Compute TBS from the configured MCS and VRB count.
   const sch_mcs_index mcs_idx{ul_grant.mcs};
@@ -292,6 +371,7 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
   // Fill UL scheduling result.
   ul_sched_info& sched_info = slot_alloc.result.ul.puschs.emplace_back();
 
+  // Configured Grant repetitions are not currently supported.
   constexpr unsigned rep_idx = 0U;
   build_pusch_cs_rnti(sched_info.pusch_cfg,
                       u->ue_cfg_dedicated()->get_cs_rnti().value(),
@@ -304,7 +384,6 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
                       h_ul.value().id());
 
   // Check if there is any UCI grant allocated on the PUCCH that can be moved to the PUSCH.
-  // NOTE: aperiodic
   constexpr bool configured_grant = true;
   uci_alloc.multiplex_uci_on_pusch(sched_info, slot_alloc, ue_cfg, pusch_params.aperiodic_csi, configured_grant);
 
@@ -315,13 +394,13 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
   // Not applicable for CG Type 1 (no PDCCH timing).
   sched_info.context.k2 = 0;
   // With CG, the periodic allocated grants always contained new-tx.
-  sched_info.context.nof_retxs  = 0;
+  sched_info.context.nof_retxs  = nof_harq_retx;
   sched_info.context.nof_oh_prb = pusch_params.nof_oh_prb;
 
-  // Mark resources as allocated in the UL resource grid.
-  slot_alloc.ul_res_grid.fill(grant);
-
-  logger.debug("CG PUSCH allocated for UE={} for slot={}", rnti, pusch_slot);
+  // NOTE 1: Do not reset the SR here, as it might be needed for SRB, which we exclude from CG.
+  // NOTE 2: We should call ue_logical_channel_repository::handle_ul_grant() here, but that would not be safe, as we
+  // might wrongly update the SRB in that. Unless we defined by design that SRBs are mapped to a specific LCG (not
+  // defined by the standard), we should skip updating the LCG repository.
 
   return true;
 }

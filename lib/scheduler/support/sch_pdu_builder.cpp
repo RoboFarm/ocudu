@@ -687,21 +687,16 @@ void ocudu::build_pusch_cs_rnti(pusch_information&           pusch,
       dc_offset_helper::pack(cell_cfg.expert_cfg.ue.initial_ul_dc_offset, cell_cfg.nof_ul_prbs);
   pusch.ul_freq_shift_7p5khz = false;
   pusch.dmrs_hopping_mode    = pusch_information::dmrs_hopping_mode::no_hopping;
-
-  pusch.rnti    = cs_rnti;
-  pusch.bwp_cfg = &bwp_info.ul.cfg();
-
-  // PUSCH resources.
-  pusch.rbs       = vrbs;
-  pusch.symbols   = pusch_cfg.symbols;
-  pusch.mcs_table = pusch_cfg.mcs_table;
+  pusch.rnti                 = cs_rnti;
+  pusch.bwp_cfg              = &bwp_info.ul.cfg();
+  pusch.rbs                  = vrbs;
+  pusch.symbols              = pusch_cfg.symbols;
+  pusch.mcs_table            = pusch_cfg.mcs_table;
 
   // Backup to MSG3 transform precode in RACH-ConfigCommon if CG transform precoding is not set.
   pusch.transform_precoding = cg_cfg.trans_precoder.value_or(ue_cell_cfg.cell_cfg_common.use_msg3_transform_precoder());
   pusch.mcs_table           = pusch.transform_precoding ? cg_cfg.mcs_table_transform_precoder : cg_cfg.mcs_table;
-
-  // MCS.
-  pusch.mcs_index = mcs_tbs_info.mcs.value();
+  pusch.mcs_index           = mcs_tbs_info.mcs.value();
   // tp_pi2bpsk is only set with dynamic grants;
   constexpr bool tp_pi2bpsk_present = false;
   pusch.mcs_descr =
@@ -713,10 +708,7 @@ void ocudu::build_pusch_cs_rnti(pusch_information&           pusch,
   // This is the only value we support, as \c nPUSCH-Identity in \c cg-DMRS-Configuration is not set at the moment (ref.
   // to Section 6.4.1.1.1.2, TS 38.211).
   pusch.pusch_dmrs_id = cell_cfg.params.pci;
-
-  pusch.dmrs = pusch_cfg.dmrs;
-
-  // TBS.
+  pusch.dmrs          = pusch_cfg.dmrs;
   pusch.nof_layers    = pusch_cfg.nof_layers;
   pusch.tb_size_bytes = mcs_tbs_info.tbs;
   // TODO: Set based on CobeBook config.

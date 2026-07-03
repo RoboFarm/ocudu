@@ -193,6 +193,11 @@ bool du_cg_type1_res_mng::alloc_resources(cell_group_config& cell_grp_cfg)
     }
   }
 
+  // Set Beta_offset for UCI-on-CG.
+  if (cell_cfg.ran.init_bwp.cg_cfg->uci_beta_offsets.has_value()) {
+    ue_cg_cfg.uci_on_pusch_cfg.beta_offsets_cfg.emplace(cell_cfg.ran.init_bwp.cg_cfg->uci_beta_offsets.value());
+  }
+
   // Set the per-UE parameters.
   ue_cg_cfg.rrc_configured_ul_grant_cfg.value().time_domain_offset     = offset_val;
   ue_cg_cfg.rrc_configured_ul_grant_cfg.value().time_domain_allocation = cg_td_res_idx;

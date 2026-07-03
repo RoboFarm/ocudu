@@ -1063,6 +1063,15 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
       du_cg_params.mcs         = user_cg_cfg.mcs;
       du_cg_params.nof_harq_processes  = user_cg_cfg.nof_harq_processes;
       du_cg_params.max_nof_cell_cg_rbs = user_cg_cfg.max_nof_cell_cg_rbs;
+      beta_offsets cg_b_offsets{};
+      cg_b_offsets.beta_offset_ack_idx_1    = base_cell.pusch_cfg.beta_offset_ack_idx_1;
+      cg_b_offsets.beta_offset_ack_idx_2    = base_cell.pusch_cfg.beta_offset_ack_idx_2;
+      cg_b_offsets.beta_offset_ack_idx_3    = base_cell.pusch_cfg.beta_offset_ack_idx_3;
+      cg_b_offsets.beta_offset_csi_p1_idx_1 = base_cell.pusch_cfg.beta_offset_csi_p1_idx_1;
+      cg_b_offsets.beta_offset_csi_p1_idx_2 = base_cell.pusch_cfg.beta_offset_csi_p1_idx_2;
+      cg_b_offsets.beta_offset_csi_p2_idx_1 = base_cell.pusch_cfg.beta_offset_csi_p2_idx_1;
+      cg_b_offsets.beta_offset_csi_p2_idx_2 = base_cell.pusch_cfg.beta_offset_csi_p2_idx_2;
+      du_cg_params.uci_beta_offsets.emplace(cg_b_offsets);
       out_cell.ran.init_bwp.cg_cfg.emplace(du_cg_params);
     }
 
@@ -1338,6 +1347,7 @@ static scheduler_expert_config generate_scheduler_expert_config(const du_high_un
   out_cfg.ue.min_pucch_pusch_prb_distance                     = cell.ul_common_cfg.min_pucch_pusch_prb_distance;
   const du_high_unit_pucch_config& pucch                      = cell.pucch_cfg;
   out_cfg.ue.pucch_sinr_threshold_dB                          = pucch.sinr_threshold_dB;
+  out_cfg.ue.cg_pusch_sinr_threshold_dB                       = cell.cg_cfg.sinr_threshold_dB;
   out_cfg.ue.ul_power_ctrl.enable_pucch_cl_pw_control         = pucch.enable_closed_loop_pw_control;
   out_cfg.ue.ul_power_ctrl.pucch_f0_sinr_target_dB            = pucch.pucch_f0_sinr_target_dB;
   out_cfg.ue.ul_power_ctrl.pucch_f2_sinr_target_dB            = pucch.pucch_f2_sinr_target_dB;

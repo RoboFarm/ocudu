@@ -585,6 +585,8 @@ struct du_high_configured_grants {
   unsigned nof_harq_processes = 4;
   /// Number of RBs that are available for configured grants at cell-level. Values: {1,...,275}.
   unsigned max_nof_cell_cg_rbs = 20;
+  /// SINR threshold required for the Configured Grant PUSCH to be detected as transmitted. Range: [-30.0, 30.0].
+  float sinr_threshold_dB = -8.0;
 };
 
 struct du_high_unit_srs_config {

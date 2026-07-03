@@ -271,8 +271,9 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
                                                                                        slot_point    sl_ack_end,
                                                                                        unsigned      max_nof_harq_retxs,
                                                                                        std::optional<harq_id_t> harq_id,
-                                                                                       bool    select_normal_mode,
-                                                                                       uint8_t nof_repetitions)
+                                                                                       bool     select_normal_mode,
+                                                                                       uint8_t  nof_repetitions,
+                                                                                       unsigned cg_harq_timeout)
 {
   ue_harq_entity_impl& ue_harq_entity = ues[ue_idx];
   if (ue_harq_entity.free_harq_ids.empty()) {
@@ -285,6 +286,9 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
   ocudu_assert(not((harq_id.has_value() or ue_harq_entity.first_non_reserved_harq_id != 0) and
                    ue_harq_entity.feedback_disabled_or_mode_b_harq_present),
                "Reserved CG HARQ processes not supported with mode B or disabled feedback");
+  // This is for Configured Grant.
+  ocudu_assert(not harq_id.has_value() or cg_harq_timeout != 0,
+               "If HARQ ID is set, the HARQ timeout needs to be non-zero");
 
   // Allocation of free HARQ-id for the UE.
   if (ntn_cs_koffset > 0 && ue_harq_entity.feedback_disabled_or_mode_b_harq_present) {
@@ -307,14 +311,12 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
     }
     auto rit = std::find(ue_harq_entity.free_harq_ids.rbegin(), ue_harq_entity.free_harq_ids.rend(), harq_id.value());
     if (rit == ue_harq_entity.free_harq_ids.rend()) {
-      // CG HARQ forced reuse: the HARQ process was not freed before its next CG occurrence. This happens when the
-      // CRC was not received within nof_harq_processes × period_slots (the CG reuse period), which is shorter
-      // than DEFAULT_ACK_TIMEOUT_SLOTS. Forcibly release the stale HARQ and reuse it for the new CG transmission.
-      logger.debug("ue={} h_id={}: Forcing CG HARQ reuse (ACK not received before reuse period)",
-                   fmt::underlying(ue_idx),
-                   fmt::underlying(harq_id.value()));
+      // With a CG-specific HARQ timeout (configured_grant_timer × periodicity), the HARQ should have been
+      // freed by the timeout wheel before the next CG occasion. If this fires, the timeout is misconfigured.
+      logger.warning("rnti={} h_id={}: CG HARQ forced reuse — timeout did not release the process in time",
+                     ue_harq_entity.harqs[harq_id.value()].rnti,
+                     fmt::underlying(harq_id.value()));
       dealloc_harq(ue_harq_entity.harqs[harq_id.value()]);
-      // After dealloc, harq_id is at the back of free_harq_ids (no reallocation since capacity is pre-reserved).
       rit = ue_harq_entity.free_harq_ids.rbegin();
     }
     std::iter_swap(rit, ue_harq_entity.free_harq_ids.rbegin());
@@ -325,7 +327,6 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
                               return h_id >= first_usable_h_if;
                             });
     if (rit == ue_harq_entity.free_harq_ids.rend()) {
-      logger.warning("No free HARQ ID found with ID > {}", fmt::underlying(ue_harq_entity.first_non_reserved_harq_id));
       return nullptr;
     }
     std::iter_swap(rit, ue_harq_entity.free_harq_ids.rbegin());
@@ -360,6 +361,12 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
 
   // Add HARQ to the timeout list. The wait starts at the last transmission that can carry the feedback.
   h.slot_timeout = sl_ack_end + max_ack_wait_in_slots;
+
+  // CG-specific timeout: configured_grant_timer × periodicity slots. This ensures the HARQ is freed by the timeout
+  // wheel before the next CG occasion for the same HARQ ID.
+  if (harq_id.has_value()) {
+    h.slot_timeout = sl_ack + cg_harq_timeout;
+  }
 
   // If HARQ mode B or DL HARQ Feedback disabled, set short timeout to release and reuse process quickly.
   // Note: sl_ack - ntn_cs_koffset = k1 (or k2).
@@ -746,10 +753,11 @@ harq_utils::ul_harq_process_impl* cell_harq_manager::new_ul_tx(du_ue_index_t    
                                                                slot_point               pusch_slot,
                                                                unsigned                 max_harq_nof_retxs,
                                                                std::optional<harq_id_t> harq_id,
-                                                               bool                     select_normal_mode)
+                                                               bool                     select_normal_mode,
+                                                               unsigned                 cg_harq_timeout)
 {
-  ul_harq_process_impl* h =
-      ul.alloc_harq(ue_idx, pusch_slot, pusch_slot, pusch_slot, max_harq_nof_retxs, harq_id, select_normal_mode);
+  ul_harq_process_impl* h = ul.alloc_harq(
+      ue_idx, pusch_slot, pusch_slot, pusch_slot, max_harq_nof_retxs, harq_id, select_normal_mode, cg_harq_timeout);
   if (h == nullptr) {
     return nullptr;
   }
@@ -954,10 +962,7 @@ void unique_ue_harq_entity::reconfigure(unsigned                              ne
                nof_cg_reserved_harqs,
                cell_harq_mgr->ul.max_harqs_per_ue);
 
-  ocudulog::fetch_basic_logger("SCHED").debug("Reconfiguring HARQ with {} CG processes", nof_cg_reserved_harqs);
-
   first_non_reserved_harq_id             = to_harq_id(nof_cg_reserved_harqs);
-  get_dl_ue().first_non_reserved_harq_id = first_non_reserved_harq_id;
   get_ul_ue().first_non_reserved_harq_id = first_non_reserved_harq_id;
 
   if (cell_harq_mgr->ul.ntn_cs_koffset == 0) {
@@ -1020,7 +1025,9 @@ bool unique_ue_harq_entity::has_empty_ul_harqs(bool select_normal_mode_only) con
               get_ul_ue().harqs[h_id].status == harq_state_t::empty);
     });
   }
-  return not get_ul_ue().free_harq_ids.empty();
+  return std::any_of(get_ul_ue().free_harq_ids.begin(), get_ul_ue().free_harq_ids.end(), [&](auto h_id) {
+    return h_id >= first_non_reserved_harq_id and get_ul_ue().harqs[h_id].status == harq_state_t::empty;
+  });
 }
 
 size_t unique_ue_harq_entity::nof_empty_dl_harqs(bool select_normal_mode_only) const
@@ -1120,10 +1127,11 @@ std::optional<dl_harq_process_handle> unique_ue_harq_entity::alloc_dl_harq(slot_
 std::optional<ul_harq_process_handle> unique_ue_harq_entity::alloc_ul_harq(slot_point               sl_tx,
                                                                            unsigned                 max_harq_nof_retxs,
                                                                            std::optional<harq_id_t> harq_id,
-                                                                           bool                     select_normal_mode)
+                                                                           bool                     select_normal_mode,
+                                                                           unsigned                 cg_harq_timeout)
 {
-  ul_harq_process_impl* h =
-      cell_harq_mgr->new_ul_tx(ue_index, crnti, sl_tx, max_harq_nof_retxs, harq_id, select_normal_mode);
+  ul_harq_process_impl* h = cell_harq_mgr->new_ul_tx(
+      ue_index, crnti, sl_tx, max_harq_nof_retxs, harq_id, select_normal_mode, cg_harq_timeout);
   if (h == nullptr) {
     return std::nullopt;
   }

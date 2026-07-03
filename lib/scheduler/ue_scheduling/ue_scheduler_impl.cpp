@@ -57,6 +57,7 @@ void ue_scheduler_impl::do_stop_cell(du_cell_index_t cell_index)
   c.fallback_sched.stop();
   c.srs_sched.stop();
   c.uci_sched.stop();
+  c.cg_sched.stop();
 
   // Remove UEs from the UE repository associated with this cell.
   ue_db.handle_cell_deactivation(cell_index);

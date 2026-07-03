@@ -753,12 +753,10 @@ ue_cell_grid_allocator::setup_ul_grant_builder(const slice_ue&                  
   if (not is_retx) {
     // It is a new tx.
     // NOTE: in this scheduler, we do not request a specific HARQ-ID process.
-    h_ul = ue_cc.harqs
-               .alloc_ul_harq(pusch_alloc.slot,
-                              expert_cfg.max_nof_ul_harq_retxs,
-                              /* harq_id */ std::nullopt,
-                              user.ran_slice_id() == SRB_RAN_SLICE_ID)
-               .value();
+    h_ul = ue_cc.harqs.alloc_ul_harq(pusch_alloc.slot,
+                                     expert_cfg.max_nof_ul_harq_retxs,
+                                     /* harq_id */ std::nullopt,
+                                     user.ran_slice_id() == SRB_RAN_SLICE_ID);
     ocudu_assert(h_ul.has_value(), "Failed to allocate UL HARQ");
   } else {
     // It is a retx.

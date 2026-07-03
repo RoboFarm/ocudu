@@ -206,7 +206,7 @@ static rlc_bearer_cfg_s make_asn1_rrc_rlc_bearer(const rlc_bearer_config& cfg)
   out.mac_lc_ch_cfg.ul_specific_params.sched_request_id                = cfg.mac_cfg->sr_id;
   out.mac_lc_ch_cfg.ul_specific_params.lc_ch_sr_mask                   = cfg.mac_cfg->lc_sr_mask;
   out.mac_lc_ch_cfg.ul_specific_params.lc_ch_sr_delay_timer_applied    = cfg.mac_cfg->lc_sr_delay_applied;
-  out.mac_lc_ch_cfg.ul_specific_params.cfg_grant_type1_allowed_present = true;
+  out.mac_lc_ch_cfg.ul_specific_params.cfg_grant_type1_allowed_present = cfg.mac_cfg->cg_type1_allowed;
 
   return out;
 }

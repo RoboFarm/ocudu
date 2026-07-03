@@ -23,7 +23,7 @@ struct pusch_information {
   const bwp_configuration* bwp_cfg;
   vrb_alloc                rbs;
   ofdm_symbol_range        symbols;
-  /// \brief True is this is a PUSCH with Configured Grant.
+  /// \brief True if this is a PUSCH with Configured Grant.
   bool is_cg = false;
   /// \brief For resource allocation type 1, it indicates if intra-slot frequency hopping is enabled, as per TS38.212
   /// Section 7.3.1.1.

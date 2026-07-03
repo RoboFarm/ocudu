@@ -67,7 +67,7 @@ public:
       dl_bo.lcid     = get_lcid(key);
       int hol_toa    = ue_dl_bo_table[key].second.load(std::memory_order_relaxed);
       if (hol_toa >= 0) {
-        dl_bo.hol_toa = std::min(sl, slot_point{sl.numerology(), (unsigned)hol_toa});
+        dl_bo.hol_toa = std::min(sl, slot_point{sl.numerology(), static_cast<unsigned>(hol_toa)});
       }
       // > Extract last DL BO value for the respective bearer and reset BO table position.
       dl_bo.bs = ue_dl_bo_table[key].first.exchange(-1, std::memory_order_release);
@@ -563,7 +563,7 @@ void ue_cell_event_manager::handle_crc_indication(const ul_crc_indication& crc_i
         return event_result::processed;
       }
 
-      // \ref pusch_transmitted is true if the gnb detected the PUSCH was transmitted, false if it was DTX.
+      // \ref pusch_transmitted is true if the gnb detected that the PUSCH was transmitted, false if it was DTX.
       auto [tbs, pusch_transmitted] = crc_process_res.value();
       if (not pusch_transmitted) {
         // Log event.
@@ -578,7 +578,6 @@ void ue_cell_event_manager::handle_crc_indication(const ul_crc_indication& crc_i
       }
 
       // Process Timing Advance Offset.
-      // TODO: check if we should update TA for CG, given that we don't use SINR for other updates.
       if (crc_ptr->tb_crc_success and crc_ptr->time_advance_offset.has_value() and crc_ptr->ul_sinr_dB.has_value()) {
         u.handle_ul_n_ta_update_indication(
             ue_cc->cell_index, crc_ptr->ul_sinr_dB.value(), crc_ptr->time_advance_offset.value());
