@@ -256,7 +256,27 @@ bool csi_helper::derive_valid_csi_rs_slot_offsets(du_csi_params&                
 
 static zp_csi_rs_resource make_default_zp_csi_rs_resource(const csi_meas_config_builder_params& params)
 {
-  report_error_if_not(params.nof_ports <= 4, "Unsupported number of antenna ports={}", params.nof_ports);
+  report_error_if_not(
+      params.nof_ports <= MAX_NOF_ANTENNA_PORTS, "Unsupported number of antenna ports={}", params.nof_ports);
+
+  if (params.nof_ports == 8) {
+    // [Implementation-defined] For 8 ports TS 38.211 Table 7.4.1.5.3-1 allows Rows 6-8; Row 6 is chosen here (fd-CDM2,
+    // frequency density 1, 4 CDM groups), as is the placement (frequency positions, first OFDM symbol, period and
+    // offset).
+    zp_csi_rs_resource res{};
+    res.id                    = static_cast<zp_csi_rs_res_id_t>(0);
+    res.res_mapping.nof_ports = 8;
+    res.res_mapping.fd_alloc.resize(6);
+    res.res_mapping.fd_alloc.fill(0, 4);
+    res.res_mapping.cdm                     = csi_rs_cdm_type::fd_CDM2;
+    res.res_mapping.first_ofdm_symbol_in_td = params.csi_params.zp_csi_ofdm_symbol_index;
+    res.res_mapping.freq_density            = csi_rs_freq_density_type::one;
+    res.res_mapping.freq_band_rbs           = get_csi_freq_occupation_rbs(params.nof_rbs, params.nof_rbs);
+    res.period                              = params.csi_params.csi_rs_period;
+    res.offset                              = 2;
+
+    return res;
+  }
 
   zp_csi_rs_resource res{};
   res.id = static_cast<zp_csi_rs_res_id_t>(0);
@@ -280,7 +300,7 @@ static zp_csi_rs_resource make_default_zp_csi_rs_resource(const csi_meas_config_
 std::vector<zp_csi_rs_resource>
 ocudu::csi_helper::make_periodic_zp_csi_rs_resource_list(const csi_meas_config_builder_params& params)
 {
-  if (params.nof_ports > 4) {
+  if (params.nof_ports > 8) {
     report_error("Unsupported number of antenna ports {}", params.nof_ports);
   }
 
@@ -304,7 +324,7 @@ ocudu::csi_helper::make_periodic_zp_csi_rs_resource_list(const csi_meas_config_b
 zp_csi_rs_resource_set
 ocudu::csi_helper::make_periodic_zp_csi_rs_resource_set(const csi_meas_config_builder_params& params)
 {
-  if (params.nof_ports > 4) {
+  if (params.nof_ports > 8) {
     report_error("Unsupported number of antenna ports {}", params.nof_ports);
   }
 
@@ -387,6 +407,9 @@ static nzp_csi_rs_resource make_channel_measurement_nzp_csi_rs_resource(const cs
   res.res_mapping.nof_ports               = params.nof_ports;
   res.res_mapping.freq_density            = csi_rs_freq_density_type::one;
 
+  // Number of unique k-hat values based on TS 38.211 Table 7.4.1.5.3-1 column 5, default is 1 (k_0 only).
+  unsigned nof_k_hat = 1;
+
   // Select the amount of frequency-domain resources and the CDM configuration depending on the number of transmit
   // ports.
   if (params.nof_ports == 1) {
@@ -404,6 +427,14 @@ static nzp_csi_rs_resource make_channel_measurement_nzp_csi_rs_resource(const cs
     // possible frequency domain locations.
     res.res_mapping.fd_alloc.resize(3);
     res.res_mapping.cdm = csi_rs_cdm_type::fd_CDM2;
+  } else if (params.nof_ports == 8) {
+    // Code multiplexing of four resource elements is used when eight transmitted ports are used. This allows six
+    // possible frequency domain locations.
+    res.res_mapping.fd_alloc.resize(6);
+    res.res_mapping.cdm = csi_rs_cdm_type::fd_CDM2;
+    // Same as for ZP-CSI-RS, with 8 ports we use row 6 of TS 38.211 Table 7.4.1.5.3-1, which defines 4 k_hat values
+    // (k_0, k_1, k_2, k_3).
+    nof_k_hat = 4;
   } else {
     // Another number of ports is not currently supported.
     report_error("Number of ports {} not supported", params.nof_ports);
@@ -411,7 +442,9 @@ static nzp_csi_rs_resource make_channel_measurement_nzp_csi_rs_resource(const cs
 
   // [Implementation-defined] Select the frequency domain allocation in function of the PCI to avoid that NZP-CSI-RS
   // from neighbor cells overlap.
-  res.res_mapping.fd_alloc.set(params.pci % res.res_mapping.fd_alloc.size());
+  for (unsigned i_k = 0; i_k != nof_k_hat; ++i_k) {
+    res.res_mapping.fd_alloc.set((params.pci + i_k) % res.res_mapping.fd_alloc.size());
+  }
 
   return res;
 }
@@ -539,7 +572,7 @@ static unsigned get_subcarrier_location_from_fd_alloc_bit_location(int     fd_al
 
 static std::vector<csi_im_resource> make_csi_im_resources(const csi_meas_config_builder_params& params)
 {
-  if (params.nof_ports > 4) {
+  if (params.nof_ports > 8) {
     report_error("Unsupported number of antenna ports={}", params.nof_ports);
   }
 
@@ -664,6 +697,17 @@ make_csi_report_configs(const csi_meas_config_builder_params&                   
       // Enable all beam combinations.
       port_cfg.n1_n2_restriction_value.resize(8);
       port_cfg.n1_n2_restriction_value.fill(0, 8, true);
+      // Enable all i2 options.
+      port_cfg.typei_single_panel_codebook_subset_restriction_i2.resize(16);
+      port_cfg.typei_single_panel_codebook_subset_restriction_i2.fill(0, 16, true);
+      single_panel.nof_antenna_ports = port_cfg;
+    } else if (params.nof_ports == 8) {
+      codebook_config::type1::single_panel::more_than_two_antenna_ports port_cfg{};
+      port_cfg.n1_n2_restriction_type =
+          codebook_config::type1::single_panel::more_than_two_antenna_ports::n1_n2_restriction_type_t::four_one;
+      // Enable all beam combinations.
+      port_cfg.n1_n2_restriction_value.resize(16);
+      port_cfg.n1_n2_restriction_value.fill(0, 16, true);
       // Enable all i2 options.
       port_cfg.typei_single_panel_codebook_subset_restriction_i2.resize(16);
       port_cfg.typei_single_panel_codebook_subset_restriction_i2.fill(0, 16, true);

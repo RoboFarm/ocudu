@@ -59,6 +59,9 @@ struct du_csi_params {
 
 namespace csi_helper {
 
+/// The current CSI report helper functions only support up to 2, 4 and 8 transmit antenna ports in the downlink.
+constexpr unsigned MAX_NOF_ANTENNA_PORTS = 8;
+
 /// Extension of \c du_csi_params with other cell parameters involved in the CSI Meas Config generation.
 struct csi_meas_config_builder_params {
   /// PCI of the cell that will determine the scrambling.
