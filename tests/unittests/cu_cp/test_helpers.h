@@ -10,12 +10,12 @@
 #include "lib/cu_cp/du_processor/du_processor.h"
 #include "lib/cu_cp/ue_manager/ue_manager_impl.h"
 #include "ocudu/asn1/f1ap/f1ap.h"
+#include "ocudu/cu_cp/cu_cp_ref_time_report_notifier.h"
 #include "ocudu/ran/cause/f1ap_cause.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/async/async_task.h"
 #include "ocudu/support/async/fifo_async_task_scheduler.h"
-#include <cstdint>
 #include <list>
 #include <variant>
 
@@ -212,6 +212,15 @@ public:
   bool on_du_setup_request(cu_cp_du_index_t du_index, const std::set<plmn_identity>& plmn_ids) override { return true; }
 };
 
+class dummy_cu_cp_ref_time_report_notifier : public cu_cp_ref_time_report_notifier
+{
+public:
+  void on_ref_time_info_report(span<const nr_cell_global_id_t> served_cells,
+                               const cu_cp_ref_time_report&    report) override
+  {
+  }
+};
+
 struct dummy_ngap_ue_context_removal_handler : public ngap_ue_context_removal_handler {
 public:
   void remove_ue_context(cu_cp_ue_index_t ue_index) override { logger.info("ue={}: Removing UE", ue_index); }
@@ -230,7 +239,7 @@ struct pdu_session_modified_outcome_t {
 // Stuct to configure Bearer Context Setup/Modification result content.
 struct bearer_context_outcome_t {
   bool                outcome = false;
-  std::list<unsigned> pdu_sessions_setup_list;  // List of PDU session IDs that were successful to setup.
+  std::list<unsigned> pdu_sessions_setup_list;  // List of PDU session IDs that were successful to set up.
   std::list<unsigned> pdu_sessions_failed_list; // List of PDU sessions IDs that failed to be setup.
   std::list<pdu_session_modified_outcome_t>
       pdu_sessions_modified_list; // List of PDU session IDs that were successfully modified.
@@ -253,7 +262,7 @@ public:
       e1ap_pdu_session_resource_setup_modification_item res_setup_item;
       res_setup_item.pdu_session_id = uint_to_pdu_session_id(psi);
 
-      // Add a single DRB with the same ID like the PDU session it belongs to.
+      // Add a single DRB with the same ID as the PDU session it belongs to.
       drb_id_t                   drb_id = uint_to_drb_id(psi); // Note: we use the PDU session ID here also as DRB ID
       e1ap_drb_setup_item_ng_ran drb_item;
       drb_item.drb_id = drb_id;
@@ -303,7 +312,7 @@ public:
       res_mod_item.pdu_session_id = modified_item.psi;
 
       for (const auto& drb_id : modified_item.drb_added) {
-        // Add a single DRB with the same ID like the PDU session it belongs to.
+        // Add a single DRB with the same ID as the PDU session it belongs to.
         e1ap_drb_setup_item_ng_ran drb_item;
         drb_item.drb_id = drb_id;
 
@@ -339,8 +348,8 @@ public:
     // Store msg to verify content in TC.
     first_e1ap_request = msg;
 
-    return launch_async([res = e1ap_bearer_context_setup_response{}, msg, this](
-                            coro_context<async_task<e1ap_bearer_context_setup_response>>& ctx) mutable {
+    return launch_async([res = e1ap_bearer_context_setup_response{},
+                         this](coro_context<async_task<e1ap_bearer_context_setup_response>>& ctx) mutable {
       CORO_BEGIN(ctx);
 
       if (first_e1ap_response.has_value()) {
@@ -443,7 +452,7 @@ private:
 
 struct ue_context_outcome_t {
   bool                outcome = false;
-  std::list<unsigned> drb_success_list; // List of DRB IDs that were successful to setup.
+  std::list<unsigned> drb_success_list; // List of DRB IDs that were successful to set up.
   std::list<unsigned> drb_failed_list;  // List of DRB IDs that failed to be setup.
   std::list<unsigned> drb_removed_list; // List of DRB IDs that were removed.
   byte_buffer         cell_group_cfg = make_byte_buffer("5800b24223c853a0120c7c080408c008").value();
@@ -562,7 +571,7 @@ public:
   timer_factory  get_timer_factory() override { return timer_factory{timer_db, exec}; }
   task_executor& get_executor() override { return exec; }
 
-  void tick_timer() { timer_db.tick(); }
+  void tick_timer() const { timer_db.tick(); }
 
 private:
   fifo_async_task_scheduler ctrl_loop{16};
@@ -716,7 +725,7 @@ public:
 
   rrc_ue_transfer_context get_transfer_context() override
   {
-    logger.info("Received a new request to get RRC UE trasnfer context");
+    logger.info("Received a new request to get RRC UE transfer context");
     return rrc_ue_transfer_context{};
   }
 

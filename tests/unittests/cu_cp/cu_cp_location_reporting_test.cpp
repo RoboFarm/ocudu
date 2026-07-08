@@ -59,7 +59,7 @@ public:
     if (ue_ctx == nullptr) {
       return false;
     }
-    if (!setup_ue_security_and_ue_capabilies(du_idx, du_ue_id, std::nullopt, true, loc_req)) {
+    if (!setup_ue_security_and_ue_capabilities(du_idx, du_ue_id, std::nullopt, true, loc_req)) {
       return false;
     }
 

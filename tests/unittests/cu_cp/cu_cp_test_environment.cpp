@@ -46,8 +46,6 @@ public:
   std::unique_ptr<task_executor> exec{std::make_unique<task_worker_executor>(worker)};
 };
 
-// ////
-
 cu_cp_test_environment::cu_cp_test_environment(cu_cp_test_env_params params_) :
   params(std::move(params_)),
   cu_cp_workers(std::make_unique<worker_manager>()),
@@ -76,7 +74,8 @@ cu_cp_test_environment::cu_cp_test_environment(cu_cp_test_env_params params_) :
   cu_cp_cfg.bearers.drb_config            = config_helpers::make_default_cu_cp_qos_config_list();
   // Fill NGAP config.
   for (const auto& [amf_index, amf_config] : amf_configs) {
-    cu_cp_cfg.ngap.ngaps.push_back(cu_cp_configuration::ngap_config{&*amf_config.amf_stub, amf_config.supported_tas});
+    cu_cp_cfg.ngap.n2_gws.push_back(&*amf_config.amf_stub);
+    cu_cp_cfg.ngap.ngaps.push_back(cu_cp_configuration::ngap_config{amf_config.supported_tas});
   }
   // Fill XNAP config. Each peer test stub becomes its own XnAP gateway; record the peer-gateway mapping.
   for (const auto& [_, peer] : xnc_peers) {
@@ -295,7 +294,7 @@ bool cu_cp_test_environment::tick_until(std::chrono::milliseconds    timeout,
       // Need to tick the clock.
       tick();
 
-      std::lock_guard<std::mutex> lock(mutex);
+      std::scoped_lock lock(mutex);
       done = true;
       cvar.notify_one();
     });
@@ -502,7 +501,7 @@ bool cu_cp_test_environment::run_f1_setup(unsigned                              
                                           const std::vector<test_helpers::served_cell_item_info>& cells)
 {
   f1ap_message f1_setup_req = test_helpers::generate_f1_setup_request(gnb_du_id, cells);
-  rrc_test_timer_values     = get_timers(f1_setup_req.pdu.init_msg().value.f1_setup_request());
+  rrc_test_timer_values     = ocucp::get_timers(f1_setup_req.pdu.init_msg().value.f1_setup_request());
   get_du(du_idx).push_ul_pdu(f1_setup_req);
   f1ap_message f1ap_pdu;
   bool         result = this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu);
@@ -658,7 +657,7 @@ bool cu_cp_test_environment::authenticate_ue(unsigned du_idx, gnb_du_ue_f1ap_id_
   return result;
 }
 
-bool cu_cp_test_environment::setup_ue_security_and_ue_capabilies(
+bool cu_cp_test_environment::setup_ue_security_and_ue_capabilities(
     unsigned                                                   du_idx,
     gnb_du_ue_f1ap_id_t                                        du_ue_id,
     std::optional<cu_cp_core_network_assist_info_for_inactive> cn_assist_info_for_inactive,
@@ -746,9 +745,8 @@ bool cu_cp_test_environment::setup_ue_security_and_ue_capabilies(
 }
 
 std::optional<ngap_message> cu_cp_test_environment::get_location_report_if_required(
-    std::optional<location_report_request> location_reporting_request)
+    const std::optional<location_report_request>& location_reporting_request)
 {
-  ngap_message ngap_pdu;
   // Wait for location report, if required.
   if (location_reporting_request.has_value()) {
     using event_type = location_report_request::event_type;
@@ -756,7 +754,8 @@ std::optional<ngap_message> cu_cp_test_environment::get_location_report_if_requi
         location_reporting_request->location_reporting_type == event_type::change_of_serve_cell ||
         location_reporting_request->location_reporting_type ==
             event_type::change_of_serving_cell_and_ue_presence_in_the_area_of_interest) {
-      bool result = this->wait_for_ngap_tx_pdu(ngap_pdu);
+      ngap_message ngap_pdu;
+      bool         result = this->wait_for_ngap_tx_pdu(ngap_pdu);
       report_fatal_error_if_not(result, "Failed to transmit Location Report");
       report_fatal_error_if_not(test_helpers::is_valid_location_report(ngap_pdu), "Invalid Location Report");
 
@@ -1095,11 +1094,11 @@ bool cu_cp_test_environment::attach_ue(
   if (not authenticate_ue(du_idx, du_ue_id, amf_ue_id)) {
     return false;
   }
-  if (not setup_ue_security_and_ue_capabilies(du_idx,
-                                              du_ue_id,
-                                              std::move(cn_assist_info_for_inactive),
-                                              rrc_inactive_supported,
-                                              std::move(location_reporting_request))) {
+  if (not setup_ue_security_and_ue_capabilities(du_idx,
+                                                du_ue_id,
+                                                std::move(cn_assist_info_for_inactive),
+                                                rrc_inactive_supported,
+                                                std::move(location_reporting_request))) {
     return false;
   }
 

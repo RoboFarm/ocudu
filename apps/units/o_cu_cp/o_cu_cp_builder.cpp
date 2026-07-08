@@ -18,7 +18,6 @@
 #include "ocudu/cu_cp/cu_cp_executor_mapper.h"
 #include "ocudu/cu_cp/o_cu_cp_config.h"
 #include "ocudu/cu_cp/o_cu_cp_factory.h"
-#include "ocudu/e2/e2_cu_metrics_connector.h"
 
 using namespace ocudu;
 
@@ -39,8 +38,8 @@ build_cu_cp_metrics_config(std::vector<app_services::metrics_config>&   cu_cp_se
   metrics_service_cfg.callback                      = cu_cp_metrics_callback;
   metrics_service_cfg.producers.push_back(std::move(metrics_generator));
 
-  const app_helpers::metrics_config& unit_metrics_cfg = cu_cp_metrics_cfg.common_metrics_cfg;
-  if (unit_metrics_cfg.enable_json_metrics) {
+  if (const app_helpers::metrics_config& unit_metrics_cfg = cu_cp_metrics_cfg.common_metrics_cfg;
+      unit_metrics_cfg.enable_json_metrics) {
     report_error_if_not(remote_metrics_gateway,
                         "Invalid remote server gateway for sending JSON metrics. Check that remote server is enabled");
     metrics_service_cfg.consumers.push_back(std::make_unique<cu_cp_metrics_consumer_json>(*remote_metrics_gateway));
@@ -56,7 +55,7 @@ build_cu_cp_metrics_config(std::vector<app_services::metrics_config>&   cu_cp_se
   return out;
 }
 
-o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, o_cu_cp_unit_dependencies& dependencies)
+o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, const o_cu_cp_unit_dependencies& dependencies)
 {
   ocudu_assert(dependencies.executor_mapper, "Invalid CU-CP executor mapper");
   ocudu_assert(dependencies.ngap_pcap, "Invalid NGAP PCAP");
@@ -75,8 +74,7 @@ o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, o_cu_cp_u
   o_cu_cp_unit ocucp;
   auto         e2_metric_connectors = std::make_unique<e2_cu_metrics_connector_manager>();
 
-  cu_cp_cfg.metrics.metrics_report_period = std::chrono::milliseconds(unit_cfg.cucp_cfg.metrics.cu_cp_report_period);
-  cu_cp_cfg.metrics_notifier              = build_cu_cp_metrics_config(ocucp.metrics,
+  cu_cp_cfg.metrics_notifier = build_cu_cp_metrics_config(ocucp.metrics,
                                                           *dependencies.metrics_notifier,
                                                           dependencies.remote_metrics_gateway,
                                                           unit_cfg.cucp_cfg.metrics,
@@ -103,7 +101,7 @@ o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, o_cu_cp_u
   }
 
   for (unsigned i = 0, e = n2_clients.size(); i != e; ++i) {
-    cu_cp_cfg.ngap.ngaps[i].n2_gw = n2_clients[i].get();
+    cu_cp_cfg.ngap.n2_gws[i] = n2_clients[i].get();
   }
 
   ocucp::o_cu_cp_dependencies ocu_dependencies;
@@ -116,7 +114,7 @@ o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, o_cu_cp_u
                            cucp_unit_cfg.gnb_id,
                            cucp_unit_cfg.amf_config.amf.supported_tas.front().plmn_list.front().plmn_id);
     ocu_dependencies.e2_client          = dependencies.e2_gw;
-    ocu_dependencies.e2_cu_metric_iface = &(*e2_metric_connectors).get_e2_metrics_interface(0);
+    ocu_dependencies.e2_cu_metric_iface = &e2_metric_connectors->get_e2_metrics_interface(0);
   }
 
   ocucp.unit = std::make_unique<o_cu_cp_unit_impl>(

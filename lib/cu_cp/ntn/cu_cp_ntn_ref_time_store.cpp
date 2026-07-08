@@ -8,6 +8,7 @@
 #include "ocudu/ntn/ntn_configuration_manager_dependencies.h"
 #include "ocudu/ntn/ntn_configuration_manager_factory.h"
 #include "ocudu/ntn/ntn_meas_info_update_handler.h"
+#include "ocudu/ran/meas_types.h"
 
 using namespace ocudu;
 
