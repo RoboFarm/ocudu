@@ -90,11 +90,6 @@ bool operator==(const ofdm_modulator_configuration& left, const ofdm_modulator_c
          (left.cp == right.cp) && (left.scale == right.scale) && (left.center_freq_Hz == right.center_freq_Hz);
 }
 
-bool operator==(span<const cf_t> left, span<const cf_t> right)
-{
-  return std::equal(left.begin(), left.end(), right.begin(), right.end());
-}
-
 bool operator==(const baseband_gateway_buffer_reader& left, const baseband_gateway_buffer_reader& right)
 {
   if (left.get_nof_channels() != right.get_nof_channels()) {

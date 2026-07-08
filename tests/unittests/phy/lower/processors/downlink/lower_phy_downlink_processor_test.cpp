@@ -5,6 +5,7 @@
 #include "downlink_processor_notifier_test_doubles.h"
 #include "pdxch/pdxch_processor_notifier_test_doubles.h"
 #include "pdxch/pdxch_processor_test_doubles.h"
+#include "support/compare_sequences.h"
 #include "ocudu/gateways/baseband/buffer/baseband_gateway_buffer_reader_view.h"
 #include "ocudu/phy/antenna_ports.h"
 #include "ocudu/phy/lower/processors/downlink/downlink_processor_baseband.h"
@@ -71,11 +72,6 @@ std::ostream& operator<<(std::ostream& os, const pdxch_processor_configuration& 
 bool operator==(const pdxch_processor_baseband::slot_context left, const pdxch_processor_baseband::slot_context right)
 {
   return (left.slot == right.slot) && (left.sector == right.sector);
-}
-
-bool operator==(span<const cf_t> left, span<const cf_t> right)
-{
-  return std::equal(left.begin(), left.end(), right.begin(), right.end());
 }
 
 bool operator==(const baseband_gateway_buffer_reader& left, const baseband_gateway_buffer_reader& right)
@@ -349,6 +345,9 @@ TEST_P(LowerPhyDownlinkProcessorFixture, UnalignedFlow)
       ASSERT_EQ(pdxch_proc_entries.size(), 1);
       auto& pdxch_proc_entry = pdxch_proc_entries.back();
       ASSERT_EQ(pdxch_proc_entry.context, slot_context);
+
+      // The PDxCH processor returns the full slot, while the resulting baseband buffer is resized to the remaining
+      // samples until the next slot boundary. They must therefore differ.
       ASSERT_NE(pdxch_proc_entry.samples, result.buffer->get_reader());
     } else {
       // Assert PDxCH processor call.
@@ -356,7 +355,14 @@ TEST_P(LowerPhyDownlinkProcessorFixture, UnalignedFlow)
       ASSERT_EQ(pdxch_proc_entries.size(), 1);
       auto& pdxch_proc_entry = pdxch_proc_entries.back();
       ASSERT_EQ(pdxch_proc_entry.context, slot_context);
-      ASSERT_EQ(pdxch_proc_entry.samples, result.buffer->get_reader());
+      {
+        baseband_gateway_buffer_read_only expected(result.buffer->get_reader());
+        for (unsigned channel = 0; channel != pdxch_proc_entry.samples.get_nof_channels(); ++channel) {
+          error_type<std::string> compare_result = compare_sequences(
+              pdxch_proc_entry.samples.get_channel_buffer(channel), expected.get_channel_buffer(channel));
+          ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+        }
+      }
     }
 
     // Assert the slot boundary. The slot must be notified always.

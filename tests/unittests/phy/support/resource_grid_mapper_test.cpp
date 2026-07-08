@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
+#include "support/compare_sequences.h"
 #include "ocudu/ocuduvec/zero.h"
 #include "ocudu/phy/generic_functions/precoding/precoding_factories.h"
 #include "ocudu/phy/support/re_pattern.h"
@@ -37,21 +38,6 @@ static float get_tolerance(cf_t expected_value)
   return std::max(std::abs(expected_value) / 256.0F, 1e-5F);
 }
 
-static std::ostream& operator<<(std::ostream& os, span<const cf_t> data)
-{
-  fmt::print(os, "{}", data);
-  return os;
-}
-
-static bool operator==(span<const cf_t> lhs, span<const cf_t> rhs)
-{
-  return std::equal(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), [](cf_t lhs_val, cf_t rhs_val) {
-    float expected_error = std::min(get_tolerance(lhs_val), get_tolerance(rhs_val));
-    float error          = std::abs(lhs_val - rhs_val);
-    return (error < expected_error);
-  });
-}
-
 } // namespace ocudu
 
 // Asserts that the contents of the resource grid match the golden symbols for the give allocation pattern.
@@ -78,7 +64,17 @@ static void assert_grid(const re_buffer_reader<>&   golden,
       grid.get(grid_symbols, i_port, i_symbol, 0, re_mask);
 
       // Assert symbols.
-      ASSERT_EQ(span<const cf_t>(golden_symbol.get_slice(i_port)), span<const cf_t>(grid_symbols));
+      {
+        error_type<std::string> compare_result = compare_sequences(
+            span<const cf_t>(grid_symbols),
+            span<const cf_t>(golden_symbol.get_slice(i_port)),
+            [](const cf_t& actual, const cf_t& expected) {
+              // Each element carries its own tolerance depending on its magnitude.
+              return std::abs(actual - expected) / std::min(get_tolerance(actual), get_tolerance(expected));
+            },
+            1.0F);
+        ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+      }
 
       // Get the rest of the symbols from the grid.
       std::vector<cf_t> grid_zeros(re_mask.size() - re_count);
@@ -90,7 +86,11 @@ static void assert_grid(const re_buffer_reader<>&   golden,
       grid.get(grid_zeros, i_port, i_symbol, 0, ~re_mask);
 
       // Assert that all the grid locations not included in the grid allocation are set to zero.
-      ASSERT_EQ(span<const cf_t>(golden_zeros), span<const cf_t>(grid_zeros));
+      {
+        error_type<std::string> compare_result =
+            compare_sequences(span<const cf_t>(grid_zeros), span<const cf_t>(golden_zeros));
+        ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+      }
     }
 
     // Advance views.

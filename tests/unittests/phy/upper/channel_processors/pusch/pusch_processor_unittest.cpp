@@ -9,9 +9,9 @@
 #include "pusch_decoder_test_doubles.h"
 #include "pusch_demodulator_test_doubles.h"
 #include "pusch_processor_result_test_doubles.h"
+#include "support/compare_sequences.h"
 #include "ulsch_demultiplex_test_doubles.h"
 #include "ocudu/ocudulog/ocudulog.h"
-#include "ocudu/ocuduvec/compare.h"
 #include "ocudu/phy/upper/channel_processors/pusch/factories.h"
 #include "ocudu/ran/pusch/ulsch_info.h"
 #include "ocudu/ran/resource_block.h"
@@ -51,11 +51,6 @@ std::ostream& operator<<(std::ostream& os, uci_status value)
 {
   fmt::print(os, "{}", to_string(value));
   return os;
-}
-
-static bool operator==(span<const log_likelihood_ratio> left, span<const log_likelihood_ratio> right)
-{
-  return ocuduvec::equal(left, right);
 }
 
 } // namespace ocudu
@@ -417,7 +412,11 @@ TEST_P(PuschProcessorFixture, PuschProcessorUnittest)
   // Assert demux if UCI is multiplexed.
   ASSERT_EQ(1, demux_spy->get_demultiplex_entries().size());
   const ulsch_demultiplex_spy::demultiplex_entry& demux_entry = demux_spy->get_demultiplex_entries().front();
-  ASSERT_EQ(demodulator_entry.codeword, demux_entry.input.get_data());
+  {
+    error_type<std::string> compare_result =
+        compare_sequences(span<const log_likelihood_ratio>(demodulator_entry.codeword), demux_entry.input.get_data());
+    ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+  }
   ASSERT_EQ(demodulator_entry.scrambling_seq, demux_entry.input.get_scrambling_seq());
   ASSERT_EQ(pdu.mcs_descr.modulation, demux_entry.config.modulation);
   ASSERT_EQ(pdu.nof_tx_layers, demux_entry.config.nof_layers);
@@ -439,7 +438,11 @@ TEST_P(PuschProcessorFixture, PuschProcessorUnittest)
     ASSERT_EQ(decoder_entry.transport_block.data(), transport_block.data());
     ASSERT_EQ(decoder_entry.transport_block.size(), transport_block.size());
     ASSERT_EQ(&rm_buffer_spy, &decoder_entry.rm_buffer.get());
-    ASSERT_EQ(span<const log_likelihood_ratio>(demux_entry.sch_data), decoder_entry.input.get_data());
+    {
+      error_type<std::string> compare_result =
+          compare_sequences(span<const log_likelihood_ratio>(demux_entry.sch_data), decoder_entry.input.get_data());
+      ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+    }
     ASSERT_EQ(pdu.codeword.value().ldpc_base_graph, decoder_entry.config.base_graph);
     ASSERT_EQ(pdu.mcs_descr.modulation, decoder_entry.config.mod);
     ASSERT_EQ(expected_Nref.value(), decoder_entry.config.Nref);
@@ -468,8 +471,11 @@ TEST_P(PuschProcessorFixture, PuschProcessorUnittest)
   // Assert HARQ-ACK decoder inputs.
   if (pdu.uci.nof_harq_ack > 0) {
     const uci_decoder_spy::entry_t& uci_dec_entry = uci_dec_spy->get_entries()[uci_decoder_idx++];
-    ASSERT_EQ(span<const log_likelihood_ratio>(demux_entry.harq_ack),
-              span<const log_likelihood_ratio>(uci_dec_entry.llr));
+    {
+      error_type<std::string> compare_result = compare_sequences(span<const log_likelihood_ratio>(demux_entry.harq_ack),
+                                                                 span<const log_likelihood_ratio>(uci_dec_entry.llr));
+      ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+    }
     ASSERT_EQ(pdu.mcs_descr.modulation, uci_dec_entry.config.modulation);
 
     uci_payload_type packed_harq_ack(uci_dec_entry.message.begin(), uci_dec_entry.message.end());
@@ -487,8 +493,11 @@ TEST_P(PuschProcessorFixture, PuschProcessorUnittest)
   // Assert CSI Part 1 decoder inputs.
   if (pdu.uci.nof_csi_part1 > 0) {
     const uci_decoder_spy::entry_t& uci_dec_entry = uci_dec_spy->get_entries()[uci_decoder_idx++];
-    ASSERT_EQ(span<const log_likelihood_ratio>(demux_entry.csi_part1),
-              span<const log_likelihood_ratio>(uci_dec_entry.llr));
+    {
+      error_type<std::string> compare_result = compare_sequences(
+          span<const log_likelihood_ratio>(demux_entry.csi_part1), span<const log_likelihood_ratio>(uci_dec_entry.llr));
+      ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+    }
     ASSERT_EQ(pdu.mcs_descr.modulation, uci_dec_entry.config.modulation);
 
     uci_payload_type packed_csi_part1(uci_dec_entry.message.begin(), uci_dec_entry.message.end());

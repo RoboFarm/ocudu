@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
+#include "support/compare_sequences.h"
 #include "ocudu/adt/detail/concurrent_queue_params.h"
 #include "ocudu/phy/upper/log_likelihood_ratio.h"
 #include "ocudu/phy/upper/rx_buffer_decoder_callback.h"
@@ -15,11 +16,6 @@
 using namespace ocudu;
 
 namespace ocudu {
-
-bool operator==(span<const bool> left, span<const bool> right)
-{
-  return std::equal(left.begin(), left.end(), right.begin(), right.end());
-}
 
 /// \brief Tries to reserve buffers from a pool for a number of trials with a waiting time after every failed
 /// reservation.
@@ -359,7 +355,11 @@ TEST(rx_buffer_pool, buffer_resize)
 
   // Check the CRC have been reset.
   std::array<bool, max_nof_codeblocks - 1> expected_crc = {false};
-  ASSERT_EQ(buffer->get_codeblocks_crc(), span<const bool>(expected_crc));
+  {
+    error_type<std::string> compare_result =
+        compare_sequences(span<const bool>(buffer->get_codeblocks_crc()), span<const bool>(expected_crc));
+    ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+  }
 }
 
 // Tests that the pool returns an invalid buffer upon a retransmission with an incorrect number of CBs.

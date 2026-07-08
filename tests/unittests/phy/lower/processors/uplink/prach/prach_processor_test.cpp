@@ -7,6 +7,7 @@
 #include "../../../modulation/ofdm_prach_demodulator_test_doubles.h"
 #include "prach_processor_notifier_test_doubles.h"
 #include "prach_processor_test_doubles.h"
+#include "support/compare_sequences.h"
 #include "ocudu/gateways/baseband/buffer/baseband_gateway_buffer_dynamic.h"
 #include "ocudu/gateways/baseband/buffer/baseband_gateway_buffer_reader_view.h"
 #include "ocudu/ocuduvec/conversion.h"
@@ -70,11 +71,6 @@ auto to_tuple(const prach_buffer_context& context)
 bool operator==(const prach_buffer_context& rhs, const prach_buffer_context& lhs)
 {
   return to_tuple(rhs) == to_tuple(lhs);
-}
-
-bool operator==(span<const cf_t> rhs, span<const cf_t> lhs)
-{
-  return std::equal(rhs.begin(), rhs.end(), lhs.begin(), lhs.end());
 }
 
 } // namespace ocudu
@@ -512,7 +508,11 @@ TEST_P(PrachProcessorFixture, SingleBasebandSymbols)
   ASSERT_EQ(demodulate_entry.config.format, context.format);
   ASSERT_EQ(demodulate_entry.config.rb_offset, context.rb_offset);
   ASSERT_EQ(demodulate_entry.config.nof_prb_ul_grid, context.nof_prb_ul_grid);
-  ASSERT_EQ(span<const cf_t>(demodulate_entry.input), cf_buffer);
+  {
+    error_type<std::string> compare_result =
+        compare_sequences(span<const cf_t>(demodulate_entry.input), span<const cf_t>(cf_buffer));
+    ASSERT_TRUE(compare_result.has_value()) << compare_result.error();
+  }
 
   // Verify the received PRACH window has been processed.
   ASSERT_EQ(1, notifier_spy.get_nof_notifications());
