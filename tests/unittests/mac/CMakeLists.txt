@@ -16,6 +16,7 @@ add_executable(mac_test
         mac_ul_processor_test.cpp
         mac_rlf_detector_test.cpp
         mac_cell_processor_test.cpp
+        cell_dl_harq_buffer_pool_test.cpp
         dl_sch_pdu_assembler_test.cpp
         mac_rar_pdu_assembler_test.cpp
         sib_pdu_assembler_test.cpp

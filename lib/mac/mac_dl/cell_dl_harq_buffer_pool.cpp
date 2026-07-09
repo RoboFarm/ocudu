@@ -10,8 +10,9 @@ using namespace ocudu;
 /// Derive maximum TB/MAC PDU length given a cell parameters.
 static units::bytes derive_max_pdu_length(unsigned cell_nof_prbs, unsigned nof_ports)
 {
-  ocudu_assert(nof_ports >= 1 and nof_ports <= pdsch_constants::CODEWORD_MAX_NOF_LAYERS, "Invalid number of ports");
-  units::bits cw_max_size{pdsch_constants::MAX_NRE_PER_RB * cell_nof_prbs * nof_ports *
+  ocudu_assert(nof_ports >= 1, "Invalid number of ports");
+  units::bits cw_max_size{pdsch_constants::MAX_NRE_PER_RB * cell_nof_prbs *
+                          std::min(nof_ports, pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD) *
                           pdsch_constants::MAX_MODULATION_ORDER};
   return cw_max_size.round_up_to_bytes();
 }
