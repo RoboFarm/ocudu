@@ -964,15 +964,19 @@ static bool validate_pucch_cell_unit_config(const du_high_unit_base_cell_config&
 
   // Make sure the PUCCH has the minimum required payload for the given number of antennas.
   if (config.nof_antennas_dl == 1 and f2_f3_f4_max_payload < 4U) {
-    fmt::print("With the given parameters and 1 DL antenna, PUCCH F2 max payload must be at least 4 bits.\n");
+    fmt::print("With the given parameters and 1 DL antenna, PUCCH F2/3/4 max payload must be at least 4 bits.\n");
     return false;
   }
   if (config.nof_antennas_dl == 2 and f2_f3_f4_max_payload < 7U) {
-    fmt::print("With the given parameters and 2 DL antennas, PUCCH F2 max payload must be at least 7 bits.\n");
+    fmt::print("With the given parameters and 2 DL antennas, PUCCH F2/3/4 max payload must be at least 7 bits.\n");
     return false;
   }
   if (config.nof_antennas_dl == 4 and f2_f3_f4_max_payload < 11U) {
-    fmt::print("With the given parameters and 4 DL antennas, PUCCH F2 max payload must be at least 11 bits.\n");
+    fmt::print("With the given parameters and 4 DL antennas, PUCCH F2/3/4 max payload must be at least 11 bits.\n");
+    return false;
+  }
+  if (config.nof_antennas_dl == 8 and f2_f3_f4_max_payload < 13U) {
+    fmt::print("With the given parameters and 8 DL antennas, PUCCH F2/3/4 max payload must be at least 13 bits.\n");
     return false;
   }
 
