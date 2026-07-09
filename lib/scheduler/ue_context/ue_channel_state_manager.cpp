@@ -3,6 +3,8 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_channel_state_manager.h"
+#include "ocudu/ran/pdsch/pdsch_constants.h"
+#include <algorithm>
 
 using namespace ocudu;
 
@@ -54,7 +56,9 @@ bool ue_channel_state_manager::handle_csi_report(const csi_report_data& csi_repo
     if (csi_report.ri.value() > nof_dl_ports) {
       return false;
     }
-    recommended_dl_layers = csi_report.ri.value().value();
+    // Limit to a single codeword layers limit (MAX_NOF_LAYERS_PER_CODEWORD), as two codewords are not yet supported.
+    recommended_dl_layers =
+        std::min<unsigned>(csi_report.ri.value().value(), pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD);
   }
 
   if (csi_report.pmi.has_value()) {

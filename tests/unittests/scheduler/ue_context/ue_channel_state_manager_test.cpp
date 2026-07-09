@@ -76,3 +76,44 @@ TEST(ue_channel_state_manager_test, eight_ports_use_four_one_codebook)
         << "unexpected codebook for nof_layers=" << nof_layers;
   }
 }
+
+// An RI above the single-codeword layer limit is clamped to MAX_NOF_LAYERS_PER_CODEWORD.
+TEST(ue_channel_state_manager_test, ri_above_single_codeword_limit_is_limited)
+{
+  ue_channel_state_manager csm = make_channel_state_manager(8);
+
+  csi_report_data report;
+  report.ri = csi_report_data::ri_type{6};
+  report.pmi =
+      pmi_typeI_single_panel{.panel_config = {pmi_codebook_single_panel_config::four_one, pmi_codebook_typeI_mode::one},
+                             .i_1_1        = 0,
+                             .i_1_2        = std::nullopt,
+                             .i_1_3        = std::nullopt,
+                             .i_2          = 0};
+
+  EXPECT_TRUE(csm.handle_csi_report(report));
+  EXPECT_EQ(csm.get_nof_dl_layers(), pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD);
+}
+
+// An RI within the single-codeword layer limit is used verbatim.
+TEST(ue_channel_state_manager_test, ri_within_limit_is_used)
+{
+  ue_channel_state_manager csm = make_channel_state_manager(8);
+
+  csi_report_data report;
+  report.ri = csi_report_data::ri_type{3};
+
+  EXPECT_TRUE(csm.handle_csi_report(report));
+  EXPECT_EQ(csm.get_nof_dl_layers(), 3);
+}
+
+// An RI that exceeds the number of DL ports is invalid and the report is rejected.
+TEST(ue_channel_state_manager_test, ri_above_nof_ports_is_rejected)
+{
+  ue_channel_state_manager csm = make_channel_state_manager(4);
+
+  csi_report_data report;
+  report.ri = csi_report_data::ri_type{5};
+
+  EXPECT_FALSE(csm.handle_csi_report(report));
+}
