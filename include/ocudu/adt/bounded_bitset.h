@@ -690,6 +690,25 @@ public:
     return any_found;
   }
 
+  /// \brief Checks if all bits set to 1 in this bitset, within a bit index range, are also set to 1 in "other".
+  /// \param[in] other Bitset to compare against. Must have the same size as this bitset.
+  /// \param[in] start Starting bit index of the range (included).
+  /// \param[in] stop End bit index of the range (excluded).
+  /// \return Returns true if this bitset restricted to [start, stop) is a subset of "other", false otherwise.
+  bool is_subset_of(const bounded_bitset& other, size_t start, size_t stop) const
+  {
+    ocudu_assert(other.size() == size(),
+                 "ERROR: is_subset_of called for bitsets of different sizes ('{}'!='{}')",
+                 size(),
+                 other.size());
+    // A bit set in "this" but not in "other" (within the mask) breaks the subset relation.
+    bool not_subset = find_first_word_(*this, start, stop, [this, &other](const word_t& w, const word_t& mask) {
+      const size_t i = &w - buffer.data();
+      return (w & ~other.buffer[i] & mask) != static_cast<word_t>(0);
+    });
+    return not not_subset;
+  }
+
   /// \brief Checks if at no bit in the bitset is set to 1.
   /// \return Returns true if no bit equal to 1 was found.
   bool none() const noexcept { return !any(); }

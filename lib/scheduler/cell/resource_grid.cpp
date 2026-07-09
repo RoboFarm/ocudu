@@ -90,12 +90,11 @@ bool carrier_subslot_resource_grid::collides(ofdm_symbol_range                  
   crbs.displace_by(-static_cast<int>(offset()));
   for (unsigned sym = symbols.start(), sym_stop = symbols.stop(); sym != sym_stop; ++sym) {
     if (ignore_rg != nullptr) {
-      // Check RB by RB for collision, ignoring RBs set in ignore_rg.
-      for (unsigned crb = crbs.start(), crb_stop = crbs.stop(); crb != crb_stop; ++crb) {
-        size_t pos = crb + sym * nof_rbs();
-        if (slot_rbs.test(pos) and (not ignore_rg->slot_rbs.test(pos))) {
-          return true;
-        }
+      // Collision if some RB is set in this grid but not in ignore_rg, within the given range.
+      const size_t start_pos = crbs.start() + sym * nof_rbs();
+      const size_t stop_pos  = crbs.stop() + sym * nof_rbs();
+      if (not slot_rbs.is_subset_of(ignore_rg->slot_rbs, start_pos, stop_pos)) {
+        return true;
       }
       continue;
     }
