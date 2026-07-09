@@ -192,6 +192,12 @@ error_type<pucch_alloc_failure> pucch_collision_manager::can_alloc(const cell_sl
     return make_unexpected(pucch_alloc_failure::RESOURCE_IN_USE);
   }
 
+  // Check for PUCCH-to-PUCCH collisions using the collision matrix.
+  const auto& row = col_matrix[res_idx];
+  if ((row & ctx.current_state).any()) {
+    return make_unexpected(pucch_alloc_failure::PUCCH_COLLISION);
+  }
+
   // Check for PUCCH-to-other UL grant collisions using the resource grids.
   const grant_info                first_hop = pucch_hop_grant(res, bwp_cfg, true);
   const std::optional<grant_info> second_hop =
@@ -201,12 +207,6 @@ error_type<pucch_alloc_failure> pucch_collision_manager::can_alloc(const cell_sl
   }
   if (second_hop.has_value() and slot_alloc.ul_res_grid.collides(*second_hop, &ctx.pucch_res_grid)) {
     return make_unexpected(pucch_alloc_failure::UL_GRANT_COLLISION);
-  }
-
-  // Check for PUCCH-to-PUCCH collisions using the collision matrix.
-  const auto& row = col_matrix[res_idx];
-  if ((row & ctx.current_state).any()) {
-    return make_unexpected(pucch_alloc_failure::PUCCH_COLLISION);
   }
 
   // If all checks passed, the resource can be allocated.
