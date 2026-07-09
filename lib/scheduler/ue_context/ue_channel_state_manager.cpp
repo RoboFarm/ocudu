@@ -22,11 +22,21 @@ ue_channel_state_manager::ue_channel_state_manager(const scheduler_ue_expert_con
     recommended_prg_info.resize(
         4,
         pdsch_precoding_info::prg_info{pmi_typeI_single_panel{
-            pmi_codebook_typeI_single_panel{pmi_codebook_single_panel_config::two_one, pmi_codebook_typeI_mode::one},
-            0,
-            std::nullopt,
-            std::nullopt,
-            0}});
+            .panel_config = {pmi_codebook_single_panel_config::two_one, pmi_codebook_typeI_mode::one},
+            .i_1_1        = 0,
+            .i_1_2        = std::nullopt,
+            .i_1_3        = std::nullopt,
+            .i_2          = 0}});
+  } else if (nof_dl_ports == 8) {
+    // Capped at MAX_NOF_LAYERS_PER_CODEWORD layers, as two codewords are not yet supported.
+    recommended_prg_info.resize(
+        4,
+        pdsch_precoding_info::prg_info{pmi_typeI_single_panel{
+            .panel_config = {pmi_codebook_single_panel_config::four_one, pmi_codebook_typeI_mode::one},
+            .i_1_1        = 0,
+            .i_1_2        = std::nullopt,
+            .i_1_3        = std::nullopt,
+            .i_2          = 0}});
   }
 }
 

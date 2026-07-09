@@ -4,6 +4,7 @@
 
 
 add_executable(sched_ue_context_test
+        ue_channel_state_manager_test.cpp        
         ue_configuration_test.cpp
         ue_drx_controller_test.cpp
         ue_repository_test.cpp
