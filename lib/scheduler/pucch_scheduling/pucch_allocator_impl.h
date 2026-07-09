@@ -155,6 +155,13 @@ private:
                                      const pucch_uci_bits&               bits,
                                      const dci_context_information*      dci_info);
 
+  // Commits to the collision manager only the dedicated (HARQ-ACK/SR/CSI) resources that changed with respect to
+  // old_grants, before allocate_grants overwrites the old PDU entries in place.
+  void commit_dedicated_grant_diff(cell_slot_resource_allocator& pucch_slot_alloc,
+                                   const ue_grants&              old_grants,
+                                   const pucch_grant_list&       new_grants,
+                                   rnti_t                        rnti);
+
   // Implements the main steps of the multiplexing procedure as defined in TS 38.213, Section 9.2.5.
   std::optional<ue_grants> multiplex_and_allocate_pucch(cell_slot_resource_allocator& pucch_slot_alloc,
                                                         const pucch_uci_bits&         new_bits,
@@ -185,11 +192,11 @@ private:
 
   // Allocate the PUCCH PDUs in the scheduler output, depending on the new PUCCH grants to be transmitted, and depending
   // on the PUCCH PDUs currently allocated.
-  std::optional<ue_grants> allocate_grants(cell_slot_resource_allocator& pucch_slot_alloc,
-                                           const ue_cell_configuration&  ue_cell_cfg,
-                                           const ue_grants&              old_grants,
-                                           const pucch_grant_list&       new_grants,
-                                           const alloc_context&          alloc_ctx);
+  ue_grants allocate_pdus(cell_slot_resource_allocator& pucch_slot_alloc,
+                          const ue_cell_configuration&  ue_cell_cfg,
+                          const ue_grants&              old_grants,
+                          const pucch_grant_list&       new_grants,
+                          const alloc_context&          alloc_ctx);
 
   ///////////////  Private helpers   ///////////////
 
@@ -205,12 +212,6 @@ private:
 
   /// Returns whether there is space for new PUCCH grants in the given scheduler result.
   bool is_there_space_for_new_pucch_grants(const sched_result& slot_result, unsigned nof_grants_to_allocate) const;
-
-  /// Allocates the PUCCH resources for a given UE in the resource manager.
-  void alloc_resources(cell_slot_resource_allocator& slot_alloc, const ue_grants& grants, rnti_t rnti);
-
-  /// Frees the PUCCH resources for a given UE in the resource manager.
-  void free_resources(cell_slot_resource_allocator& slot_alloc, const ue_grants& grants, rnti_t rnti);
 
   // \brief Ring of PUCCH allocations indexed by slot.
   circular_vector<slot_context> slots_ctx;

@@ -244,29 +244,47 @@ TEST_F(pucch_collision_manager_rg_test, alloc_fails_if_ul_res_grid_occupied)
   }
 }
 
-TEST_F(pucch_collision_manager_rg_test, alloc_fails_if_resource_in_use)
+TEST_F(pucch_collision_manager_rg_test, alloc_succeeds_if_resource_reselected_by_same_rnti)
 {
-  // Allocate the same resource twice.
+  // Re-selecting the same resource for the same UE (e.g. while searching for a replacement, without freeing first)
+  // is not a collision.
   ASSERT_TRUE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
-  ASSERT_FALSE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
-  ASSERT_EQ(pucch_alloc_failure::RESOURCE_IN_USE, col_manager.alloc(slot_alloc, ded_res[0], rnti).error());
+  ASSERT_TRUE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
 }
 
-TEST_F(pucch_collision_manager_rg_test, alloc_fails_if_pucch_collision)
+TEST_F(pucch_collision_manager_rg_test, alloc_fails_if_resource_in_use_by_another_rnti)
 {
-  // Note: Common Res 0 collides with the first dedicated resource as both start at the edges of the BWP.
+  static constexpr rnti_t other_rnti = to_rnti(0x4602);
+
+  ASSERT_TRUE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
+  ASSERT_FALSE(col_manager.alloc(slot_alloc, ded_res[0], other_rnti).has_value());
+  ASSERT_EQ(pucch_alloc_failure::RESOURCE_IN_USE, col_manager.alloc(slot_alloc, ded_res[0], other_rnti).error());
+}
+
+TEST_F(pucch_collision_manager_rg_test, alloc_succeeds_if_pucch_collision_is_with_same_rntis_own_resource)
+{
+  // Note: Common Res 0 collides with the first dedicated resource as both start at the edges of the BWP. A UE is
+  // allowed to hold both simultaneously (e.g. common + dedicated HARQ-ACK), since only one is ever transmitted.
 
   // First common, then dedicated.
   ASSERT_TRUE(col_manager.alloc(slot_alloc, common_res[0], rnti).has_value());
-  ASSERT_FALSE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
-  ASSERT_EQ(pucch_alloc_failure::PUCCH_COLLISION, col_manager.alloc(slot_alloc, ded_res[0], rnti).error());
+  ASSERT_TRUE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
 
   run_slot();
 
   // First dedicated, then common.
   ASSERT_TRUE(col_manager.alloc(slot_alloc, ded_res[0], rnti).has_value());
-  ASSERT_FALSE(col_manager.alloc(slot_alloc, common_res[0], rnti).has_value());
-  ASSERT_EQ(pucch_alloc_failure::PUCCH_COLLISION, col_manager.alloc(slot_alloc, common_res[0], rnti).error());
+  ASSERT_TRUE(col_manager.alloc(slot_alloc, common_res[0], rnti).has_value());
+}
+
+TEST_F(pucch_collision_manager_rg_test, alloc_fails_if_pucch_collision_is_with_another_rntis_resource)
+{
+  static constexpr rnti_t other_rnti = to_rnti(0x4602);
+
+  // Note: Common Res 0 collides with the first dedicated resource as both start at the edges of the BWP.
+  ASSERT_TRUE(col_manager.alloc(slot_alloc, common_res[0], rnti).has_value());
+  ASSERT_FALSE(col_manager.alloc(slot_alloc, ded_res[0], other_rnti).has_value());
+  ASSERT_EQ(pucch_alloc_failure::PUCCH_COLLISION, col_manager.alloc(slot_alloc, ded_res[0], other_rnti).error());
 }
 
 TEST_F(pucch_collision_manager_rg_test, free_clears_grants_in_ul_res_grid)

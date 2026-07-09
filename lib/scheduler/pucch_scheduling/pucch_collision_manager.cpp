@@ -187,14 +187,19 @@ error_type<pucch_alloc_failure> pucch_collision_manager::can_alloc(const cell_sl
     }
   }
 
-  // Check if the resource is already in use.
-  if (ctx.owners[res_idx] != rnti_t::INVALID_RNTI) {
+  // Check if the resource is already in use by another UE. Re-selecting a resource already held by the same UE is
+  // not a collision.
+  if (ctx.owners[res_idx] != rnti_t::INVALID_RNTI and ctx.owners[res_idx] != rnti) {
     return make_unexpected(pucch_alloc_failure::RESOURCE_IN_USE);
   }
 
-  // Check for PUCCH-to-PUCCH collisions using the collision matrix.
-  const auto& row = col_matrix[res_idx];
-  if ((row & ctx.current_state).any()) {
+  // Check for PUCCH-to-PUCCH collisions using the collision matrix. A collision against a resource already held by
+  // the same UE is not a real collision.
+  bool real_collision = false;
+  (col_matrix[res_idx] & ctx.current_state).for_each(0, ctx.current_state.size(), [&](size_t idx) {
+    real_collision |= ctx.owners[idx] != rnti;
+  });
+  if (real_collision) {
     return make_unexpected(pucch_alloc_failure::PUCCH_COLLISION);
   }
 
