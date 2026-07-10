@@ -16,15 +16,16 @@ using namespace ocudu;
 
 static auto make_dl_dci_log_entry(const dci_dl_info& dci)
 {
-  bool                   is_formattable = true;
-  uint8_t                h_id           = 0;
-  bool                   ndi            = false;
-  uint8_t                rv             = 0;
-  uint8_t                mcs            = 0;
-  uint8_t                pucch_res_id   = 0;
-  std::optional<int8_t>  tpc_cmd;
-  std::optional<uint8_t> dai;
-  std::optional<bool>    vrb_prb;
+  bool                    is_formattable = true;
+  uint8_t                 h_id           = 0;
+  bool                    ndi            = false;
+  uint8_t                 rv             = 0;
+  uint8_t                 mcs            = 0;
+  uint8_t                 pucch_res_id   = 0;
+  std::optional<int8_t>   tpc_cmd;
+  std::optional<uint8_t>  dai;
+  std::optional<bool>     vrb_prb;
+  std::optional<unsigned> antenna_ports;
 
   dci_1_0_p_rnti_configuration::payload_info short_messages_indicator =
       dci_1_0_p_rnti_configuration::payload_info::scheduling_information;
@@ -60,6 +61,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       if (dci.as_c_rnti_f1_1().downlink_assignment_index.has_value()) {
         dai = dci.as_c_rnti_f1_1().downlink_assignment_index;
       }
+      antenna_ports = dci1_1.antenna_ports;
     } break;
     case dci_dl_rnti_config_type::p_rnti_f1_0: {
       const auto& dci1_0       = dci.as_p_rnti_f1_0();
@@ -81,7 +83,8 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
                            tpc_cmd,
                            vrb_prb,
                            short_messages_indicator,
-                           short_messages](auto& ctx) {
+                           short_messages,
+                           antenna_ports](auto& ctx) {
     if (dci_rnti_type == dci_dl_rnti_config_type::p_rnti_f1_0) {
       // Short Message bit positions, as per TS 38.331, Table 6.5-1.
       static constexpr unsigned si_modification_short_message = 0b10000000;
@@ -114,6 +117,9 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       }
       if (vrb_prb.has_value()) {
         fmt::format_to(ctx.out(), " vrb_prb_map_used={}", vrb_prb.value() ? "yes" : "no");
+      }
+      if (antenna_ports.has_value()) {
+        fmt::format_to(ctx.out(), " ant={}", *antenna_ports);
       }
     }
     return ctx.out();
