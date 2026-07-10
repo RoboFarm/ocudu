@@ -61,6 +61,15 @@ struct search_space_info {
     return crbs_of_candidates[pdcch_slot.to_uint() % crbs_of_candidates.size()][to_aggregation_level_index(aggr_lvl)];
   }
 
+  /// \brief Returns the maximum number of DL layers for which a PDSCH config exists for the given time-domain resource.
+  /// \c pdsch_cfg_list holds one \ref pdsch_config_params per number of layers, so this is also the valid upper bound
+  /// for the \c nof_layers argument of \ref get_pdsch_config.
+  unsigned get_nof_pdsch_layer_configs(unsigned pdsch_td_res_index) const
+  {
+    ocudu_assert(pdsch_cfg_list.size() > pdsch_td_res_index, "nof_pdsch_layer_configs: invalid time-domain index");
+    return pdsch_cfg_list[pdsch_td_res_index].size();
+  }
+
   const pdsch_config_params& get_pdsch_config(unsigned pdsch_td_res_index, unsigned nof_layers) const
   {
     ocudu_assert(pdsch_cfg_list.size() > pdsch_td_res_index and pdsch_cfg_list[pdsch_td_res_index].size() >= nof_layers,
