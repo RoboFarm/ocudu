@@ -213,8 +213,12 @@ void ocudu::build_dci_f1_1_c_rnti(dci_dl_info&                  dci,
   ocudu_assert(not ss_info.cfg->is_common_search_space(), "SearchSpace must be of type UE-Specific SearchSpace");
   ocudu_sanity_check(ss_info.get_dl_dci_format() == dci_dl_format::f1_1, "Invalid DCI format");
 
-  // TODO: Update the value based on nof. CWs enabled.
-  static constexpr bool are_both_cws_enabled = false;
+  // Two codewords require maxLength=2 for nof_layers > 4 per 3GPP TS 38.212 Table 7.3.1.2.2; the two-codeword table
+  // does not exist otherwise.
+  const auto&           dmrs_cfg             = ss_info.bwp->dl.pdsch().ded()->pdsch_mapping_type_a_dmrs.value();
+  const bool            has_len2             = dmrs_cfg.is_max_length_len2;
+  const bool            are_both_cws_enabled = (nof_layers > 4) && has_len2;
+  const dmrs_max_length max_len              = has_len2 ? dmrs_max_length::len2 : dmrs_max_length::len1;
 
   const bwp_configuration& active_dl_bwp = ss_info.bwp->dl.cfg();
   const auto               k1_candidates = ss_info.bwp->ul.td_mapper().dedicated_k1_candidates();
@@ -224,15 +228,13 @@ void ocudu::build_dci_f1_1_c_rnti(dci_dl_info&                  dci,
   f1_1.tpc_command             = static_cast<unsigned>(tpc);
   f1_1.srs_request             = srs_request;
   f1_1.dmrs_seq_initialization = 0;
-  ocudu_assert(ss_info.bwp->dl.pdsch().ded()->pdsch_mapping_type_a_dmrs.has_value(),
-               "No DMRS configured in PDSCH configuration");
-  const auto& dmrs_cfg = ss_info.bwp->dl.pdsch().ded()->pdsch_mapping_type_a_dmrs.value();
-  f1_1.antenna_ports   = get_pdsch_antenna_port_mapping_row_index(
-      nof_layers,
-      ue_cell_cfg.cell_cfg_common.params.dl_carrier.nof_ant,
-      dmrs_cfg.is_dmrs_type2 ? dmrs_config_type::type2 : dmrs_config_type::type1,
-      dmrs_cfg.is_max_length_len2 ? dmrs_max_length::len2 : dmrs_max_length::len1,
-      are_both_cws_enabled);
+
+  f1_1.antenna_ports = get_pdsch_antenna_port_mapping_row_index(nof_layers,
+                                                                ue_cell_cfg.cell_cfg_common.params.dl_carrier.nof_ant,
+                                                                dmrs_cfg.is_dmrs_type2 ? dmrs_config_type::type2
+                                                                                       : dmrs_config_type::type1,
+                                                                max_len,
+                                                                are_both_cws_enabled);
 
   // See 38.212, clause 7.3.1.2.2 - N^{DL,BWP}_RB for C-RNTI.
   f1_1.frequency_resource = ra_frequency_type1_get_riv(
