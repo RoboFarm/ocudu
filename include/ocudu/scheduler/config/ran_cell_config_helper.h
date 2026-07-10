@@ -20,6 +20,9 @@ struct cell_config_builder_params_extended : public cell_config_builder_params {
   /// \c SS_ref is defined is per TS 38.104, Section 5.4.3.1 and 5.4.3.2.
   std::optional<arfcn_t> ssb_arfcn;
   unsigned               cell_nof_crbs;
+  /// \brief Maximum number of DL layers. Derived from \c max_rank if configured, otherwise from the number of DL
+  /// antenna ports, and in all cases bounded by the single-codeword layer limit.
+  unsigned max_nof_layers;
 };
 
 /// Generates a default DL carrier configuration based on the input parameters.

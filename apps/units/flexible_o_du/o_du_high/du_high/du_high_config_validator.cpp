@@ -6,6 +6,7 @@
 #include "ocudu/ran/duplex_mode.h"
 #include "ocudu/ran/nr_cell_identity.h"
 #include "ocudu/ran/pdcch/pdcch_type0_css_coreset_config.h"
+#include "ocudu/ran/pdsch/pdsch_constants.h"
 #include "ocudu/ran/prach/prach_configuration.h"
 #include "ocudu/ran/prach/prach_helper.h"
 #include "ocudu/ran/pucch/pucch_constants.h"
@@ -329,6 +330,13 @@ static bool validate_pdsch_cell_unit_config(const du_high_unit_pdsch_config& con
                  "antennas (i.e., {}).\n",
                  *config.max_rank,
                  nof_antennas_dl);
+      return false;
+    }
+    if (*config.max_rank > pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD) {
+      fmt::print("Invalid maximum rank value (i.e., {}). It cannot be greater than maximum number of layers with "
+                 "single codeword (i.e., {}).\n",
+                 *config.max_rank,
+                 pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD);
       return false;
     }
 

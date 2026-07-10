@@ -5,11 +5,13 @@
 #include "ocudu/scheduler/config/ran_cell_config_helper.h"
 #include "ocudu/ran/pdcch/pdcch_candidates.h"
 #include "ocudu/ran/pdcch/pdcch_type0_css_coreset_config.h"
+#include "ocudu/ran/pdsch/pdsch_constants.h"
 #include "ocudu/ran/prach/prach_helper.h"
 #include "ocudu/ran/sib/sib_helper.h"
 #include "ocudu/ran/ssb/ssb_helper.h"
 #include "ocudu/ran/ssb/ssb_mapping.h"
 #include "ocudu/scheduler/config/time_domain_resource_helper.h"
+#include <algorithm>
 
 using namespace ocudu;
 
@@ -18,6 +20,12 @@ config_helpers::cell_config_builder_params_extended::cell_config_builder_params_
   cell_config_builder_params(source)
 {
   auto_derive_params();
+
+  // Derive the maximum number of DL layers: use the configured max_rank if set (already validated against the number
+  // of DL antenna ports and the single-codeword layer limit), otherwise bound the number of DL antenna ports by the
+  // single-codeword layer limit (a cell may have more ports, e.g. 8T8R, than usable layers).
+  max_nof_layers =
+      max_rank.value_or(std::min<unsigned>(dl_carrier.nof_ant, pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD));
 
   cell_nof_crbs =
       band_helper::get_n_rbs_from_bw(dl_carrier.carrier_bw, scs_common, band_helper::get_freq_range(dl_carrier.band));
@@ -248,7 +256,7 @@ make_default_csi_meas_builder_params(const config_helpers::cell_config_builder_p
   csi_params.pci                      = params.pci;
   csi_params.nof_rbs                  = params.cell_nof_crbs;
   csi_params.nof_ports                = params.dl_carrier.nof_ant;
-  csi_params.max_nof_layers           = *params.max_nof_layers;
+  csi_params.max_nof_layers           = params.max_nof_layers;
   csi_params.mcs_table                = pdsch_mcs_table::qam64;
   csi_params.csi_params.csi_rs_period = csi_helper::get_max_csi_rs_period(params.scs_common);
 
@@ -370,7 +378,7 @@ config_helpers::make_csi_meas_config_builder_params(const ran_cell_config& cell_
   csi_params.pci            = cell_cfg.pci;
   csi_params.nof_rbs        = cell_cfg.ul_cfg_common.init_ul_bwp.generic_params.crbs.length();
   csi_params.nof_ports      = cell_cfg.dl_carrier.nof_ant;
-  csi_params.max_nof_layers = cell_cfg.init_bwp.pdsch.max_nof_layers.value_or(csi_params.nof_ports);
+  csi_params.max_nof_layers = cell_cfg.init_bwp.pdsch.max_nof_layers;
   csi_params.mcs_table      = cell_cfg.init_bwp.pdsch.mcs_table;
   csi_params.csi_params     = cell_cfg.init_bwp.csi.value();
   return csi_params;

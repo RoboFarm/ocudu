@@ -21,7 +21,7 @@ std::optional<csi_meas_config> config_helpers::build_csi_meas_config(const ran_c
   csi_params.pci            = cell_cfg.pci;
   csi_params.nof_rbs        = cell_cfg.ul_cfg_common.init_ul_bwp.generic_params.crbs.length();
   csi_params.nof_ports      = cell_cfg.dl_carrier.nof_ant;
-  csi_params.max_nof_layers = cell_cfg.init_bwp.pdsch.max_nof_layers.value_or(csi_params.nof_ports);
+  csi_params.max_nof_layers = cell_cfg.init_bwp.pdsch.max_nof_layers;
   csi_params.mcs_table      = cell_cfg.init_bwp.pdsch.mcs_table;
   csi_params.csi_params     = cell_cfg.init_bwp.csi.value();
   csi_meas_config cfg       = csi_helper::make_csi_meas_config(

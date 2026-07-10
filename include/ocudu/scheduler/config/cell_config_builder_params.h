@@ -49,14 +49,15 @@ struct cell_config_builder_params {
   uint8_t min_k2 = 4;
   /// Defines the TDD DL-UL pattern and periodicity. If no value is set, the cell is in FDD mode.
   std::optional<tdd_ul_dl_config_common> tdd_ul_dl_cfg_common;
-  /// Maximum number of DL layers.
-  std::optional<unsigned> max_nof_layers;
+  /// \brief Maximum rank limit configured by the user. If unset, the maximum number of DL layers is derived from the
+  /// number of DL antenna ports. It is resolved into \ref cell_config_builder_params_extended::max_nof_layers.
+  std::optional<unsigned> max_rank;
   /// SSB subcarrier spacing.
   std::optional<subcarrier_spacing> scs_ssb;
   /// Whether UL frequency shift of 7.5 kHz is enabled.
   bool freq_shift_7p5khz = false;
 
-  /// \brief Helper builder method to auto-derive dependent parameters, namely band, SSB SCS, nof DL layers,
+  /// \brief Helper builder method to auto-derive dependent parameters, namely band, SSB SCS,
   /// offset-to-pointA, k_SSB and coreset0 index.
   cell_config_builder_params& auto_derive_params()
   {
@@ -71,11 +72,6 @@ struct cell_config_builder_params {
                           dl_carrier.arfcn_f_ref,
                           static_cast<unsigned>(dl_carrier.band),
                           err.error());
-    }
-
-    // Auto-derive nof layers if not provided.
-    if (not max_nof_layers.has_value()) {
-      max_nof_layers = dl_carrier.nof_ant;
     }
 
     // Auto-derive SSB SCS.

@@ -629,7 +629,7 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
     // Enable CSI-RS if the PDSCH mcs is dynamic (min_ue_mcs != max_ue_mcs).
     param.csi_rs_enabled     = base_cell.csi_cfg.csi_rs_enabled;
     param.dl_carrier.nof_ant = base_cell.nof_antennas_dl;
-    param.max_nof_layers     = base_cell.pdsch_cfg.max_rank;
+    param.max_rank           = base_cell.pdsch_cfg.max_rank;
     param.min_k1             = base_cell.pucch_cfg.min_k1;
     param.min_k2             = base_cell.pusch_cfg.min_k2;
     param.cs0_index          = base_cell.pdcch_cfg.common.coreset0_index;
