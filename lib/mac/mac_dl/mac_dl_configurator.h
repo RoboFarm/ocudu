@@ -48,9 +48,10 @@ struct mac_dl_cell_reconfig_request {
   std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
   /// If not empty, contains a new reference location uplink timing advance for an NTN cell.
   std::optional<sched_cell_ntn_ul_ta_update> ntn_ul_ta_update;
-  /// If set, updates the MIB cellBarred flag (TS 38.331). Takes effect on the next SSB build.
+  /// If set, contains the new value for the MIB cellBarred flag (TS 38.331). Takes effect on the next SSB build.
   std::optional<bool> cell_barred_mod;
-  /// If set, updates the MIB intraFreqReselection flag (TS 38.331). Takes effect on the next SSB build.
+  /// If set, contains the new value for the MIB intraFreqReselection flag (TS 38.331). Takes effect on the next SSB
+  /// build.
   std::optional<bool> intra_freq_reselection_mod;
 };
 

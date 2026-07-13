@@ -68,6 +68,7 @@ void du_cell_stop_procedure::operator()(coro_context<async_task<void>>& ctx)
 std::vector<async_task<void>> du_cell_stop_procedure::create_bar_and_drain_tasks()
 {
   std::vector<async_task<void>> tasks;
+  // Two concurrent tasks: the bar-and-settle and the UE drain.
   tasks.reserve(2);
   tasks.push_back(cell_mng.set_cell_barred_and_wait(cell_index));
   tasks.push_back(rem_ues_with_matching_pcell());
