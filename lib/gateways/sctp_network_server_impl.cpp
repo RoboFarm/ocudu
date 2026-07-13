@@ -19,7 +19,7 @@ public:
                      const sctp_network_server_impl::sctp_associaton_context& assoc,
                      ocudulog::basic_logger&                                  logger_) :
     ppid(parent.node_cfg.ppid),
-    fd(parent.socket.fd().value()),
+    fd(assoc.fd),
     if_name(parent.node_cfg.if_name),
     assoc_id(assoc.assoc_id),
     client_addr(assoc.addr),
@@ -49,15 +49,15 @@ public:
 
     transport_layer_address::native_type dest_addr  = client_addr.native();
     int                                  bytes_sent = ::sctp_sendmsg(fd,
-                                    pdu_span.data(),
-                                    pdu_span.size(),
-                                    const_cast<struct sockaddr*>(dest_addr.addr),
-                                    dest_addr.addrlen,
-                                    htonl(ppid),
-                                    0,
-                                    stream_no,
-                                    0,
-                                    0);
+                                                                     pdu_span.data(),
+                                                                     pdu_span.size(),
+                                                                     const_cast<struct sockaddr*>(dest_addr.addr),
+                                                                     dest_addr.addrlen,
+                                                                     htonl(ppid),
+                                                                     0,
+                                                                     stream_no,
+                                                                     0,
+                                                                     0);
     if (bytes_sent == -1) {
       logger.error("{} assoc={}: Closing SCTP association. Cause: Couldn't send {} B of data. errno={}",
                    if_name,
@@ -81,15 +81,15 @@ private:
     // Send EOF to SCTP client.
     transport_layer_address::native_type dest_addr  = client_addr.native();
     int                                  bytes_sent = ::sctp_sendmsg(fd,
-                                    nullptr,
-                                    0,
-                                    const_cast<struct sockaddr*>(dest_addr.addr),
-                                    dest_addr.addrlen,
-                                    htonl(ppid),
-                                    SCTP_EOF,
-                                    stream_no,
-                                    0,
-                                    0);
+                                                                     nullptr,
+                                                                     0,
+                                                                     const_cast<struct sockaddr*>(dest_addr.addr),
+                                                                     dest_addr.addrlen,
+                                                                     htonl(ppid),
+                                                                     SCTP_EOF,
+                                                                     stream_no,
+                                                                     0,
+                                                                     0);
 
     if (bytes_sent == -1) {
       // Failed to send EOF.
@@ -120,7 +120,48 @@ private:
   std::array<uint8_t, network_gateway_sctp_max_len> send_buffer;
 };
 
-sctp_network_server_impl::sctp_associaton_context::sctp_associaton_context(int assoc_id_) : assoc_id(assoc_id_) {}
+sctp_network_server_impl::sctp_associaton_context::sctp_associaton_context(int                       assoc_id_,
+                                                                           int                       fd_,
+                                                                           sctp_network_server_impl& parent_) :
+  assoc_id(assoc_id_), fd(fd_), parent(parent_)
+{
+}
+
+void sctp_network_server_impl::sctp_associaton_context::receive()
+{
+  struct sctp_sndrcvinfo                            sri       = {};
+  int                                               msg_flags = 0;
+  std::array<uint8_t, network_gateway_sctp_max_len> temp_recv_buffer;
+
+  // fromlen is an in/out variable in sctp_recvmsg.
+  sockaddr_storage msg_src_addr;
+  socklen_t        msg_src_addrlen = sizeof(msg_src_addr);
+
+  int rx_bytes = ::sctp_recvmsg(fd,
+                                temp_recv_buffer.data(),
+                                temp_recv_buffer.size(),
+                                (struct sockaddr*)&msg_src_addr,
+                                &msg_src_addrlen,
+                                &sri,
+                                &msg_flags);
+
+  if (rx_bytes == -1) {
+    if (errno != EAGAIN) {
+      parent.logger.error("Error reading from SCTP socket: {}", ::strerror(errno));
+      while (not parent.app_exec.defer([this, keepalive = parent.keepalive_token]() {
+        if (*keepalive) {
+          parent.handle_sctp_comm_lost(assoc_id);
+        }
+      })) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+    }
+  }
+
+  /// We pass the actual data and association handling back to the parent, to avoid code duplication.
+  auto payload = std::vector<uint8_t>(temp_recv_buffer.begin(), temp_recv_buffer.begin() + rx_bytes);
+  parent.receive_impl(std::move(payload), sri, msg_flags, msg_src_addr, msg_src_addrlen);
+}
 
 sctp_network_server_impl::sctp_network_server_impl(const ocudu::sctp_network_gateway_config& sctp_cfg_,
                                                    io_broker&                                broker_,
@@ -209,6 +250,15 @@ void sctp_network_server_impl::receive()
 
   // Defer all processing after sctp_recvmsg to app_exec.
   auto payload = std::vector<uint8_t>(temp_recv_buffer.begin(), temp_recv_buffer.begin() + rx_bytes);
+  receive_impl(std::move(payload), sri, msg_flags, msg_src_addr, msg_src_addrlen);
+}
+
+void sctp_network_server_impl::receive_impl(std::vector<uint8_t>   payload,
+                                            struct sctp_sndrcvinfo sri,
+                                            int                    msg_flags,
+                                            sockaddr_storage       msg_src_addr,
+                                            socklen_t              msg_src_addrlen)
+{
   while (not app_exec.defer([this,
                              keepalive = keepalive_token,
                              payload   = std::move(payload),
@@ -270,7 +320,8 @@ async_task<bool> sctp_network_server_impl::connect(std::vector<transport_layer_a
       CORO_EARLY_RETURN(false);
     }
 
-    // fmt::format of fmt::join view is required before passing to the logger, otherwise TSAN may report use-after-free.
+    // fmt::format of fmt::join view is required before passing to the logger, otherwise TSAN may report
+    // use-after-free.
     logger.info(
         "{}: Initiating SCTP connection to [{}]", node_cfg.if_name, fmt::format("{}", fmt::join(dest_addrs, ", ")));
 
@@ -392,8 +443,18 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
     return;
   }
 
+  /// Peel-off a socket. This is done for easier DTLS support.
+  int  assoc_fd_raw = sctp_peeloff(socket.fd().value(), assoc_id);
+  auto assoc_fd     = unique_fd(assoc_fd_raw);
+
+  /// Make sure peeled of socket follows the blocking mode of the parent.
+  if (node_cfg.non_blocking_mode) {
+    ::set_non_blocking(assoc_fd, logger);
+  }
+
   // Add an entry for the association in the lookup
-  auto result = associations.emplace(assoc_id, assoc_id);
+  auto result = associations.emplace(
+      std::piecewise_construct, std::forward_as_tuple(assoc_id), std::forward_as_tuple(assoc_id, assoc_fd_raw, *this));
   if (not result.second) {
     logger.error("{} assoc={}: Unable to create new SCTP association", node_cfg.if_name, assoc_id);
     return;
@@ -414,6 +475,17 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
                  assoc_ctxt.addr);
     return;
   }
+
+  /// Register peeled-off socket in IO broker.
+  assoc_ctxt.io_sub = broker.register_fd(
+      std::move(assoc_fd),
+      io_rx_executor,
+      [&assoc_ctxt]() { assoc_ctxt.receive(); },
+      [this, &assoc_ctxt](io_broker::error_code code) {
+        logger.info("Connection loss due to IO error code={}.", (int)code);
+        handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
+        remove_association(assoc_ctxt.assoc_id);
+      });
 
   logger.info("{} assoc={}: New client SCTP association (client_addr={})", node_cfg.if_name, assoc_id, assoc_ctxt.addr);
 

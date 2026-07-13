@@ -43,6 +43,11 @@ public:
   int get_socket_fd() const override { return socket.fd().value(); }
 
   void receive();
+  void receive_impl(std::vector<uint8_t>   payload,
+                    struct sctp_sndrcvinfo sri,
+                    int                    msg_flags,
+                    sockaddr_storage       msg_src_addr,
+                    socklen_t              msg_src_addrlen);
 
   bool listen() override;
 
@@ -54,13 +59,18 @@ private:
   class sctp_send_notifier;
 
   struct sctp_associaton_context {
-    const int                          assoc_id;
+    const int assoc_id;
+    const int fd;
+
     transport_layer_address            addr;
     std::shared_ptr<std::atomic<bool>> association_shutdown_received;
+    io_broker::subscriber              io_sub;
 
     std::unique_ptr<sctp_association_sdu_notifier> sctp_data_recv_notifier;
 
-    sctp_associaton_context(int assoc_id);
+    sctp_associaton_context(int assoc_id, int fd_, sctp_network_server_impl& parent_);
+    void                      receive();
+    sctp_network_server_impl& parent;
   };
 
   // We use unique_ptr to maintain address stability.
