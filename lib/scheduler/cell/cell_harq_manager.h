@@ -142,6 +142,7 @@ struct ul_harq_process_impl : public base_harq_process {
 
   /// Parameters used for the last Tx of this HARQ process.
   alloc_params prev_tx_params;
+  bool         is_cg = false;
 };
 
 class ntn_dl_harq_alloc_history;
@@ -400,6 +401,8 @@ public:
   slot_point pusch_slot() const { return impl->slot_tx; }
 
   const grant_params& get_grant_params() const { return impl->prev_tx_params; }
+
+  bool is_cg() const { return impl->is_cg; }
 };
 
 namespace harq_utils {

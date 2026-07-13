@@ -169,7 +169,8 @@ struct cg_configuration {
   /// RRC-level resource grant (Type 1 CG). When absent, the grant is activated via DCI (Type 2 CG).
   /// \remark Type 2 CG is not currently supported.
   std::optional<rrc_configured_ul_grant> rrc_configured_ul_grant_cfg;
-  bool                                   operator==(const cg_configuration& rhs) const
+
+  bool operator==(const cg_configuration& rhs) const
   {
     return cg_dmrs_cfg == rhs.cg_dmrs_cfg && mcs_table == rhs.mcs_table && trans_precoder == rhs.trans_precoder &&
            uci_on_pusch_cfg == rhs.uci_on_pusch_cfg && nof_harq_processes == rhs.nof_harq_processes &&

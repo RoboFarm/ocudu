@@ -227,6 +227,7 @@ ue_cell_event_manager::ue_cell_event_manager(ue_event_manager&          parent_,
   uci_sched(cell_ev.uci_sched),
   slice_sched(cell_ev.slice_sched),
   srs_sched(cell_ev.srs_sched),
+  cg_sched(cell_ev.cg_sched),
   uci_selector(cell_ev.uci_selector),
   metrics(cell_ev.metrics),
   ev_logger(cell_ev.ev_logger),
@@ -379,6 +380,7 @@ void ue_cell_event_manager::handle_ue_reconfiguration(ue_config_update_event ev)
     if (ue_cc.get_pcell_state().conres_st != ue_conres_state::pending_conres_crnti_ce) {
       uci_sched.reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
       srs_sched.reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
+      cg_sched.add_reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
     }
 
     // Configure existing UE.
@@ -422,6 +424,7 @@ void ue_cell_event_manager::handle_ue_deletion(ue_config_delete_event ev)
       // it must not be removed either. All other UEs (including CFRA) were added at creation.
       uci_sched.rem_ue(u.get_pcell().cfg());
       srs_sched.rem_ue(u.get_pcell().cfg());
+      cg_sched.rem_ue(u.get_pcell().cfg());
     }
     // Schedule removal of UE from slice scheduler.
     slice_sched.rem_ue(ue_idx);
@@ -548,18 +551,34 @@ void ue_cell_event_manager::handle_crc_indication(const ul_crc_indication& crc_i
 
       // Update HARQ.
       const bool was_pending_cfra = ue_cc->get_pcell_state().conres_st == ue_conres_state::pending_cfra;
-      const auto tbs              = ue_cc->handle_crc_pdu(sl_rx, *crc_ptr);
-      if (not tbs.has_value()) {
+      const auto crc_process_res  = ue_cc->handle_crc_pdu(sl_rx, *crc_ptr);
+      if (not crc_process_res.has_value()) {
         if (was_pending_cfra and crc_ptr->tb_crc_success and ue_db.cfra_msg3_acked(crc_ptr->ue_index)) {
           // CFRA Msg3 ACKed. UE is directly added to slice scheduling. It doesn't need to be in fallback mode.
           if (not ue_cc->is_in_fallback_mode()) {
             slice_sched.config_applied(crc_ptr->ue_index);
           }
         }
+
+        return event_result::processed;
+      }
+
+      // \ref pusch_transmitted is true if the gnb detected the PUSCH was transmitted, false if it was DTX.
+      auto [tbs, pusch_transmitted] = crc_process_res.value();
+      if (not pusch_transmitted) {
+        // Log event.
+        ev_logger.enqueue(scheduler_event_logger::crc_event{crc_ptr->ue_index,
+                                                            crc_ptr->rnti,
+                                                            cfg.cell_index,
+                                                            sl_rx,
+                                                            crc_ptr->harq_id,
+                                                            scheduler_event_logger::crc_event::crc_res_t::dtx,
+                                                            crc_ptr->ul_sinr_dB});
         return event_result::processed;
       }
 
       // Process Timing Advance Offset.
+      // TODO: check if we should update TA for CG, given that we don't use SINR for other updates.
       if (crc_ptr->tb_crc_success and crc_ptr->time_advance_offset.has_value() and crc_ptr->ul_sinr_dB.has_value()) {
         u.handle_ul_n_ta_update_indication(
             ue_cc->cell_index, crc_ptr->ul_sinr_dB.value(), crc_ptr->time_advance_offset.value());
@@ -571,11 +590,13 @@ void ue_cell_event_manager::handle_crc_indication(const ul_crc_indication& crc_i
                                                           cfg.cell_index,
                                                           sl_rx,
                                                           crc_ptr->harq_id,
-                                                          crc_ptr->tb_crc_success,
+                                                          crc_ptr->tb_crc_success
+                                                              ? scheduler_event_logger::crc_event::crc_res_t::ok
+                                                              : scheduler_event_logger::crc_event::crc_res_t::ko,
                                                           crc_ptr->ul_sinr_dB});
 
       // Notify metrics handler.
-      metrics.handle_crc_indication(sl_rx, *crc_ptr, tbs.value());
+      metrics.handle_crc_indication(sl_rx, *crc_ptr, tbs);
 
       return event_result::processed;
     };
@@ -751,7 +772,7 @@ void ue_cell_event_manager::handle_ul_phr_indication(const ul_phr_indication_mes
                          fmt::underlying(cell_phr.serv_cell_id));
       auto& ue_cc = u.get_cell(cell_phr.serv_cell_id);
 
-      ue_cc.get_pusch_power_controller().handle_phr(cell_phr, phr_ind->slot_rx);
+      ue_cc.get_pusch_power_controller().handle_phr(cell_phr, phr_ind->slot_rx, phr_ind->rnti);
 
       // Log event.
       scheduler_event_logger::phr_event event{};

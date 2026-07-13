@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "../configured_grant/configured_grant_scheduler_impl.h"
 #include "../slicing/inter_slice_scheduler.h"
 #include "../srs/srs_scheduler_impl.h"
 #include "../uci_scheduling/uci_indication_selector.h"
@@ -63,6 +64,9 @@ private:
     /// SRS scheduler
     srs_scheduler_impl srs_sched;
 
+    /// Configured Grant scheduler.
+    configured_grant_scheduler_impl cg_sched;
+
     /// Triggered UL grant sub-scheduler.
     triggered_ul_grant_scheduler trig_ul_sched;
 
@@ -101,7 +105,6 @@ private:
       ev_mng->handle_uci_indication_timeout(sl_rx, crnti, action);
     }
   };
-
   const scheduler_ue_expert_config& expert_cfg;
   ocudulog::basic_logger&           logger;
 

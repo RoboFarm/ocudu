@@ -6,6 +6,7 @@
 #include "ocudu/scheduler/resource_grid_util.h"
 #include "ocudu/scheduler/result/pdsch_info.h"
 #include "ocudu/scheduler/result/pusch_info.h"
+#include "ocudu/support/format/fmt_to_c_str.h"
 #include <algorithm>
 
 using namespace ocudu;
@@ -278,6 +279,9 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
     return nullptr;
   }
 
+  if constexpr (IsDl) {
+    ocudu_assert(not harq_id.has_value(), "HARQ-ID reservation is only supported for UL");
+  }
   ocudu_assert(not((harq_id.has_value() or ue_harq_entity.first_non_reserved_harq_id != 0) and
                    ue_harq_entity.feedback_disabled_or_mode_b_harq_present),
                "Reserved CG HARQ processes not supported with mode B or disabled feedback");
@@ -303,7 +307,15 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
     }
     auto rit = std::find(ue_harq_entity.free_harq_ids.rbegin(), ue_harq_entity.free_harq_ids.rend(), harq_id.value());
     if (rit == ue_harq_entity.free_harq_ids.rend()) {
-      return nullptr;
+      // CG HARQ forced reuse: the HARQ process was not freed before its next CG occurrence. This happens when the
+      // CRC was not received within nof_harq_processes × period_slots (the CG reuse period), which is shorter
+      // than DEFAULT_ACK_TIMEOUT_SLOTS. Forcibly release the stale HARQ and reuse it for the new CG transmission.
+      logger.debug("ue={} h_id={}: Forcing CG HARQ reuse (ACK not received before reuse period)",
+                   fmt::underlying(ue_idx),
+                   fmt::underlying(harq_id.value()));
+      dealloc_harq(ue_harq_entity.harqs[harq_id.value()]);
+      // After dealloc, harq_id is at the back of free_harq_ids (no reallocation since capacity is pre-reserved).
+      rit = ue_harq_entity.free_harq_ids.rbegin();
     }
     std::iter_swap(rit, ue_harq_entity.free_harq_ids.rbegin());
   } else {
@@ -313,6 +325,7 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
                               return h_id >= first_usable_h_if;
                             });
     if (rit == ue_harq_entity.free_harq_ids.rend()) {
+      logger.warning("No free HARQ ID found with ID > {}", fmt::underlying(ue_harq_entity.first_non_reserved_harq_id));
       return nullptr;
     }
     std::iter_swap(rit, ue_harq_entity.free_harq_ids.rbegin());
@@ -332,6 +345,9 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
   h.ndi                = !h.ndi;
   h.max_nof_harq_retxs = max_nof_harq_retxs;
   h.retxs_cancelled    = false;
+  if constexpr (not IsDl) {
+    h.is_cg = harq_id.has_value();
+  }
 
   // Set UE HARQ entity common params. last_slot_tx covers the whole transmission (all repetition occasions, not just
   // sl_tx), so that ordering checks relying on it (ue_cell::is_pdsch_enabled, the fallback scheduler) know that the
@@ -401,7 +417,7 @@ void cell_harq_repository<IsDl>::handle_ack(harq_type& h, bool ack)
                    fmt::underlying(h.h_id),
                    IsDl ? std::string_view{"DL"} : std::string_view{"UL"},
                    h.prev_tx_params.tbs);
-    } else {
+    } else if (h.max_nof_harq_retxs != 0) {
       logger.info(
           "rnti={} h_id={}: Discarding {} HARQ process TB with tbs={}. Cause: Maximum number of reTxs {} exceeded",
           h.rnti,
@@ -937,6 +953,8 @@ void unique_ue_harq_entity::reconfigure(unsigned                              ne
                "nof_cg_reserved_harqs={} exceeds max_harqs_per_ue={}",
                nof_cg_reserved_harqs,
                cell_harq_mgr->ul.max_harqs_per_ue);
+
+  ocudulog::fetch_basic_logger("SCHED").debug("Reconfiguring HARQ with {} CG processes", nof_cg_reserved_harqs);
 
   first_non_reserved_harq_id             = to_harq_id(nof_cg_reserved_harqs);
   get_dl_ue().first_non_reserved_harq_id = first_non_reserved_harq_id;

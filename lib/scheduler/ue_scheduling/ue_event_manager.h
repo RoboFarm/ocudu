@@ -5,6 +5,7 @@
 #pragma once
 
 #include "../config/sched_config_manager.h"
+#include "../configured_grant/configured_grant_scheduler.h"
 #include "../logging/cell_event_tracer.h"
 #include "../slicing/inter_slice_scheduler.h"
 #include "ue_fallback_scheduler.h"
@@ -33,6 +34,7 @@ struct cell_creation_event {
   uci_scheduler_impl&            uci_sched;
   inter_slice_scheduler&         slice_sched;
   srs_scheduler&                 srs_sched;
+  configured_grant_scheduler&    cg_sched;
   uci_indication_selector&       uci_selector;
   cell_metrics_handler&          metrics;
   scheduler_event_logger&        ev_logger;
@@ -166,6 +168,7 @@ private:
   uci_scheduler_impl&            uci_sched;
   inter_slice_scheduler&         slice_sched;
   srs_scheduler&                 srs_sched;
+  configured_grant_scheduler&    cg_sched;
   uci_indication_selector&       uci_selector;
   cell_metrics_handler&          metrics;
   scheduler_event_logger&        ev_logger;

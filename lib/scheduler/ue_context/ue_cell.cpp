@@ -45,6 +45,23 @@ ue_cell::ue_cell(du_ue_index_t                ue_index_,
   components(components_),
   logger(logger_)
 {
+  // // Set CG-reserved HARQ processes at creation time so that first_non_reserved_harq_id is correct from the start.
+  // const auto*    ul_ded = ue_cell_cfg_.init_bwp().ul.ded();
+  // const unsigned nof_cg_reserved =
+  //     (ul_ded != nullptr and ul_ded->cg_cfg.has_value()) ? ul_ded->cg_cfg->nrof_harq_processes : 0U;
+  // if (nof_cg_reserved > 0) {
+  //   const unsigned new_dl_harqs = ue_cell_cfg_.pdsch_serving_cell_cfg() != nullptr
+  //                                     ? static_cast<unsigned>(ue_cell_cfg_.pdsch_serving_cell_cfg()->nof_harq_proc)
+  //                                     : harqs.nof_dl_harqs();
+  //   const unsigned new_ul_harqs = ue_cell_cfg_.pusch_serving_cell_cfg() != nullptr
+  //                                     ? static_cast<unsigned>(ue_cell_cfg_.pusch_serving_cell_cfg()->nof_harq_proc)
+  //                                     : harqs.nof_ul_harqs();
+  //   harqs.reconfigure(new_dl_harqs,
+  //                     new_ul_harqs,
+  //                     ue_cell_cfg_.pdsch_serving_cell_cfg()->dl_harq_feedback_disabled,
+  //                     ue_cell_cfg_.pusch_serving_cell_cfg()->ul_harq_mode,
+  //                     nof_cg_reserved);
+  // }
 }
 
 void ue_cell::deactivate()
@@ -73,8 +90,9 @@ void ue_cell::handle_reconfiguration_request(const ue_cell_configuration& ue_cel
                               ? static_cast<unsigned>(ue_cell_cfg.pusch_serving_cell_cfg()->nof_harq_proc)
                               : harqs.nof_ul_harqs();
 
-  // TODO: when CG is supported, pass the number of requested HARQ processes for CG use.
-  constexpr unsigned nof_cg_reserved_harq = 0;
+  const auto*    ul_ded = ue_cell_cfg.init_bwp().ul.ded();
+  const unsigned nof_cg_reserved_harq =
+      (ul_ded != nullptr and ul_ded->cg_cfg.has_value()) ? ul_ded->cg_cfg->nof_harq_processes : 0U;
   harqs.reconfigure(new_dl_harqs,
                     new_ul_harqs,
                     ue_cell_cfg.pdsch_serving_cell_cfg()->dl_harq_feedback_disabled,
@@ -121,7 +139,8 @@ std::optional<dl_harq_process_handle> ue_cell::handle_dl_ack_info(slot_point    
   return h_dl;
 }
 
-expected<units::bytes> ue_cell::handle_crc_pdu(slot_point pusch_slot, const ul_crc_pdu_indication& crc_pdu)
+expected<std::pair<units::bytes, bool>> ue_cell::handle_crc_pdu(slot_point                   pusch_slot,
+                                                                const ul_crc_pdu_indication& crc_pdu)
 {
   // Find UL HARQ with matching PUSCH slot.
   std::optional<ul_harq_process_handle> h_ul = harqs.find_ul_harq_waiting_ack(pusch_slot);
@@ -141,9 +160,24 @@ expected<units::bytes> ue_cell::handle_crc_pdu(slot_point pusch_slot, const ul_c
   // Update UL HARQ state.
   auto tbs_ret = h_ul->ul_crc_info(crc_pdu.tb_crc_success);
 
-  if (tbs_ret.has_value()) {
-    // HARQ with matching ID and UCI slot was found.
+  if (not tbs_ret.has_value()) {
+    return make_unexpected(default_error_t{});
+  }
 
+  // HARQ with matching ID and UCI slot was found.
+
+  // With CG, if a CRC KO is found with SINR below threshold, we assume it's a DTX (PUSCH wasn't transmitted).
+  bool pusch_transmitted = true;
+
+  if (h_ul->is_cg() and not crc_pdu.tb_crc_success and crc_pdu.ul_sinr_dB.has_value() and
+      crc_pdu.ul_sinr_dB.value() < -8.0) {
+    h_ul->reset();
+    pusch_transmitted = false;
+    return std::make_pair(units::bytes(0U), pusch_transmitted);
+  }
+
+  // With CG, MCS is fixed, thus we don't want to update OLLA or channel state.
+  if (not h_ul->is_cg()) {
     // Update link adaptation controller.
     components.ue_mcs_calculator->handle_ul_crc_info(crc_pdu.tb_crc_success,
                                                      h_ul->get_grant_params().mcs,
@@ -157,7 +191,7 @@ expected<units::bytes> ue_cell::handle_crc_pdu(slot_point pusch_slot, const ul_c
     }
   }
 
-  return tbs_ret;
+  return std::make_pair(tbs_ret.value(), pusch_transmitted);
 }
 
 void ue_cell::handle_srs_channel_matrix(const srs_channel_matrix& channel_matrix)
@@ -466,4 +500,20 @@ double ue_cell::get_estimated_ul_rate(const pusch_config_params& pusch_cfg, sch_
 
   // Return the estimated throughput, considering that the number of bytes is for a slot.
   return tbs_bytes.value();
+}
+
+bool ue_cell::is_cg_slot(slot_point slot) const
+{
+  // TODO: support type 2.
+  if (ue_cfg->init_bwp().ul.cg_cfg() != nullptr) {
+    const auto& cg_cfg = ue_cfg->init_bwp().ul.cg_cfg();
+    if (cg_cfg->rrc_configured_ul_grant_cfg.has_value()) {
+      const auto& rrc_cg_cfg = cg_cfg->rrc_configured_ul_grant_cfg.value();
+      if (slot.count() % static_cast<unsigned>(cg_cfg->periodicity) == rrc_cg_cfg.time_domain_offset) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

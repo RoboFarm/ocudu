@@ -43,6 +43,20 @@ using slot_event_buffer = type_list_buffer_stream<cell_creation_event,
                                                   sel::srs_indication_event,
                                                   sel::slice_reconfiguration_event>;
 
+const char* to_string(sel::crc_event::crc_res_t r)
+{
+  switch (r) {
+    case sel::crc_event::crc_res_t::ok:
+      return "ok";
+    case sel::crc_event::crc_res_t::ko:
+      return "ko";
+    case sel::crc_event::crc_res_t::dtx:
+      return "dtx";
+    default:
+      return "unknown";
+  }
+}
+
 /// Sentinel return type used by format_info_level to signal that an event has no info-level formatter.
 struct no_info_formatter {};
 
@@ -196,7 +210,7 @@ void format_debug_level(FormatContext& ctx, const Event& ev)
                      ev.rnti,
                      ev.sl_rx,
                      fmt::underlying(ev.h_id),
-                     ev.crc,
+                     to_string(ev.crc),
                      ev.ul_sinr_db.value());
     } else {
       fmt::format_to(ctx.out(),
@@ -205,7 +219,7 @@ void format_debug_level(FormatContext& ctx, const Event& ev)
                      ev.rnti,
                      ev.sl_rx,
                      fmt::underlying(ev.h_id),
-                     ev.crc);
+                     to_string(ev.crc));
     }
   } else if constexpr (std::is_same_v<Event, dl_mac_ce_indication>) {
     fmt::format_to(ctx.out(), "\n- MAC CE: ue={} lcid={}", fmt::underlying(ev.ue_index), ev.ce_lcid.value());

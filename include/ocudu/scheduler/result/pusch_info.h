@@ -23,6 +23,8 @@ struct pusch_information {
   const bwp_configuration* bwp_cfg;
   vrb_alloc                rbs;
   ofdm_symbol_range        symbols;
+  /// \brief True is this is a PUSCH with Configured Grant.
+  bool is_cg = false;
   /// \brief For resource allocation type 1, it indicates if intra-slot frequency hopping is enabled, as per TS38.212
   /// Section 7.3.1.1.
   bool intra_slot_freq_hopping;
@@ -38,18 +40,18 @@ struct pusch_information {
   bool ul_freq_shift_7p5khz;
   /// Modulation and coding scheme.
   sch_mcs_description mcs_descr;
-  /// \brief MCS index, range {0, ..., 31} (See TS38.214 Section 5.1.4.1).
+  /// \brief MCS index, range {0, ..., 31} (See TS 38.214 Section 5.1.4.1).
   /// \note Should match value sent in DCI.
   sch_mcs_index mcs_index;
-  /// MCS table (See TS38.214 Section 6.1.4.1).
+  /// MCS table (See TS 38.214 Section 6.1.4.1).
   pusch_mcs_table mcs_table;
   /// Indicates if transform precoding is enabled or disabled (see TS 38.214, Section 6.1.4.1).
   bool transform_precoding;
-  /// Parameter \f$n_{ID}\f$ as per TS38.211 Section 6.3.1.1. Values: {0,...,1023}.
+  /// Parameter \f$n_{ID}\f$ as per TS 38.211 Section 6.3.1.1. Values: {0,...,1023}.
   uint16_t n_id;
-  /// Number of layers as per TS38.211, Section 6.3.1.3.
+  /// Number of layers as per TS 38.211, Section 6.3.1.3.
   unsigned nof_layers;
-  /// DMRS configuration as per TS38.211 Section 6.4.1.1.
+  /// DMRS configuration as per TS 38.211 Section 6.4.1.1.
   dmrs_information dmrs;
   /// \brief PUSCH DMRS ID \f$n_{ID}^{RS}\f$ as per TS38.211 Section 6.4.1.1.1.2. This field is only valid when
   /// transform_precoding is enabled. Values: {0,...,1007} (Rel-15), {0,...,65535} (Rel-16).
@@ -108,7 +110,7 @@ struct ul_sched_info {
   pusch_information       pusch_cfg;
   std::optional<uci_info> uci;
 
-  /// \brief Information relative to a PDSCH allocation decision that is used for the purpose of logging or
+  /// \brief Information relative to a PUSCH allocation decision that is used for the purpose of logging or
   /// tracing, but not passed to the PHY.
   struct decision_context {
     du_ue_index_t   ue_index;

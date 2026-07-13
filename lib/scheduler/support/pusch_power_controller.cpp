@@ -64,9 +64,18 @@ void pusch_power_controller::update_pusch_pw_ctrl_state(slot_point slot_rx, unsi
   pusch_pw_ctrl_grid[grid_idx] = {slot_rx, nof_prbs, latest_f_cl_pw_control};
 }
 
-void pusch_power_controller::handle_phr(const cell_ph_report& phr, slot_point slot_rx)
+void pusch_power_controller::handle_phr(const cell_ph_report& phr, slot_point slot_rx, rnti_t phr_rnti)
 {
   if (not pusch_pwr_ctrl.has_value()) {
+    return;
+  }
+
+  // PHR reported in Configured Grant PUSCH have a different RNTI from the C-RNTI used by the UE.
+  // We ignore these PHRs and only issue warnings when the reported PH is negative.
+  if (phr_rnti != rnti) {
+    if (phr.ph.stop() < 0) {
+      logger.info("cs-rnti={}: negative PHR reported by Configured Grant PUSCH at slot={}", phr_rnti, slot_rx);
+    }
     return;
   }
 
@@ -77,6 +86,7 @@ void pusch_power_controller::handle_phr(const cell_ph_report& phr, slot_point sl
         std::all_of(pusch_pw_ctrl_grid.begin(), pusch_pw_ctrl_grid.end(), [](const pusch_pw_ctrl_data& data) {
           return not data.slot_rx.valid();
         });
+    // If RNTI doesn't match, then it means the PHR is from a CG PUSCH.
     if (not first_phr_reporting) {
       logger.info("rnti={}: No PUSCH allocation corresponding to the PHR received at slot={} grid_idx={}. Consider "
                   "increasing the grid size",
@@ -152,7 +162,8 @@ uint8_t pusch_power_controller::compute_tpc_command(slot_point pusch_slot)
     static constexpr int default_f_cl_pw_control = 0;
     latest_pusch_pw_control.emplace(pusch_pw_control{default_f_cl_pw_control, pusch_slot});
     return default_tpc;
-  } else if (pusch_slot <= latest_pusch_pw_control.value().latest_tpc_slot + tpc_adjust_prohibit_time_sl) {
+  }
+  if (pusch_slot <= latest_pusch_pw_control.value().latest_tpc_slot + tpc_adjust_prohibit_time_sl) {
     return default_tpc;
   }
 
