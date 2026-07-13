@@ -176,13 +176,107 @@ TEST_F(du_cell_lock_test, when_graceful_stop_then_bar_is_issued_at_once_and_cell
 
   // The cell must not be torn down before the settling window elapses, so the barred MIB is advertised on air
   // before SSB stops. With no UEs to drain, completion is gated by the settling window; just inside it the
-  // procedure must still be pending.
+  // MAC cell must not have been stopped (asserting on the MAC stop, not on overall completion, so the
+  // post-stop grant-flush wait cannot mask a skipped settling window).
   pump(settling_ms - 4);
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 0U) << "Cell was stopped before the settling window elapsed";
   ASSERT_FALSE(launcher.ready()) << "Stop completed before the settling window elapsed";
 
   // Once the window (and the post-stop grant-flush wait) elapses, the procedure runs to completion.
   pump_until(500, [&]() { return launcher.ready(); });
   ASSERT_TRUE(launcher.ready()) << "Stop procedure did not complete after the settling window";
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 1U);
+}
+
+TEST_F(du_cell_lock_test, when_cu_bars_cell_then_mib_cell_barred_is_set_without_stopping_cell)
+{
+  // CU sends gNB-CU Configuration Update carrying only the Cells to be Barred List (stage 1 of the CU-driven
+  // graceful stop): the cell must be barred but kept running.
+  gnbcu_config_update_request req;
+  req.cells_to_bar.push_back({cell_cfgs[0].nr_cgi, /* barred = */ true});
+
+  async_task<gnbcu_config_update_response> resp_task =
+      du_mng->get_f1ap_event_handler().handle_cu_context_update_request(req);
+  lazy_task_launcher<gnbcu_config_update_response> launcher(resp_task);
+  pump_until(100, [&]() { return launcher.ready(); });
+  ASSERT_TRUE(launcher.ready()) << "Bar-only configuration update did not complete";
+
+  // The bar reached the MAC as a reconfigure with cell_barred_mod=true...
+  ASSERT_TRUE(dependencies.mac.mac_cell.last_cell_recfg_req.has_value()) << "CU bar did not reach the MAC";
+  ASSERT_TRUE(dependencies.mac.mac_cell.last_cell_recfg_req->cell_barred_mod.value_or(false))
+      << "CU bar should set cell_barred_mod=true";
+
+  // ...and the cell was kept running: barring is not a stop.
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 0U) << "A bar-only configuration update must not stop the cell";
+}
+
+TEST_F(du_cell_lock_test, when_cu_unbars_cell_then_mib_cell_barred_is_cleared)
+{
+  // Bar the cell first.
+  {
+    gnbcu_config_update_request bar_req;
+    bar_req.cells_to_bar.push_back({cell_cfgs[0].nr_cgi, /* barred = */ true});
+    async_task<gnbcu_config_update_response> bar_task =
+        du_mng->get_f1ap_event_handler().handle_cu_context_update_request(bar_req);
+    lazy_task_launcher<gnbcu_config_update_response> bar_launcher(bar_task);
+    pump_until(100, [&]() { return bar_launcher.ready(); });
+    ASSERT_TRUE(bar_launcher.ready());
+  }
+
+  // CU unbars the cell (Cells to be Barred List with cellBarred=not-barred).
+  gnbcu_config_update_request unbar_req;
+  unbar_req.cells_to_bar.push_back({cell_cfgs[0].nr_cgi, /* barred = */ false});
+  async_task<gnbcu_config_update_response> unbar_task =
+      du_mng->get_f1ap_event_handler().handle_cu_context_update_request(unbar_req);
+  lazy_task_launcher<gnbcu_config_update_response> unbar_launcher(unbar_task);
+  pump_until(100, [&]() { return unbar_launcher.ready(); });
+  ASSERT_TRUE(unbar_launcher.ready()) << "Unbar configuration update did not complete";
+
+  ASSERT_TRUE(dependencies.mac.mac_cell.last_cell_recfg_req.has_value());
+  ASSERT_TRUE(dependencies.mac.mac_cell.last_cell_recfg_req->cell_barred_mod.has_value());
+  ASSERT_FALSE(dependencies.mac.mac_cell.last_cell_recfg_req->cell_barred_mod.value())
+      << "CU unbar should set cell_barred_mod=false";
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 0U);
+}
+
+TEST_F(du_cell_lock_test, when_cell_already_barred_by_cu_then_graceful_stop_skips_barring)
+{
+  // Stage 1 of the CU-driven graceful stop: the CU bars the cell.
+  {
+    gnbcu_config_update_request bar_req;
+    bar_req.cells_to_bar.push_back({cell_cfgs[0].nr_cgi, /* barred = */ true});
+    async_task<gnbcu_config_update_response> bar_task =
+        du_mng->get_f1ap_event_handler().handle_cu_context_update_request(bar_req);
+    lazy_task_launcher<gnbcu_config_update_response> bar_launcher(bar_task);
+    pump_until(100, [&]() { return bar_launcher.ready(); });
+    ASSERT_TRUE(bar_launcher.ready());
+    ASSERT_TRUE(dependencies.mac.mac_cell.last_cell_recfg_req.has_value());
+  }
+
+  // Only observe events triggered by the deactivation below.
+  dependencies.mac.mac_cell.last_cell_recfg_req.reset();
+
+  // Stage 3: the CU deactivates the already-barred cell. The autonomous bar-first safety net must detect the
+  // cell is already barred and skip the re-bar (no MIB mutation is issued at all), while still holding the
+  // settling window so the barred MIB is guaranteed to air before SSB stops.
+  gnbcu_config_update_request deact_req;
+  deact_req.cells_to_deactivate.push_back(cell_cfgs[0].nr_cgi);
+  async_task<gnbcu_config_update_response> deact_task =
+      du_mng->get_f1ap_event_handler().handle_cu_context_update_request(deact_req);
+  lazy_task_launcher<gnbcu_config_update_response> deact_launcher(deact_task);
+
+  // Just inside the settling window the cell must not have been torn down yet.
+  const unsigned settling_ms = 2 * to_value(cell_cfgs[0].ran.ssb_cfg.ssb_period);
+  pump(settling_ms - 2);
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 0U)
+      << "The settling window must be held even when the cell was already barred by the CU";
+
+  pump_until(500, [&]() { return deact_launcher.ready(); });
+  ASSERT_TRUE(deact_launcher.ready()) << "Stop procedure did not complete in time";
+
+  ASSERT_FALSE(dependencies.mac.mac_cell.last_cell_recfg_req.has_value())
+      << "Graceful stop of an already-barred cell must not re-bar it";
+  ASSERT_EQ(dependencies.mac.mac_cell.stop_count, 1U) << "The cell must still be stopped";
 }
 
 TEST_F(du_cell_lock_test, when_f1c_connection_is_lost_then_cell_stop_skips_barring)

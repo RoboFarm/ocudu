@@ -280,9 +280,19 @@ public:
     /// so a test must copy the bytes here to inspect them after the async update completes; reading each buffer also
     /// exercises the SI message path under ASan.
     std::vector<byte_buffer> last_si_msg_bytes;
+    unsigned                 start_count = 0;
+    unsigned                 stop_count  = 0;
 
-    async_task<void>                       start() override { return wait_start.launch(); }
-    async_task<void>                       stop() override { return wait_stop.launch(); }
+    async_task<void> start() override
+    {
+      ++start_count;
+      return wait_start.launch();
+    }
+    async_task<void> stop() override
+    {
+      ++stop_count;
+      return wait_stop.launch();
+    }
     async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override
     {
       last_cell_recfg_req = request;
