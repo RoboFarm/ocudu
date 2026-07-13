@@ -28,6 +28,12 @@ void cu_configuration_procedure::operator()(coro_context<async_task<gnbcu_config
 {
   CORO_BEGIN(ctx);
 
+  // Bar/unbar cells (TS 38.473 Cells to be Barred List). Applied before any deactivation, so that a bar and a
+  // deactivation carried in the same message bar the cell first.
+  for (list_index = 0; list_index != request.cells_to_bar.size(); ++list_index) {
+    CORO_AWAIT(bar_cell(request.cells_to_bar[list_index]));
+  }
+
   // Deactivate cells.
   for (list_index = 0; list_index != request.cells_to_deactivate.size(); ++list_index) {
     CORO_AWAIT(stop_cell(request.cells_to_deactivate[list_index]));
@@ -63,4 +69,13 @@ async_task<void> cu_configuration_procedure::stop_cell(const nr_cell_global_id_t
 
   return launch_async<du_cell_stop_procedure>(
       ue_mng, cell_mng, du_params, cell_index, du_cell_stop_procedure::ue_removal_mode::trigger_f1_ue_release_request);
+}
+
+async_task<void> cu_configuration_procedure::bar_cell(const f1ap_cell_to_bar& cell)
+{
+  const du_cell_index_t cell_index = cell_mng.get_cell_index(cell.cgi);
+  if (cell_index == INVALID_DU_CELL_INDEX) {
+    return launch_no_op_task();
+  }
+  return cell_mng.set_cell_barred(cell_index, cell.barred);
 }

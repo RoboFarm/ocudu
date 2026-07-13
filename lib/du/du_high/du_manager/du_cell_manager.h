@@ -26,6 +26,9 @@ struct du_cell_context {
   /// Whether the cell has been started at least once. Used to skip the MIB cellBarred restore on the very
   /// first start (where the live MIB already matches the configured value); it is only needed on restart.
   bool started_once = false;
+  /// Current live MIB cellBarred state of the cell. Tracks runtime bar commands (CU-initiated or applied
+  /// autonomously by the graceful cell stop) so an already-barred cell is not barred again.
+  bool live_barred = false;
 };
 
 /// Result of the reconfiguration of a DU cell.
@@ -54,6 +57,13 @@ public:
   {
     assert_cell_exists(cell_index);
     return cells[cell_index]->state == du_cell_context::state_t::active;
+  }
+
+  /// Determine whether the cell's live MIB currently advertises cellBarred=barred.
+  bool is_cell_barred(du_cell_index_t cell_index) const
+  {
+    assert_cell_exists(cell_index);
+    return cells[cell_index]->live_barred;
   }
 
   du_cell_index_t get_cell_index(nr_cell_global_id_t nr_cgi) const;
@@ -98,16 +108,24 @@ public:
 
   /// \brief Update the MIB cellBarred flag of a cell at runtime.
   ///
-  /// Used by the cell stop procedure to bar the cell before draining UEs (so idle UEs reselect away
-  /// before connected UE drain begins) and by the cell start path to restore the configured cellBarred
-  /// state after a prior bar-first stop. The new value takes effect on the next SSB build (one SSB period).
+  /// Used to apply a CU-commanded bar (TS 38.473 Cells to be Barred List), by the cell stop procedure to bar
+  /// the cell before draining UEs (so idle UEs reselect away before connected UE drain begins) and by the
+  /// cell start path to restore the configured cellBarred state after a prior bar-first stop. The new value
+  /// takes effect on the next SSB build (one SSB period).
+  ///
+  /// \remark This only modifies the live MAC MIB state; it intentionally does not modify
+  /// \c du_cell_config::cell_barred (the operator-configured intent, restored on cell restart) nor trigger a
+  /// gNB-DU Configuration Update. If this is to be used outside of the cell bar/shutdown procedures, the
+  /// F1AP/DU-manager configuration state handling needs to be extended accordingly.
   async_task<void> set_cell_barred(du_cell_index_t cell_index, bool barred) const;
 
   /// \brief Bar a cell and wait for the change to settle on air.
   ///
   /// Bars the cell (cellBarred=true) and then waits a settling window derived from the cell's configured SSB
-  /// period, so the barred MIB is transmitted at least once. Intended to run concurrently with the UE drain
-  /// in the graceful cell stop path, so the wait adds no latency in the common case.
+  /// period, so the barred MIB is transmitted at least once. If the cell is already barred (e.g. by a CU
+  /// command), the re-bar is skipped but the settling window is still held, since the tracked state does not
+  /// prove a barred SSB has aired yet. Intended to run concurrently with the UE drain in the graceful cell
+  /// stop path, so the wait adds no latency in the common case.
   async_task<void> set_cell_barred_and_wait(du_cell_index_t cell_index) const;
 
   /// Stop all cells in the DU.

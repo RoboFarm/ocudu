@@ -66,6 +66,7 @@ void du_cell_manager::add_cell(const du_cell_config& cell_cfg)
   du_cell_context& cell = *cells.emplace_back(std::make_unique<du_cell_context>());
   cell.cfg              = cell_cfg;
   cell.state            = du_cell_context::state_t::inactive;
+  cell.live_barred      = cell_cfg.cell_barred;
   cell.si_cfg.sib1      = sib1.copy();
   cell.si_cfg.si_messages.assign(si_messages.begin(), si_messages.end());
   cell.si_cfg.sib1_contains_hypersfn = cell_cfg.ran.init_bwp.paging.edrx_enabled;
@@ -260,6 +261,8 @@ async_task<void> du_cell_manager::set_cell_barred(du_cell_index_t cell_index, bo
 
     CORO_AWAIT(cfg.mac.mgr.get_cell_manager().get_cell_controller(cell_index).reconfigure(mac_req));
 
+    cells[cell_index]->live_barred = barred;
+
     logger.info("cell={}: MIB cellBarred set to {}", fmt::underlying(cell_index), barred);
 
     CORO_RETURN();
@@ -274,6 +277,17 @@ async_task<void> du_cell_manager::set_cell_barred_and_wait(du_cell_index_t cell_
     return launch_no_op_task();
   }
 
+  // If the cell is already barred (e.g. the CU barred it via a previous gNB-CU Configuration Update carrying
+  // the Cells to be Barred List), skip the re-bar but still hold the settling window: the tracked state only
+  // records that the MIB flag was applied at the MAC, not that a barred SSB has been transmitted, and the CU
+  // may bar and deactivate in immediate succession (even within one configuration update). Holding the window
+  // guarantees the barred MIB airs at least once before the stop that follows this call halts SSB.
+  const bool already_barred = is_cell_barred(cell_index);
+  if (already_barred) {
+    logger.debug("cell={}: cell already barred. Skipping re-bar and holding the settling window.",
+                 fmt::underlying(cell_index));
+  }
+
   // Derive the settling window from the cell's configured SSB period: the barred MIB only needs to reach the
   // air before released/idle UEs reselect, so hold a couple of SSB periods to guarantee it is transmitted at
   // least once with margin. Meant to run concurrently with the UE drain, so it adds no latency in the common
@@ -282,16 +296,19 @@ async_task<void> du_cell_manager::set_cell_barred_and_wait(du_cell_index_t cell_
   const std::chrono::milliseconds bar_settling_window{2 * ssb_period_ms};
   unique_timer                    settling_timer = cfg.services.timers.create_unique_timer(cfg.services.du_mng_exec);
 
-  return launch_async([this, cell_index, bar_settling_window, settling_timer = std::move(settling_timer)](
-                          coro_context<async_task<void>>& ctx) mutable {
-    CORO_BEGIN(ctx);
+  return launch_async(
+      [this, cell_index, already_barred, bar_settling_window, settling_timer = std::move(settling_timer)](
+          coro_context<async_task<void>>& ctx) mutable {
+        CORO_BEGIN(ctx);
 
-    CORO_AWAIT(set_cell_barred(cell_index, true));
+        if (!already_barred) {
+          CORO_AWAIT(set_cell_barred(cell_index, true));
+        }
 
-    CORO_AWAIT(async_wait_for(settling_timer, bar_settling_window));
+        CORO_AWAIT(async_wait_for(settling_timer, bar_settling_window));
 
-    CORO_RETURN();
-  });
+        CORO_RETURN();
+      });
 }
 
 async_task<void> du_cell_manager::stop(du_cell_index_t cell_index) const
