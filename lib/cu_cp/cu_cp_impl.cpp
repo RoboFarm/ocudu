@@ -1974,8 +1974,9 @@ async_task<cu_cp_cell_command_response> cu_cp_impl::deactivate_cell(const nr_cel
   }
 
   std::vector<cell_lifecycle_target> targets = {cell_lifecycle_target{du_index, cgi, std::nullopt, {}}};
-  // The CU-CP releases the UEs on the cell itself, rather than relying on the DU to autonomously drain them, so
-  // that the behaviour does not depend on DU-specific cell-stop handling (which is not mandated by F1AP).
+  // The CU-CP drives the full graceful stop (bar, then release the cell's UEs, then deactivate), rather than
+  // relying on the DU to autonomously bar/drain, so that the behaviour does not depend on DU-specific cell-stop
+  // handling (which is not mandated by F1AP).
   std::vector<cu_cp_ue_index_t> ues_to_release = collect_ues_on_cell(du_db, ue_mng, du_index, cgi);
 
   return launch_async([this, targets = std::move(targets), ues_to_release = std::move(ues_to_release)](
@@ -1987,6 +1988,7 @@ async_task<cu_cp_cell_command_response> cu_cp_impl::deactivate_cell(const nr_cel
                                                 std::move(targets),
                                                 std::move(ues_to_release),
                                                 ngap_cause_t{ngap_cause_radio_network_t::cell_not_available},
+                                                /* bar_cells_first = */ true,
                                                 du_db,
                                                 *this,
                                                 ue_mng,
