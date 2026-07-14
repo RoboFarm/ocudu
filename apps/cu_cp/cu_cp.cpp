@@ -4,6 +4,7 @@
 
 #include "apps/cu_cp/cu_cp_appconfig_cli11_schema.h"
 #include "apps/helpers/e2/e2_config_translators.h"
+#include "apps/helpers/f1/f1_gateway_helpers.h"
 #include "apps/helpers/metrics/metrics_helpers.h"
 #include "apps/helpers/network/sctp_config_translators.h"
 #include "apps/services/app_execution_metrics/executor_metrics_manager.h"
@@ -312,19 +313,13 @@ int main(int argc, char** argv)
     xnc_gws.push_back(create_xnc_connection_gateway(xnc_server_cfg));
   }
 
-  // Create F1-C GW (TODO cleanup port and PPID args with factory)
-  sctp_network_gateway_config f1c_sctp_cfg = {};
-  f1c_sctp_cfg.if_name                     = "F1-C";
-  f1c_sctp_cfg.bind_addresses              = cu_cp_cfg.f1ap_cfg.bind_addrs;
-  f1c_sctp_cfg.bind_port                   = F1AP_PORT;
-  f1c_sctp_cfg.ppid                        = F1AP_PPID;
-  fill_sctp_network_gateway_config_socket_params(f1c_sctp_cfg, cu_cp_cfg.f1ap_cfg.sctp);
-  f1c_cu_sctp_gateway_config                    f1c_server_cfg({f1c_sctp_cfg,
-                                                                *epoll_broker,
-                                                                workers.get_cu_cp_executor_mapper().f1c_rx_executor(),
-                                                                workers.get_cu_cp_executor_mapper().ctrl_executor(),
-                                                                *cu_cp_dlt_pcaps.f1ap});
-  std::unique_ptr<ocucp::f1c_connection_server> cu_f1c_gw = ocudu::create_f1c_gateway_server(f1c_server_cfg);
+  std::unique_ptr<ocucp::f1c_connection_server> cu_f1c_gw = ocudu::create_f1c_gateway_server(
+      ocudu::f1c_gateway_config{
+          .bind_addrs = cu_cp_cfg.f1ap_cfg.bind_addrs, .sctp_cfg = cu_cp_cfg.f1ap_cfg.sctp, .if_name = "F1-C"},
+      ocudu::f1c_gateway_dependencies{.broker         = *epoll_broker,
+                                      .io_rx_executor = workers.get_cu_cp_executor_mapper().f1c_rx_executor(),
+                                      .ctrl_exec      = workers.get_cu_cp_executor_mapper().ctrl_executor(),
+                                      .pcap           = *cu_cp_dlt_pcaps.f1ap});
 
   // Instantiate E1 GW
   // > Create E1 config

@@ -5,6 +5,7 @@
 #include "apps/cu_up/cu_up_appconfig_cli11_schema.h"
 #include "apps/cu_up/cu_up_appconfig_validator.h"
 #include "apps/helpers/e2/e2_config_translators.h"
+#include "apps/helpers/f1/f1_gateway_helpers.h"
 #include "apps/helpers/f1u/f1u_appconfig.h"
 #include "apps/helpers/metrics/metrics_helpers.h"
 #include "apps/helpers/network/sctp_config_translators.h"
@@ -347,26 +348,23 @@ int main(int argc, char** argv)
   // > Create UDP gateway(s).
   gtpu_gateway_maps f1u_gw_maps;
   for (const f1u_socket_appconfig& sock_cfg : cu_up_cfg.f1u_cfg.f1u_socket_cfg) {
-    udp_network_gateway_config cu_f1u_gw_config = {};
-    cu_f1u_gw_config.if_name                    = "CU-F1-U";
-    cu_f1u_gw_config.bind_address               = sock_cfg.bind_addr;
-    cu_f1u_gw_config.ext_bind_addr              = sock_cfg.udp_config.ext_addr;
-    cu_f1u_gw_config.bind_port                  = cu_up_cfg.f1u_cfg.bind_port;
-    cu_f1u_gw_config.reuse_addr                 = sock_cfg.udp_config.reuse_addr;
-    cu_f1u_gw_config.pool_occupancy_threshold   = sock_cfg.udp_config.pool_threshold;
-    cu_f1u_gw_config.rx_max_mmsg                = sock_cfg.udp_config.rx_max_msgs;
-    cu_f1u_gw_config.dscp                       = sock_cfg.udp_config.dscp;
-    cu_f1u_gw_config.warn_on_drop               = o_cu_up_app_unit->get_o_cu_up_unit_config().cu_up_cfg.warn_on_drop;
-    std::unique_ptr<gtpu_gateway> cu_f1u_gw =
-        create_udp_gtpu_gateway(cu_f1u_gw_config,
-                                *epoll_broker,
-                                workers.get_cu_up_executor_mapper().io_ul_executor(),
-                                workers.get_cu_up_executor_mapper().f1u_rx_executor());
+    std::unique_ptr<gtpu_gateway> cu_f1u_gw = ocudu::create_f1u_gtpu_gateway(
+        ocudu::f1u_gateway_config{.sock_cfg     = sock_cfg,
+                                  .sockets_cfg  = cu_up_cfg.f1u_cfg,
+                                  .if_name      = "CU-F1-U",
+                                  .warn_on_drop = o_cu_up_app_unit->get_o_cu_up_unit_config().cu_up_cfg.warn_on_drop},
+        ocudu::f1u_gateway_dependencies{.broker         = *epoll_broker,
+                                        .io_tx_executor = workers.get_cu_up_executor_mapper().io_ul_executor(),
+                                        .io_rx_executor = workers.get_cu_up_executor_mapper().f1u_rx_executor()});
 
     f1u_gw_maps.add_gtpu_gateway(sock_cfg.sst, sock_cfg.sd, sock_cfg.five_qi, std::move(cu_f1u_gw));
   }
-  std::unique_ptr<f1u_cu_up_udp_gateway> cu_f1u_conn =
-      ocuup::create_split_f1u_gw({f1u_gw_maps, *cu_f1u_gtpu_demux, *cu_up_dlt_pcaps.f1u, cu_up_cfg.f1u_cfg.peer_port});
+  std::unique_ptr<f1u_cu_up_udp_gateway> cu_f1u_conn = ocudu::create_f1u_cu_up_split_gateway(
+      ocudu::f1u_cu_up_split_gateway_config{.gw_maps   = f1u_gw_maps,
+                                            .demux     = *cu_f1u_gtpu_demux,
+                                            .pcap      = *cu_up_dlt_pcaps.f1u,
+                                            .peer_port = cu_up_cfg.f1u_cfg.peer_port},
+      ocudu::f1u_cu_up_split_gateway_dependencies{});
 
   // Instantiate E1 client gateway(s).
   std::vector<std::unique_ptr<ocuup::e1_connection_client>> e1_gws;

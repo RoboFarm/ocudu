@@ -5,6 +5,7 @@
 #include "adapters/f1_gateways.h"
 #include "adapters/f1c_test_mode_adapter.h"
 #include "apps/helpers/e2/e2_config_translators.h"
+#include "apps/helpers/f1/f1_gateway_helpers.h"
 #include "apps/helpers/metrics/metrics_helpers.h"
 #include "apps/services/app_execution_metrics/executor_metrics_manager.h"
 #include "apps/services/app_resource_usage/app_resource_usage.h"
@@ -341,27 +342,26 @@ int main(int argc, char** argv)
   // > Create UDP gateway(s).
   gtpu_gateway_maps f1u_gw_maps;
   for (const f1u_socket_appconfig& sock_cfg : du_cfg.f1u_cfg.f1u_sockets.f1u_socket_cfg) {
-    udp_network_gateway_config f1u_gw_config = {};
-    f1u_gw_config.if_name                    = "DU-F1-U";
-    f1u_gw_config.bind_address               = sock_cfg.bind_addr;
-    f1u_gw_config.ext_bind_addr              = sock_cfg.udp_config.ext_addr;
-    f1u_gw_config.bind_port                  = du_cfg.f1u_cfg.f1u_sockets.bind_port;
-    f1u_gw_config.reuse_addr                 = sock_cfg.udp_config.reuse_addr;
-    f1u_gw_config.pool_occupancy_threshold   = sock_cfg.udp_config.pool_threshold;
-    f1u_gw_config.rx_max_mmsg                = sock_cfg.udp_config.rx_max_msgs;
-    f1u_gw_config.dscp                       = sock_cfg.udp_config.dscp;
-    f1u_gw_config.warn_on_drop           = o_du_app_unit->get_o_du_high_unit_config().du_high_cfg.config.warn_on_drop;
-    std::unique_ptr<gtpu_gateway> f1u_gw = create_udp_gtpu_gateway(
-        f1u_gw_config,
-        *epoll_broker,
-        workers.get_du_high_executor_mapper().ue_mapper().mac_ul_pdu_executor(to_du_ue_index(0)),
-        workers.get_du_high_executor_mapper().f1u_rx_executor());
+    std::unique_ptr<gtpu_gateway> f1u_gw = ocudu::create_f1u_gtpu_gateway(
+        ocudu::f1u_gateway_config{.sock_cfg    = sock_cfg,
+                                  .sockets_cfg = du_cfg.f1u_cfg.f1u_sockets,
+                                  .if_name     = "DU-F1-U",
+                                  .warn_on_drop =
+                                      o_du_app_unit->get_o_du_high_unit_config().du_high_cfg.config.warn_on_drop},
+        ocudu::f1u_gateway_dependencies{
+            .broker         = *epoll_broker,
+            .io_tx_executor = workers.get_du_high_executor_mapper().ue_mapper().mac_ul_pdu_executor(to_du_ue_index(0)),
+            .io_rx_executor = workers.get_du_high_executor_mapper().f1u_rx_executor()});
     f1u_gw_maps.add_gtpu_gateway(sock_cfg.sst, sock_cfg.sd, sock_cfg.five_qi, std::move(f1u_gw));
   }
 
   // > Create F1-U split connector.
-  std::unique_ptr<odu::f1u_du_udp_gateway> du_f1u_conn = odu::create_split_f1u_gw(
-      {f1u_gw_maps, du_f1u_gtpu_demux.get(), *du_pcaps.f1u, du_cfg.f1u_cfg.f1u_sockets.peer_port});
+  std::unique_ptr<odu::f1u_du_udp_gateway> du_f1u_conn = ocudu::create_f1u_du_split_gateway(
+      ocudu::f1u_du_split_gateway_config{.gw_maps   = f1u_gw_maps,
+                                         .demux     = *du_f1u_gtpu_demux,
+                                         .pcap      = *du_pcaps.f1u,
+                                         .peer_port = du_cfg.f1u_cfg.f1u_sockets.peer_port},
+      ocudu::f1u_du_split_gateway_dependencies{});
 
   // Instantiate E2AP client gateway.
   std::unique_ptr<e2_connection_client> e2_gw = create_e2_gateway_client(
