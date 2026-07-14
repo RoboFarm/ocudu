@@ -229,16 +229,20 @@ async_task<bool> du_cell_manager::start(du_cell_index_t cell_index) const
       CORO_EARLY_RETURN(false);
     }
 
-    // Start cell in the MAC.
-    CORO_AWAIT(cfg.mac.mgr.get_cell_manager().get_cell_controller(cell_index).start());
-
-    // On restart, restore the configured MIB cellBarred state: a prior bar-first cell stop may have left the
-    // live MIB flag set to true, so bring it back to the user-configured intent. Skipped on the first start,
-    // where the live MIB already matches the configured value (the MAC cell was created from it).
-    if (cells[cell_index]->started_once) {
+    // On restart, the live MIB cellBarred flag may have been left set to barred by a prior bar-first cell stop.
+    // Restore the configured value *before* starting the MAC cell, so the first SSB built once the cell goes
+    // active already advertises the operator-configured cellBarred instead of briefly re-airing the stale
+    // barred flag. Skipped when the live flag already matches the configured value (first start, or a restart
+    // with no runtime bar in between): the restore is an extra awaited hop to the cell executor on the cell
+    // (re)activation path, and a redundant one only delays the cell going active. This runs on a stopped cell:
+    // reconfigure() only hops to the cell executor to store the flag, it does not depend on the cell being
+    // active.
+    if (cells[cell_index]->live_barred != cells[cell_index]->cfg.cell_barred) {
       CORO_AWAIT(set_cell_barred(cell_index, cells[cell_index]->cfg.cell_barred));
     }
-    cells[cell_index]->started_once = true;
+
+    // Start cell in the MAC.
+    CORO_AWAIT(cfg.mac.mgr.get_cell_manager().get_cell_controller(cell_index).start());
 
     cells[cell_index]->state = du_cell_context::state_t::active;
 

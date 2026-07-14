@@ -152,6 +152,70 @@ TEST_F(du_cell_lock_test, when_cu_activates_cell_after_deactivate_then_mib_cell_
       << "Configured cell_barred is false; activate should restore it";
 }
 
+TEST_F(du_cell_lock_test, when_cell_restarted_after_bar_then_cellbarred_is_restored_before_mac_start)
+{
+  // Deactivate the cell: the graceful stop leaves the live MIB barred.
+  gnbcu_config_update_request deact_req;
+  deact_req.cells_to_deactivate.push_back(cell_cfgs[0].nr_cgi);
+  async_task<gnbcu_config_update_response> deact_task =
+      du_mng->get_f1ap_event_handler().handle_cu_context_update_request(deact_req);
+  lazy_task_launcher<gnbcu_config_update_response> deact_launcher(deact_task);
+  pump_until(500, [&]() { return deact_launcher.ready(); });
+  ASSERT_TRUE(deact_launcher.ready());
+  ASSERT_TRUE(dependencies.mac.mac_cell.current_cell_barred.value_or(false)) << "deactivate should leave MIB barred";
+
+  // Reactivate the cell.
+  gnbcu_config_update_request act_req;
+  f1ap_cell_to_activate       cell_act{};
+  cell_act.cgi = cell_cfgs[0].nr_cgi;
+  act_req.cells_to_activate.push_back(cell_act);
+  async_task<gnbcu_config_update_response> act_task =
+      du_mng->get_f1ap_event_handler().handle_cu_context_update_request(act_req);
+  lazy_task_launcher<gnbcu_config_update_response> act_launcher(act_task);
+  pump_until(200, [&]() { return act_launcher.ready(); });
+  ASSERT_TRUE(act_launcher.ready()) << "Start procedure did not complete in time";
+
+  // The configured cellBarred (false) must have been restored *before* the MAC cell was started, so the first
+  // SSB after reactivation does not re-air the stale barred flag. The dummy snapshots the live cellBarred at
+  // the instant start() runs.
+  ASSERT_TRUE(dependencies.mac.mac_cell.cell_barred_at_last_start.has_value())
+      << "cellBarred was not restored before the MAC cell start on restart";
+  ASSERT_FALSE(dependencies.mac.mac_cell.cell_barred_at_last_start.value())
+      << "MAC cell was started while still barred; the cellBarred restore must precede the start";
+}
+
+TEST_F(du_cell_lock_test, when_cell_restarted_without_bar_then_cellbarred_restore_is_skipped)
+{
+  // A cell stopped without a runtime bar (e.g. the DU-activity stop that follows an F1-C connection loss)
+  // restarts with the live MIB cellBarred already matching the configured value. start() must then skip the
+  // restore: the extra awaited reconfigure hop to the cell executor would only delay the cell going active.
+  du_cell_manager cell_mng(dependencies.params);
+  cell_mng.add_cell(cell_cfgs[0]);
+  dependencies.mac.mac_cell.last_cell_recfg_req.reset();
+
+  {
+    async_task<bool>         start_task = cell_mng.start(to_du_cell_index(0));
+    lazy_task_launcher<bool> launcher(start_task);
+    pump_until(200, [&]() { return launcher.ready(); });
+    ASSERT_TRUE(launcher.ready() and launcher.result.value_or(false)) << "first start did not complete";
+  }
+  {
+    async_task<void>         stop_task = cell_mng.stop(to_du_cell_index(0));
+    lazy_task_launcher<void> launcher(stop_task);
+    pump_until(200, [&]() { return launcher.ready(); });
+    ASSERT_TRUE(launcher.ready()) << "stop did not complete";
+  }
+  {
+    async_task<bool>         restart_task = cell_mng.start(to_du_cell_index(0));
+    lazy_task_launcher<bool> launcher(restart_task);
+    pump_until(200, [&]() { return launcher.ready(); });
+    ASSERT_TRUE(launcher.ready() and launcher.result.value_or(false)) << "restart did not complete";
+  }
+
+  EXPECT_FALSE(dependencies.mac.mac_cell.last_cell_recfg_req.has_value())
+      << "start/stop without a runtime bar must not issue a cellBarred reconfigure";
+}
+
 TEST_F(du_cell_lock_test, when_graceful_stop_then_bar_is_issued_at_once_and_cell_is_held_until_settling)
 {
   // The settling window is derived from the cell's configured SSB period (two periods), not a hardcoded

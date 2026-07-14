@@ -282,10 +282,16 @@ public:
     std::vector<byte_buffer> last_si_msg_bytes;
     unsigned                 start_count = 0;
     unsigned                 stop_count  = 0;
+    // Latest MIB cellBarred value applied by a reconfigure, and a snapshot of it taken at the moment start()
+    // was last called. Together these let a test assert that a cellBarred restore is applied *before* the cell
+    // is started (so no stale barred SSB is built after reactivation).
+    std::optional<bool> current_cell_barred;
+    std::optional<bool> cell_barred_at_last_start;
 
     async_task<void> start() override
     {
       ++start_count;
+      cell_barred_at_last_start = current_cell_barred;
       return wait_start.launch();
     }
     async_task<void> stop() override
@@ -305,6 +311,9 @@ public:
         // storage that dangles once the update procedure returns. Drop it so a later test cannot dereference the stale
         // span; tests should read the deep copies in last_si_msg_bytes instead.
         last_cell_recfg_req->new_si_pdu_info->si_messages = {};
+      }
+      if (request.cell_barred_mod.has_value()) {
+        current_cell_barred = request.cell_barred_mod;
       }
       return launch_no_op_task(mac_cell_reconfig_response{true, true});
     }

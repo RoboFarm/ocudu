@@ -23,11 +23,9 @@ struct du_cell_context {
   mac_cell_sys_info_config si_cfg;
   /// Current cell state.
   state_t state;
-  /// Whether the cell has been started at least once. Used to skip the MIB cellBarred restore on the very
-  /// first start (where the live MIB already matches the configured value); it is only needed on restart.
-  bool started_once = false;
   /// Current live MIB cellBarred state of the cell. Tracks runtime bar commands (CU-initiated or applied
-  /// autonomously by the graceful cell stop) so an already-barred cell is not barred again.
+  /// autonomously by the graceful cell stop) so an already-barred cell is not barred again and so the
+  /// configured value is only restored on cell start when a runtime bar actually changed it.
   bool live_barred = false;
 };
 
