@@ -82,9 +82,9 @@ public:
   /// \brief Construction of a DL HARQ buffer pool for a given cell.
   ///
   /// \param cell_nof_prbs Number of PRBs of the cell.
-  /// \param nof_ports Number of ports of the cell.
+  /// \param max_nof_layers Maximum number of DL layers configured for the cell.
   /// \param max_harqs_per_cell Maximum number of HARQs per cell.
-  cell_dl_harq_buffer_pool(unsigned cell_nof_prbs, unsigned nof_ports, unsigned max_harqs_per_cell);
+  cell_dl_harq_buffer_pool(unsigned cell_nof_prbs, unsigned max_nof_layers, unsigned max_harqs_per_cell);
 
   /// Called on cell deactivation to clear all available buffers.
   void clear();

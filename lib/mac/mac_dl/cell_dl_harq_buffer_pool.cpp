@@ -8,19 +8,18 @@
 using namespace ocudu;
 
 /// Derive maximum TB/MAC PDU length given a cell parameters.
-static units::bytes derive_max_pdu_length(unsigned cell_nof_prbs, unsigned nof_ports)
+static units::bytes derive_max_pdu_length(unsigned cell_nof_prbs, unsigned max_nof_layers)
 {
-  ocudu_assert(nof_ports >= 1, "Invalid number of ports");
-  units::bits cw_max_size{pdsch_constants::MAX_NRE_PER_RB * cell_nof_prbs *
-                          std::min(nof_ports, pdsch_constants::MAX_NOF_LAYERS_PER_CODEWORD) *
+  ocudu_assert(max_nof_layers >= 1, "Invalid number of layers");
+  units::bits cw_max_size{pdsch_constants::MAX_NRE_PER_RB * cell_nof_prbs * max_nof_layers *
                           pdsch_constants::MAX_MODULATION_ORDER};
   return cw_max_size.round_up_to_bytes();
 }
 
 cell_dl_harq_buffer_pool::cell_dl_harq_buffer_pool(unsigned cell_nof_prbs,
-                                                   unsigned nof_ports,
+                                                   unsigned max_nof_layers,
                                                    unsigned max_harqs_per_cell) :
-  max_pdu_len(derive_max_pdu_length(cell_nof_prbs, nof_ports).value()),
+  max_pdu_len(derive_max_pdu_length(cell_nof_prbs, max_nof_layers).value()),
   nof_buffers(max_harqs_per_cell),
   logger(ocudulog::fetch_basic_logger("MAC")),
   cell_buffers(MAX_NOF_DU_UES_PER_CELL),
