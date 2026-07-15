@@ -58,6 +58,16 @@ unsigned precomputed_pdsch_layer_configs(unsigned nof_dl_antennas)
       max_configs = std::max(max_configs, ss->get_nof_pdsch_layer_configs(td));
     }
   }
+
+  // The RRC maxMIMO-Layers (PDSCH-ServingCellConfig) signalled to the UE should match the resolved maximum number of DL
+  // layers.
+  const pdsch_serving_cell_config* pdsch_serv_cell = ue_cell_cfg.pdsch_serving_cell_cfg();
+  EXPECT_NE(pdsch_serv_cell, nullptr);
+  if (pdsch_serv_cell != nullptr) {
+    EXPECT_EQ(pdsch_serv_cell->max_mimo_layers, max_configs)
+        << "RRC maxMIMO-Layers must match the resolved max DL layers for nof_dl_antennas=" << nof_dl_antennas;
+  }
+
   ev.notify_completion();
   return max_configs;
 }

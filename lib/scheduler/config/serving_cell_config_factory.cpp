@@ -331,7 +331,7 @@ static pdsch_serving_cell_config make_default_pdsch_serving_cell_config(const pd
 {
   pdsch_serving_cell_config cfg;
   cfg.nof_harq_proc   = static_cast<pdsch_serving_cell_config::nof_harq_proc_for_pdsch>(pdsch_params.max_harq_procs);
-  cfg.max_mimo_layers = 1;
+  cfg.max_mimo_layers = pdsch_params.max_nof_layers;
   cfg.dl_harq_feedback_disabled = pdsch_params.dl_harq_feedback_disabled;
 
   return cfg;
