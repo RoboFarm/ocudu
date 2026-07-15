@@ -18,7 +18,7 @@ TEST(fapi_power_unit_test, fapi_power_unit_operations_passes)
   fapi_power_unit power_unit_one(value_one, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor);
   fapi_power_unit power_unit_two(value_two, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor);
 
-  ASSERT_EQ(value_one, power_unit_one.to_dB());
+  ASSERT_EQ(value_one, power_unit_one.to_normalized_dB());
   ASSERT_EQ((power_unit_one + power_unit_two).value(), value_one + value_two);
   ASSERT_EQ((power_unit_one - power_unit_two).value(), value_one - value_two);
   ASSERT_EQ((power_unit_one * 2).value(), value_one * 2);

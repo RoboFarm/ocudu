@@ -51,7 +51,7 @@ static fapi::carrier_config generate_carrier_config_tlv(const odu::du_cell_confi
 }
 
 static o_du_low_unit_config generate_o_du_low_config(const du_low_unit_config&            du_low_unit_cfg,
-                                                     float                                dBFS_calibration_value,
+                                                     float                                rx_gain_dB,
                                                      span<const odu::du_cell_config>      cells,
                                                      span<const du_high_unit_cell_config> du_hi_cells)
 {
@@ -73,7 +73,11 @@ static o_du_low_unit_config generate_o_du_low_config(const du_low_unit_config&  
         .carrier_cfg                   = generate_carrier_config_tlv(cell),
         .prach_cfg                     = *cell.ran.ul_cfg_common.init_ul_bwp.rach_cfg_common,
         .prach_ports                   = du_hi_cell.cell.prach_cfg.ports,
-        .dBFS_calibration_value        = dBFS_calibration_value};
+        // The SDR Radio Unit gain is known to this application unit, so it is subtracted from the configured
+        // '--dbfs_to_dbm_conversion_factor' here. For Open Fronthaul, the receive gain is applied by the externalis
+        // applied (rx_gain_dB is 0).
+        .dbfs_to_dbm_conversion_factor = du_low_unit_cfg.power_calibration.dbfs_to_dbm_conversion_factor - rx_gain_dB,
+        .db_to_dbfs_conversion_factor  = du_low_unit_cfg.power_calibration.db_to_dbfs_conversion_factor};
 
     odu_low_cfg.fapi_cfg.sectors.push_back({.p5_config = p5_cfg, .p7_config = p7_cfg});
 
@@ -340,7 +344,7 @@ o_du_unit flexible_o_du_factory::create_flexible_o_du(const o_du_unit_dependenci
   auto du_impl = std::make_unique<flexible_o_du_impl>(nof_cells, flexible_odu_metrics_notifier);
 
   o_du_low_unit_config odu_low_cfg =
-      generate_o_du_low_config(du_lo, config.ru_cfg.dBFS_calibration_value, du_cells, du_hi.cells_cfg);
+      generate_o_du_low_config(du_lo, config.ru_cfg.rx_gain_dB, du_cells, du_hi.cells_cfg);
   o_du_low_unit_dependencies odu_low_dependencies = {.rg_gateway = du_impl->get_upper_ru_dl_rg_adapter(),
                                                      .rx_symbol_request_notifier =
                                                          du_impl->get_upper_ru_ul_request_adapter(),

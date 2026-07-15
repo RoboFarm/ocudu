@@ -11,7 +11,6 @@
 #include "ocudu/ran/slot_pdu_capacity_constants.h"
 #include "ocudu/ran/slot_point.h"
 #include "ocudu/ran/srs/srs_channel_matrix.h"
-#include "ocudu/ran/srs/srs_configuration.h"
 #include "ocudu/ran/uci/uci_constants.h"
 #include "ocudu/ran/uci/uci_mapping.h"
 #include <variant>

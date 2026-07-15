@@ -101,10 +101,10 @@ TEST(dl_csi_pdu_builder, valid_nr_tx_power_info_parameters_passes)
 
 TEST(dl_csi_pdu_builder, valid_sss_tx_power_info_parameters_passes)
 {
+  const float power_offset_db = 10;
+
   dl_csi_rs_pdu         pdu;
   dl_csi_rs_pdu_builder builder(pdu);
-
-  float power_offset_db = 10;
 
   builder.set_profile_sss_tx_power_info_parameters(power_offset_db);
 

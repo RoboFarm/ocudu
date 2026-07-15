@@ -222,6 +222,17 @@ struct du_low_unit_metrics_config {
   bool                        enable_du_low = false;
 };
 
+/// Power calibration factors.
+struct power_calibration_factors {
+  /// Value in dBm at the antenna connector equivalent to 0 dBFS for a configured \c rx_gain_dB of 0 dB. When using
+  /// an SDR Radio Unit, the configured radio receive gain is subtracted automatically; for Open Fronthaul, the receive
+  /// gain applied by the O-RU is not visible to this application unit and must be accounted for manually.
+  float dbfs_to_dbm_conversion_factor = 0.0F;
+  /// Value in dB relative to Full Scale (dBFS) equivalent to 0 dB in normalized units, i.e., as coming from the
+  /// physical layer.
+  float db_to_dbfs_conversion_factor = 0.0F;
+};
+
 /// DU low configuration.
 struct du_low_unit_config {
   /// Loggers.
@@ -236,6 +247,8 @@ struct du_low_unit_config {
   std::optional<du_low_unit_hal_config> hal_config;
   /// Metrics configuration.
   du_low_unit_metrics_config metrics_cfg;
+  /// Power calibration factors.
+  power_calibration_factors power_calibration;
 };
 
 } // namespace ocudu

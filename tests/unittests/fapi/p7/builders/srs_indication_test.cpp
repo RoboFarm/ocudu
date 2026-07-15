@@ -58,8 +58,8 @@ TEST(srs_indication_builder, valid_srs_indication_with_positioning_report_passes
 
   pdu_builder.set_metrics_parameters(timing);
 
-  std::optional<phy_time_unit> ul_relative_toa = phy_time_unit::from_units_of_Tc(28);
-  std::optional<float>         rsrp            = -50;
+  std::optional<phy_time_unit>   ul_relative_toa = phy_time_unit::from_units_of_Tc(28);
+  std::optional<fapi_power_unit> rsrp            = fapi_power_unit(-50, 0, 0);
 
   pdu_builder.set_positioning_report_parameters(ul_relative_toa, rsrp);
 

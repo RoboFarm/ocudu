@@ -10,7 +10,6 @@
 #include "apps/units/flexible_o_du/split_7_2/helpers/ru_ofh_factories.h"
 #include "apps/units/flexible_o_du/split_8/helpers/ru_sdr_config_validator.h"
 #include "apps/units/flexible_o_du/split_8/helpers/ru_sdr_factories.h"
-#include "apps/units/flexible_o_du/split_8/helpers/ru_sdr_helpers.h"
 #include "apps/units/flexible_o_du/split_helpers/flexible_o_du_configs.h"
 #include "external/fmt/include/fmt/chrono.h"
 #include "split6_constants.h"
@@ -142,6 +141,11 @@ split6_flexible_o_du_low_session_factory::create_o_du_low(const fapi::cell_confi
 
   o_du_low_unit_config odu_low_cfg = {unit_config.du_low_cfg, {}, {}};
 
+  // The SDR Radio Unit gain is known to this application unit, so it is subtracted from the configured receive gain is
+  // applied by the external O-RU and is not visible here, so no correction is applied.
+  const auto* sdr_cfg    = std::get_if<ru_sdr_unit_config>(&unit_config.ru_cfg);
+  float       rx_gain_dB = sdr_cfg ? static_cast<float>(sdr_cfg->rx_gain_dB) : 0.0F;
+
   fapi_adaptor::phy_fapi_p7_sector_fastpath_adaptor_config p7_cfg = {
       .sector_id                     = 0,
       .nof_slots_request_headroom    = unit_config.du_low_cfg.expert_phy_cfg.nof_slots_request_headroom,
@@ -151,13 +155,9 @@ split6_flexible_o_du_low_session_factory::create_o_du_low(const fapi::cell_confi
       .carrier_cfg                   = config.carrier_cfg,
       .prach_cfg                     = config.prach_cfg,
       .prach_ports                   = prach_ports,
-      // When the sampling rate is provided, calculate the dBFS calibration value as sqrt(sampling rate / subcarrier
-      // spacing). This factor is the magnitude of a single subcarrier in normalized PHY linear units equivalent to
-      // a constant signal with a power of 0 dBFS.
-      .dBFS_calibration_value =
-          (sampling_rate_MHz) ? calculate_dBFS_calibration_value(*sampling_rate_MHz, config.scs_common) : 1.F,
-
-  };
+      .dbfs_to_dbm_conversion_factor =
+          unit_config.du_low_cfg.power_calibration.dbfs_to_dbm_conversion_factor - rx_gain_dB,
+      .db_to_dbfs_conversion_factor = unit_config.du_low_cfg.power_calibration.db_to_dbfs_conversion_factor};
 
   odu_low_cfg.fapi_cfg.sectors.push_back({.p5_config = {.sector_id = 0}, .p7_config = p7_cfg});
 
@@ -297,7 +297,6 @@ split6_flexible_o_du_low_session_factory::create_radio_unit(split6_flexible_o_du
 
     // Update the sampling rate.
     updated_srate_config.srate_MHz = derive_srate_MHz_from_bandwith(config.carrier_cfg.dl_bandwidth);
-    sampling_rate_MHz.emplace(updated_srate_config.srate_MHz);
 
     // Update the start time of the radio.
     updated_srate_config.start_time = start_time_calc.calculate_start_time();

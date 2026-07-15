@@ -136,6 +136,14 @@ static void fill_du_low_metrics_section(YAML::Node node, const du_low_unit_metri
   layers_node["enable_du_low"] = config.enable_du_low;
 }
 
+static void fill_du_low_power_calibration_section(YAML::Node node,
+                                                  float      dbfs_to_dbm_conversion_factor,
+                                                  float      db_to_dbfs_conversion_factor)
+{
+  node["dbfs_to_dbm_conversion_factor"] = dbfs_to_dbm_conversion_factor;
+  node["db_to_dbfs_conversion_factor"]  = db_to_dbfs_conversion_factor;
+}
+
 void ocudu::fill_du_low_config_in_yaml_schema(YAML::Node& node, const du_low_unit_config& config)
 {
   fill_du_low_metrics_section(node, config.metrics_cfg);
@@ -146,4 +154,7 @@ void ocudu::fill_du_low_config_in_yaml_schema(YAML::Node& node, const du_low_uni
   if (config.hal_config) {
     fill_du_low_hal_section(node["hal"], config.hal_config.value());
   }
+  fill_du_low_power_calibration_section(node["power_calibration"],
+                                        config.power_calibration.dbfs_to_dbm_conversion_factor,
+                                        config.power_calibration.db_to_dbfs_conversion_factor);
 }

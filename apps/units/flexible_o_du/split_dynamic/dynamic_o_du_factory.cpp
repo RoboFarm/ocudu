@@ -15,15 +15,21 @@ static flexible_o_du_unit_config::ru_config
 generate_ru_config(const std::variant<ru_sdr_unit_config, ru_ofh_unit_parsed_config, ru_dummy_unit_config>& ru_cfg)
 {
   if (const auto* ru = std::get_if<ru_sdr_unit_config>(&ru_cfg)) {
-    return {ru->metrics_cfg.metrics_cfg, ru->metrics_cfg.enable_ru_metrics};
+    return flexible_o_du_unit_config::ru_config{.config            = ru->metrics_cfg.metrics_cfg,
+                                                .enable_ru_metrics = ru->metrics_cfg.enable_ru_metrics,
+                                                .rx_gain_dB        = static_cast<float>(ru->rx_gain_dB)};
   }
 
   if (const auto* ru = std::get_if<ru_dummy_unit_config>(&ru_cfg)) {
-    return {ru->metrics_cfg.metrics_cfg, ru->metrics_cfg.enable_ru_metrics};
+    return flexible_o_du_unit_config::ru_config{.config            = ru->metrics_cfg.metrics_cfg,
+                                                .enable_ru_metrics = ru->metrics_cfg.enable_ru_metrics,
+                                                .rx_gain_dB        = 0.F};
   }
 
   if (const auto* ru = std::get_if<ru_ofh_unit_parsed_config>(&ru_cfg)) {
-    return {ru->config.metrics_cfg.metrics_cfg, ru->config.metrics_cfg.enable_ru_metrics};
+    return flexible_o_du_unit_config::ru_config{.config            = ru->config.metrics_cfg.metrics_cfg,
+                                                .enable_ru_metrics = ru->config.metrics_cfg.enable_ru_metrics,
+                                                .rx_gain_dB        = 0.F};
   }
 
   return {};

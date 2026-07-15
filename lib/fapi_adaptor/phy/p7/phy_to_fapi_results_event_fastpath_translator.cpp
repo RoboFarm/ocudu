@@ -8,7 +8,6 @@
 #include "ocudu/fapi/p7/builders/rx_data_indication_builder.h"
 #include "ocudu/fapi/p7/builders/srs_indication_builder.h"
 #include "ocudu/fapi/p7/builders/uci_indication_builder.h"
-#include "ocudu/support/math/math_utils.h"
 #include "ocudu/support/units.h"
 
 using namespace ocudu;
@@ -34,20 +33,14 @@ public:
 static p7_indications_notifier_dummy dummy_p7_notifier;
 
 phy_to_fapi_results_event_fastpath_translator::phy_to_fapi_results_event_fastpath_translator(
-    unsigned                sector_id_,
-    float                   dBFS_calibration_value_,
-    ocudulog::basic_logger& logger_) :
-  sector_id(sector_id_),
-  dBFS_calibration_value(dBFS_calibration_value_),
-  logger(logger_),
+    const phy_to_fapi_results_event_fastpath_translator_config&       cfg,
+    const phy_to_fapi_results_event_fastpath_translator_dependencies& dependencies) :
+  sector_id(cfg.sector_id),
+  dbfs_to_dbm_conversion_factor(cfg.dbfs_to_dbm_conversion_factor),
+  db_to_dbfs_conversion_factor(cfg.db_to_dbfs_conversion_factor),
+  logger(dependencies.logger),
   p7_notifier(&dummy_p7_notifier)
 {
-}
-
-/// Coverts normalised dB values to dBFS.
-static float convert_to_dBFS(float value_dB, float full_scale_reference)
-{
-  return value_dB - convert_amplitude_to_dB(full_scale_reference);
 }
 
 void phy_to_fapi_results_event_fastpath_translator::on_new_prach_results(const ul_prach_results& result)
@@ -76,39 +69,29 @@ void phy_to_fapi_results_event_fastpath_translator::on_new_prach_results(const u
   builder.set_slot(slot);
 
   // NOTE: Currently not supporting PRACH multiplexed in frequency domain.
-  static constexpr unsigned fd_ra_index = 0U;
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.11 Table RACH.indication message body.
-  static constexpr float            MIN_AVG_RSSI_VALUE = -140.F;
-  static constexpr float            MAX_AVG_RSSI_VALUE = 30.F;
-  fapi::rach_indication_pdu_builder builder_pdu        = builder.set_pdu(
+  static constexpr unsigned         fd_ra_index = 0U;
+  fapi::rach_indication_pdu_builder builder_pdu = builder.set_pdu(
       result.context.start_symbol,
       slot.slot_index(),
       fd_ra_index,
-      std::clamp(
-          convert_to_dBFS(result.result.rssi_dB, dBFS_calibration_value), MIN_AVG_RSSI_VALUE, MAX_AVG_RSSI_VALUE),
-      {});
+      fapi::fapi_power_unit(result.result.rssi_dB, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor),
+      std::nullopt);
 
   for (const auto& preamble : result.result.preambles) {
-    // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.11 Table RACH.indication message body.
-    static constexpr float MIN_PREAMBLE_POWER_VALUE = -140.F;
-    static constexpr float MAX_PREAMBLE_POWER_VALUE = 30.F;
-
-    double TA_ns = preamble.time_advance.to_seconds() * 1e9;
     // Ignore preambles with a negative TA value.
-    if (TA_ns < 0.0) {
+    if (preamble.time_advance.to_seconds() < 0.0) {
       logger.warning("Sector#{}: Detected PRACH preamble in slot={} has a negative TA value of {}ns, skipping it",
                      sector_id,
                      slot,
-                     TA_ns);
+                     preamble.time_advance.to_seconds() * 1e9);
       continue;
     }
 
-    builder_pdu.add_preamble(preamble.preamble_index,
-                             preamble.time_advance,
-                             std::clamp(convert_to_dBFS(preamble.preamble_power_dB, dBFS_calibration_value),
-                                        MIN_PREAMBLE_POWER_VALUE,
-                                        MAX_PREAMBLE_POWER_VALUE),
-                             {});
+    builder_pdu.add_preamble(
+        preamble.preamble_index,
+        preamble.time_advance,
+        fapi::fapi_power_unit(preamble.preamble_power_dB, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor),
+        std::nullopt);
   }
 
   p7_notifier->on_rach_indication(msg);
@@ -179,22 +162,21 @@ void phy_to_fapi_results_event_fastpath_translator::notify_pusch_uci_indication(
 
   const channel_state_information& csi_info = result.csi;
 
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.9.1 Table UCI PUSCH PDU.
-  static constexpr float MIN_UL_SINR_VALUE = -65.534;
-  static constexpr float MAX_UL_SINR_VALUE = 65.534;
-
-  std::optional<float> sinr_dB = csi_info.get_sinr_dB();
-  if (sinr_dB.has_value()) {
-    sinr_dB = std::clamp(sinr_dB.value(), MIN_UL_SINR_VALUE, MAX_UL_SINR_VALUE);
+  // Extract the RSRP which is optional.
+  std::optional<fapi::fapi_power_unit> rsrp;
+  if (csi_info.get_rsrp_dB().has_value()) {
+    rsrp.emplace(
+        fapi::fapi_power_unit(*csi_info.get_rsrp_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  std::optional<int>           timing_advance_offset_ns;
-  std::optional<phy_time_unit> timing_advance = result.csi.get_time_alignment();
-  if (timing_advance.has_value()) {
-    timing_advance_offset_ns = static_cast<int>(timing_advance.value().to_seconds() * 1e9);
+  // Populate the RSSI field with the EPRE value (if available), which has an equivalent definition.
+  std::optional<fapi::fapi_power_unit> rssi;
+  if (csi_info.get_epre_dB().has_value()) {
+    rssi.emplace(
+        fapi::fapi_power_unit(*csi_info.get_epre_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  builder_pdu.set_metrics_parameters(sinr_dB, timing_advance, std::nullopt, std::nullopt);
+  builder_pdu.set_metrics_parameters(csi_info.get_sinr_dB(), result.csi.get_time_alignment(), rssi, rsrp);
 
   unsigned uci_length = get_uci_payload_length(result);
 
@@ -234,33 +216,29 @@ void phy_to_fapi_results_event_fastpath_translator::notify_crc_indication(const 
   fapi::crc_indication_builder builder(msg);
 
   builder.set_slot(result.slot);
+  const auto& csi_info = result.csi;
 
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.8 Table CRC.indication message body.
-  static constexpr float MIN_UL_SINR_VALUE = -65.534;
-  static constexpr float MAX_UL_SINR_VALUE = 65.534;
-
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.8 Table CRC.indication message body.
-  static constexpr float MIN_UL_RSRP_VALUE_DBFS = -128.0F;
-  static constexpr float MAX_UL_RSRP_VALUE_DBFS = 0.0F;
-
-  // Extract the SINR which is optional and clamp it if available.
-  std::optional<float> sinr_dB = result.csi.get_sinr_dB();
-  if (sinr_dB.has_value()) {
-    sinr_dB = std::clamp(sinr_dB.value(), MIN_UL_SINR_VALUE, MAX_UL_SINR_VALUE);
+  // Extract the RSRP which is optional.
+  std::optional<fapi::fapi_power_unit> rsrp;
+  if (csi_info.get_rsrp_dB().has_value()) {
+    rsrp.emplace(
+        fapi::fapi_power_unit(*result.csi.get_rsrp_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  // Extract timing advance.
-  std::optional<phy_time_unit> timing_advance = result.csi.get_time_alignment();
-
-  // Extract the RSRP which is optional and clamp it if available.
-  std::optional<float> rsrp = result.csi.get_rsrp_dB();
-  if (rsrp.has_value()) {
-    rsrp = std::clamp(
-        convert_to_dBFS(rsrp.value(), dBFS_calibration_value), MIN_UL_RSRP_VALUE_DBFS, MAX_UL_RSRP_VALUE_DBFS);
+  // Populate the RSSI field with the EPRE value (if available), which has an equivalent definition.
+  std::optional<fapi::fapi_power_unit> rssi;
+  if (csi_info.get_epre_dB().has_value()) {
+    rssi.emplace(
+        fapi::fapi_power_unit(*csi_info.get_epre_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  builder.set_pdu(
-      result.rnti, result.harq_id, result.decoder_result.tb_crc_ok, sinr_dB, timing_advance, {}, rsrp, false);
+  builder.set_pdu(result.rnti,
+                  result.harq_id,
+                  result.decoder_result.tb_crc_ok,
+                  csi_info.get_sinr_dB(),
+                  csi_info.get_time_alignment(),
+                  rssi,
+                  rsrp);
 
   if (result.n_rapid.has_value()) {
     builder.set_rapid_parameter(*result.n_rapid);
@@ -326,7 +304,10 @@ static void fill_format_0_1_harq(fapi::uci_pucch_pdu_format_0_1_builder& builder
 }
 
 /// Adds a PUCCH Format 0 or Format 1 PDU to the given builder using the data provided by result.
-static void add_format_0_1_pucch_pdu(fapi::uci_indication_builder& builder, const ul_pucch_results& result)
+static void add_format_0_1_pucch_pdu(fapi::uci_indication_builder& builder,
+                                     const ul_pucch_results&       result,
+                                     float                         dbfs_to_dbm_conversion_factor,
+                                     float                         db_to_dbfs_conversion_factor)
 {
   const ul_pucch_context&                context          = result.context;
   fapi::uci_pucch_pdu_format_0_1_builder builder_format01 = builder.add_format_0_1_pucch_pdu();
@@ -335,24 +316,22 @@ static void add_format_0_1_pucch_pdu(fapi::uci_indication_builder& builder, cons
 
   const channel_state_information& csi_info = result.processor_result.csi;
 
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.9.2 Table UCI PUCCH format 0 or 1 PDU.
-  static constexpr float MIN_UL_SINR_VALUE = -65.534;
-  static constexpr float MAX_UL_SINR_VALUE = 65.534;
-
-  // Extract the SINR which is optional and clamp it if available.
-  std::optional<float> sinr_dB = csi_info.get_sinr_dB();
-  if (sinr_dB.has_value()) {
-    sinr_dB = std::clamp(sinr_dB.value(), MIN_UL_SINR_VALUE, MAX_UL_SINR_VALUE);
+  // Extract the RSRP which is optional.
+  std::optional<fapi::fapi_power_unit> rsrp;
+  if (csi_info.get_rsrp_dB().has_value()) {
+    rsrp.emplace(
+        fapi::fapi_power_unit(*csi_info.get_rsrp_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  // Extract timing advance.
-  std::optional<int>           timing_advance_offset_ns;
-  std::optional<phy_time_unit> timing_advance = result.processor_result.csi.get_time_alignment();
-  if (timing_advance.has_value()) {
-    timing_advance_offset_ns = static_cast<int>(timing_advance.value().to_seconds() * 1e9);
+  // Populate the RSSI field with the EPRE value (if available), which has an equivalent definition.
+  std::optional<fapi::fapi_power_unit> rssi;
+  if (csi_info.get_epre_dB().has_value()) {
+    rssi.emplace(
+        fapi::fapi_power_unit(*csi_info.get_epre_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  builder_format01.set_time_advance(timing_advance).set_metrics_parameters(sinr_dB, std::nullopt, std::nullopt);
+  builder_format01.set_time_advance(result.processor_result.csi.get_time_alignment())
+      .set_metrics_parameters(csi_info.get_sinr_dB(), rssi, rsrp);
 
   // Fill SR parameters.
   fill_format_0_1_sr(builder_format01, result);
@@ -448,7 +427,10 @@ static void fill_format_2_3_4_csi_part2(fapi::uci_pucch_pdu_format_2_3_4_builder
 }
 
 /// Adds a PUCCH Format 2, Format 3 or Format 4 PDU to the given builder using the data provided by result.
-static void add_format_2_3_4_pucch_pdu(fapi::uci_indication_builder& builder, const ul_pucch_results& result)
+static void add_format_2_3_4_pucch_pdu(fapi::uci_indication_builder& builder,
+                                       const ul_pucch_results&       result,
+                                       float                         dbfs_to_dbm_conversion_factor,
+                                       float                         db_to_dbfs_conversion_factor)
 {
   fapi::uci_pucch_pdu_format_2_3_4_builder builder_format234 = builder.add_format_2_3_4_pucch_pdu();
 
@@ -456,24 +438,22 @@ static void add_format_2_3_4_pucch_pdu(fapi::uci_indication_builder& builder, co
 
   const channel_state_information& csi_info = result.processor_result.csi;
 
-  // NOTE: Clamp values defined in SCF-222 v4.0 Section 3.4.9.3 Table UCI PUCCH format 2, 3 or 4 PDU.
-  static constexpr float MIN_UL_SINR_VALUE = -65.534;
-  static constexpr float MAX_UL_SINR_VALUE = 65.534;
-
-  // Extract the SINR which is optional and clamp it if available.
-  std::optional<float> sinr_dB = csi_info.get_sinr_dB();
-  if (sinr_dB.has_value()) {
-    sinr_dB = std::clamp(sinr_dB.value(), MIN_UL_SINR_VALUE, MAX_UL_SINR_VALUE);
+  // Extract the RSRP which is optional.
+  std::optional<fapi::fapi_power_unit> rsrp;
+  if (csi_info.get_rsrp_dB().has_value()) {
+    rsrp.emplace(
+        fapi::fapi_power_unit(*csi_info.get_rsrp_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  // Extract timing advance.
-  std::optional<int>           timing_advance_offset_ns;
-  std::optional<phy_time_unit> timing_advance = result.processor_result.csi.get_time_alignment();
-  if (timing_advance.has_value()) {
-    timing_advance_offset_ns = static_cast<int>(timing_advance.value().to_seconds() * 1e9);
+  // Populate the RSSI field with the EPRE value (if available), which has an equivalent definition.
+  std::optional<fapi::fapi_power_unit> rssi;
+  if (csi_info.get_epre_dB().has_value()) {
+    rssi.emplace(
+        fapi::fapi_power_unit(*csi_info.get_epre_dB(), dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor));
   }
 
-  builder_format234.set_metrics_parameters(sinr_dB, timing_advance, std::nullopt, std::nullopt);
+  builder_format234.set_metrics_parameters(
+      csi_info.get_sinr_dB(), result.processor_result.csi.get_time_alignment(), rssi, rsrp);
 
   // Fill SR parameters.
   fill_format_2_3_4_sr(builder_format234, result.processor_result.message);
@@ -499,12 +479,12 @@ void phy_to_fapi_results_event_fastpath_translator::on_new_pucch_results(const u
   switch (context.format) {
     case pucch_format::FORMAT_0:
     case pucch_format::FORMAT_1:
-      add_format_0_1_pucch_pdu(builder, result);
+      add_format_0_1_pucch_pdu(builder, result, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor);
       break;
     case pucch_format::FORMAT_2:
     case pucch_format::FORMAT_3:
     case pucch_format::FORMAT_4:
-      add_format_2_3_4_pucch_pdu(builder, result);
+      add_format_2_3_4_pucch_pdu(builder, result, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor);
       break;
     default:
       ocudu_assert(0, "Unexpected PUCCH format {}", fmt::underlying(context.format));
@@ -534,14 +514,10 @@ void phy_to_fapi_results_event_fastpath_translator::on_new_srs_results(const ul_
         phy_time_unit::from_seconds(result.processor_result.time_alignment.time_alignment));
 
     // Extract the RSRP which is optional and clamp it if available.
-    std::optional<float> rsrp = result.processor_result.rsrp_dB;
-    if (rsrp.has_value()) {
-      // NOTE: Clamp values defined in SCF-222 v222.08.00 Section 3.4.10 Table 3-209 SRS-based Positioning Report.
-      static constexpr float MIN_UL_SRS_RSRP_VALUE_DBFS = -144.0F;
-      static constexpr float MAX_UL_SRS_RSRP_VALUE_DBFS = -0.0F;
-      rsrp = std::clamp(convert_to_dBFS(rsrp.value(), dBFS_calibration_value),
-                        MIN_UL_SRS_RSRP_VALUE_DBFS,
-                        MAX_UL_SRS_RSRP_VALUE_DBFS);
+    std::optional<fapi::fapi_power_unit> rsrp;
+    if (result.processor_result.rsrp_dB.has_value()) {
+      rsrp = fapi::fapi_power_unit(
+          *result.processor_result.rsrp_dB, dbfs_to_dbm_conversion_factor, db_to_dbfs_conversion_factor);
     }
 
     srs_pdu_builder.set_positioning_report_parameters(

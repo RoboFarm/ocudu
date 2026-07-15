@@ -43,8 +43,11 @@ struct phy_fapi_p7_sector_fastpath_adaptor_config {
   rach_config_common prach_cfg;
   /// PRACH port list.
   std::vector<uint8_t> prach_ports;
-  /// dBFS calibration value.
-  float dBFS_calibration_value;
+  /// Value in dBm at the antenna connector equivalent to 0 dBFS for a receive gain of 0 dB.
+  float dbfs_to_dbm_conversion_factor;
+  /// Value in dB relative to Full Scale (dBFS) equivalent to 0 dB in normalized units, i.e., as coming from the
+  /// physical layer.
+  float db_to_dbfs_conversion_factor;
 };
 
 /// PHY-FAPI P7 sector fastpath adaptor dependencies.

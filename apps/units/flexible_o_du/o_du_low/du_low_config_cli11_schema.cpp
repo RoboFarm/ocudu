@@ -377,6 +377,24 @@ static void configure_cli11_metrics_args(CLI::App& app, du_low_unit_metrics_conf
       ->capture_default_str();
 }
 
+static void configure_cli11_power_calibration_args(CLI::App& app, du_low_unit_config& power_calibration_params)
+{
+  add_option(app,
+             "--dbfs_to_dbm_conversion_factor",
+             power_calibration_params.power_calibration.dbfs_to_dbm_conversion_factor,
+             "Value in dBm at the antenna connector equivalent to 0 dBFS for a configured rx_gain_dB "
+             "of 0 dB. When using an SDR Radio Unit, the configured radio receive gain is subtracted "
+             "automatically; for Open Fronthaul, the receive gain applied by the O-RU is not visible to this "
+             "application unit and must be accounted for manually.")
+      ->check(CLI::Range(-std::numeric_limits<float>::infinity(), 0.0F));
+  add_option(app,
+             "--db_to_dbfs_conversion_factor",
+             power_calibration_params.power_calibration.db_to_dbfs_conversion_factor,
+             "Value in dB relative to Full Scale (dBFS) equivalent to 0 dB in normalized units, i.e., as coming from "
+             "the physical layer.")
+      ->check(CLI::Range(-std::numeric_limits<float>::infinity(), 0.0F));
+}
+
 void ocudu::configure_cli11_with_du_low_config_schema(CLI::App& app, du_low_unit_config& parsed_cfg)
 {
   // Loggers section.
@@ -406,6 +424,11 @@ void ocudu::configure_cli11_with_du_low_config_schema(CLI::App& app, du_low_unit
   app_helpers::configure_cli11_with_metrics_appconfig_schema(app, parsed_cfg.metrics_cfg.common_metrics_cfg);
   CLI::App* metrics_subcmd = add_subcommand(app, "metrics", "Metrics configuration")->configurable();
   configure_cli11_metrics_args(*metrics_subcmd, parsed_cfg.metrics_cfg);
+
+  // Power calibration section.
+  CLI::App* power_calibration_subcmd =
+      add_subcommand(app, "power_calibration", "Power calibration configuration")->configurable();
+  configure_cli11_power_calibration_args(*power_calibration_subcmd, parsed_cfg);
 }
 
 void ocudu::autoderive_du_low_parameters_after_parsing(CLI::App& app, du_low_unit_config& parsed_cfg, duplex_mode mode)

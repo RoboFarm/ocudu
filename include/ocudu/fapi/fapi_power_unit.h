@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ocudu/adt/strong_type.h"
+#include "fmt/format.h"
 
 namespace ocudu {
 namespace fapi {
@@ -30,10 +31,12 @@ public:
   /// Creates a FAPI power unit with a normalized dB.
   ///
   /// \param[in] value_dB Value in normalized dB.
-  /// \param[in] dbfs_to_dbm_conversion_factor Value in dBm at the antenna connector equivalent to 0 dBFS for a
-  /// configured \c rx_gain_dB of 0 dB. For split-8 configurations configured radio receive gain must be subtracted.
-  /// \param[in] db_to_dbfs_conversion_factor  Value in dB relative to Full Scale (dBFS) equivalent to 0 dB in
-  /// normalized units, i.e., as coming from the physical layer.
+  /// \param[in] dbfs_to_dbm_conversion_factor_ Value in dBm at the antenna connector equivalent to 0 dBFS, given the
+  /// current radio gain.
+  /// \remark For split-8 configurations, changes to the radio \c rx_gain may require an update of the \c
+  /// dbfs_to_dbm_conversion_factor_ value.
+  /// \param[in] db_to_dbfs_conversion_factor_  Value in dB relative to Full Scale
+  /// (dBFS) equivalent to 0 dB in normalized units, i.e., as coming from the physical layer.
   constexpr fapi_power_unit(value_type value_dB,
                             float      dbfs_to_dbm_conversion_factor_,
                             float      db_to_dbfs_conversion_factor_) :
@@ -44,7 +47,7 @@ public:
   }
 
   /// Returns the stored value in dB (raw floating-point representation).
-  constexpr value_type to_dB() const { return this->value(); }
+  constexpr value_type to_normalized_dB() const { return this->value(); }
 
   /// Converts the stored normalized dB value to dBFS.
   constexpr value_type to_dBFS() const { return this->value() + db_to_dbfs_conversion_factor; }
@@ -53,9 +56,26 @@ public:
   constexpr value_type to_dBm() const { return to_dBFS() + dbfs_to_dbm_conversion_factor; }
 
 private:
-  const float dbfs_to_dbm_conversion_factor;
-  const float db_to_dbfs_conversion_factor;
+  float dbfs_to_dbm_conversion_factor;
+  float db_to_dbfs_conversion_factor;
 };
 
 } // namespace fapi
 } // namespace ocudu
+
+namespace fmt {
+template <>
+struct formatter<ocudu::fapi::fapi_power_unit> {
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ocudu::fapi::fapi_power_unit& power, FormatContext& ctx) const
+  {
+    return format_to(ctx.out(), "{}", power.to_normalized_dB());
+  }
+};
+} // namespace fmt
