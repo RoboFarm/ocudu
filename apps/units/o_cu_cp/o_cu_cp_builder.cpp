@@ -111,7 +111,7 @@ o_cu_cp_unit ocudu::build_o_cu_cp(const o_cu_cp_unit_config& unit_cfg, o_cu_cp_u
     ocudu_assert(!cucp_unit_cfg.amf_config.amf.supported_tas.empty() &&
                      !cucp_unit_cfg.amf_config.amf.supported_tas.front().plmn_list.empty(),
                  "CU-CP AMF config must have at least one supported TA with a PLMN");
-    o_cu_cp_cfg.e2ap_config =
+    o_cu_cp_cfg.e2ap_cfg =
         generate_e2_config(unit_cfg.e2_cfg,
                            cucp_unit_cfg.gnb_id,
                            cucp_unit_cfg.amf_config.amf.supported_tas.front().plmn_list.front().plmn_id);

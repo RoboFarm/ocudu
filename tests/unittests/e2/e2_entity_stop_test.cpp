@@ -92,13 +92,14 @@ protected:
     auto owned_collector            = std::make_unique<e2_node_component_config_collector>(task_worker, 1);
     node_component_config_collector = owned_collector.get();
     e2agent                         = create_e2_du_agent(cfg,
-                                 *observing_client,
-                                 &(*du_metrics),
-                                 &(*f1ap_ue_id_mapper),
-                                 &(*du_rc_param_configurator),
-                                 factory,
-                                 *flaky_exec,
-                                 std::move(owned_collector));
+                                 e2ap_dependencies{.e2_client                      = *observing_client,
+                                                                           .e2_metrics_var                 = &(*du_metrics),
+                                                                           .f1ap_ue_id_translator          = &(*f1ap_ue_id_mapper),
+                                                                           .du_configurator                = &(*du_rc_param_configurator),
+                                                                           .timers                         = factory,
+                                                                           .e2_exec                        = *flaky_exec,
+                                                                           .node_component_config_provider = std::move(owned_collector),
+                                                                           .logger = ocudulog::fetch_basic_logger("TEST")});
   }
 
   void TearDown() override

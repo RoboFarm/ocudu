@@ -16,13 +16,13 @@
 using namespace ocudu;
 using namespace asn1::e2ap;
 
-e2_entity::e2_entity(e2_agent_dependencies&& dependencies) :
-  logger(*dependencies.logger),
-  cfg(dependencies.cfg),
-  task_exec(*dependencies.task_exec),
-  timers(*dependencies.timers),
+e2_entity::e2_entity(const e2ap_config& cfg_, e2_agent_dependencies dependencies) :
+  logger(dependencies.logger),
+  cfg(cfg_),
+  task_exec(dependencies.task_exec),
+  timers(dependencies.timers),
   main_ctrl_loop(128),
-  node_cfg_timeout(dependencies.timers->create_timer()),
+  node_cfg_timeout(timers.create_timer()),
   node_component_config_provider(std::move(dependencies.node_component_config_provider))
 {
   e2sm_mngr         = std::make_unique<e2sm_manager>(logger);
@@ -35,13 +35,13 @@ e2_entity::e2_entity(e2_agent_dependencies&& dependencies) :
     subscription_mngr->add_ran_function_oid(ran_func_id, oid);
   }
 
-  e2ap = std::make_unique<e2_impl>(logger,
-                                   *this,
-                                   *dependencies.timers,
-                                   *dependencies.e2_client,
-                                   *subscription_mngr,
-                                   *e2sm_mngr,
-                                   *dependencies.task_exec);
+  e2ap = std::make_unique<e2_impl>(e2_impl_dependencies{.logger            = logger,
+                                                        .agent_notifier    = *this,
+                                                        .timers            = dependencies.timers,
+                                                        .e2_client         = dependencies.e2_client,
+                                                        .subscription_mngr = *subscription_mngr,
+                                                        .e2sm_mngr         = *e2sm_mngr,
+                                                        .task_exec         = dependencies.task_exec});
 }
 
 void e2_entity::start()
