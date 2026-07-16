@@ -146,3 +146,57 @@ TEST(test_converters, oe_2_ecef_rvs_test)
     ASSERT_NEAR(oe.mean_anomaly, oe_gold.mean_anomaly, tolerance);
   }
 }
+
+namespace {
+
+bool all_elements_finite(const orbital_elements& oe)
+{
+  return std::isfinite(oe.semi_major_axis) && std::isfinite(oe.eccentricity) && std::isfinite(oe.inclination) &&
+         std::isfinite(oe.longitude) && std::isfinite(oe.periapsis) && std::isfinite(oe.mean_anomaly);
+}
+
+} // namespace
+
+// Domain-clamp regression for eci_to_orbital: the three acos-derived angles (inclination, argument of
+// periapsis, true anomaly) use cosine ratios formed from dot products and vector magnitudes. Those ratios are
+// mathematically within [-1, 1], but floating-point round-off can move one slightly outside at boundary
+// geometries (at apoapsis the true-anomaly cosine equals exactly -1). An out-of-domain std::acos argument
+// returns NaN, which propagates into the recovered anomaly values and makes the element set unusable. The
+// states below come from the converter's own orbital_to_eci at boundary geometries; eccentricity and
+// inclination are kept strictly away from 0 so the separate circular/equatorial singularity (ev_mag / n_mag
+// -> 0) is not what is being exercised.
+
+TEST(test_converters, eci_to_orbital_at_apoapsis_stays_finite)
+{
+  // Near-circular inclined orbit sampled at apoapsis (mean anomaly = pi): the true-anomaly cosine is -1 here,
+  // the exact case that returned NaN before the clamp and propagated into mean_anomaly.
+  const orbital_elements oe{7000e3, 1e-3, 30.0 * M_PI / 180.0, 0.8, 1.1, M_PI};
+  const orbital_elements got = ephemeris_info_converter::eci_to_orbital(ephemeris_info_converter::orbital_to_eci(oe));
+  ASSERT_TRUE(all_elements_finite(got)) << "apoapsis true-anomaly NaN poisons the elements without the clamp";
+  // Beyond finiteness: the recovered mean anomaly must be pi (apoapsis), not merely some finite value, so a
+  // hypothetical implementation that returned all-zeros would not pass.
+  EXPECT_NEAR(got.mean_anomaly, M_PI, 1e-10);
+}
+
+TEST(test_converters, eci_to_orbital_boundary_geometries_stay_finite)
+{
+  // Sweep periapsis and apoapsis over eccentricity and orientation, staying clear of the e=0 / i=0
+  // singularities. Before the clamp a large fraction of these produced NaN (round-off nudging an acos argument
+  // just past +/-1); after it every recovered element must be finite.
+  for (double e : {1e-3, 1e-2, 0.1, 0.4}) {
+    for (int i_deg : {1, 20, 60, 89, 91, 120, 179}) {
+      for (int raan_deg : {0, 90, 200, 300}) {
+        for (int argp_deg : {0, 90, 200, 300}) {
+          for (double M : {0.0, M_PI}) {
+            const orbital_elements oe{
+                7000e3, e, i_deg * M_PI / 180.0, raan_deg * M_PI / 180.0, argp_deg * M_PI / 180.0, M};
+            const orbital_elements got =
+                ephemeris_info_converter::eci_to_orbital(ephemeris_info_converter::orbital_to_eci(oe));
+            ASSERT_TRUE(all_elements_finite(got)) << "NaN element at e=" << e << " i=" << i_deg << " raan=" << raan_deg
+                                                  << " argp=" << argp_deg << " M=" << M;
+          }
+        }
+      }
+    }
+  }
+}

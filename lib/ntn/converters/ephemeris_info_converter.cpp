@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ephemeris_info_converter.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -55,7 +56,7 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
 
   // Inclination.
   double h_mag       = std::sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
-  double inclination = std::acos(h[2] / h_mag);
+  double inclination = std::acos(std::clamp(h[2] / h_mag, -1.0, 1.0));
 
   // Longitude of ascending node.
   double n_mag     = std::sqrt(n[0] * n[0] + n[1] * n[1]);
@@ -65,12 +66,13 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
 
   // Argument of periapsis.
   double ev_mag    = std::sqrt(ev[0] * ev[0] + ev[1] * ev[1] + ev[2] * ev[2]);
-  double periapsis = std::acos((n[0] * ev[0] + n[1] * ev[1]) / (n_mag * ev_mag));
+  double periapsis = std::acos(std::clamp((n[0] * ev[0] + n[1] * ev[1]) / (n_mag * ev_mag), -1.0, 1.0));
   if (ev[2] < 0)
     periapsis = 2.0 * M_PI - periapsis;
 
   // True anomaly.
-  double true_anomaly = std::acos((ev[0] * position.x + ev[1] * position.y + ev[2] * position.z) / (ev_mag * r));
+  double cos_ta       = (ev[0] * position.x + ev[1] * position.y + ev[2] * position.z) / (ev_mag * r);
+  double true_anomaly = std::acos(std::clamp(cos_ta, -1.0, 1.0));
   if (r_dot_v < 0)
     true_anomaly = 2.0 * M_PI - true_anomaly;
 
