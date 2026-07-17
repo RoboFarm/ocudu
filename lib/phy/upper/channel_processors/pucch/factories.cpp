@@ -118,7 +118,7 @@ public:
   }
 
 private:
-  static constexpr unsigned                     MAX_PUCCH_RX_PORTS = 4;
+  static constexpr unsigned                     MAX_PUCCH_RX_PORTS = 8;
   std::shared_ptr<dmrs_pucch_estimator_factory> dmrs_factory;
   std::shared_ptr<pucch_detector_factory>       detector_factory;
   std::shared_ptr<pucch_demodulator_factory>    demodulator_factory;
