@@ -84,6 +84,7 @@ private:
   bool subscribe_to_broker();
 
   void handle_socket_shutdown(const char* cause);
+  void defer_socket_shutdown(const char* cause);
 
   void handle_data(int assoc_id, span<const uint8_t> payload);
   void handle_notification(span<const uint8_t>           payload,

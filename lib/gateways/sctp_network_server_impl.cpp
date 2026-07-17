@@ -194,14 +194,7 @@ sctp_network_server_impl::~sctp_network_server_impl()
 void sctp_network_server_impl::stop()
 {
   sync_event ev;
-  while (not app_exec.defer([this, keepalive = keepalive_token, token = ev.get_token()]() {
-    if (*keepalive) {
-      *keepalive = false;
-      handle_socket_shutdown(nullptr);
-    }
-  })) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
+  defer_socket_shutdown(nullptr);
   ev.wait();
 }
 
@@ -232,14 +225,7 @@ void sctp_network_server_impl::receive()
   if (rx_bytes == -1) {
     if (errno != EAGAIN) {
       logger.error("Error reading from SCTP socket: {}", ::strerror(errno));
-      while (not app_exec.defer([this, keepalive = keepalive_token]() {
-        if (*keepalive) {
-          *keepalive = false;
-          handle_socket_shutdown(nullptr);
-        }
-      })) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      }
+      defer_socket_shutdown(nullptr);
     } else {
       if (!node_cfg.non_blocking_mode) {
         logger.debug("Socket timeout reached");
@@ -290,6 +276,18 @@ void sctp_network_server_impl::handle_socket_shutdown(const char* cause)
 
   // Stop handling new SCTP events.
   io_sub.reset();
+}
+
+void sctp_network_server_impl::defer_socket_shutdown(const char* cause)
+{
+  while (not app_exec.defer([this, keepalive = keepalive_token]() {
+    if (*keepalive) {
+      *keepalive = false;
+      handle_socket_shutdown(nullptr);
+    }
+  })) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
 }
 
 void sctp_network_server_impl::handle_data(int assoc_id, span<const uint8_t> payload)
@@ -444,8 +442,15 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
   }
 
   /// Peel-off a socket. This is done for easier DTLS support.
-  int  assoc_fd_raw = sctp_peeloff(socket.fd().value(), assoc_id);
-  auto assoc_fd     = unique_fd(assoc_fd_raw);
+  int assoc_fd_raw = sctp_peeloff(socket.fd().value(), assoc_id);
+  if (assoc_fd_raw == -1) {
+    logger.error(
+        "{} assoc={}: Could not peel off new association. err={}", node_cfg.if_name, assoc_id, ::strerror(errno));
+    /// Call directly socket shutdown, as we are running the in the app excutor already.
+    handle_socket_shutdown(nullptr);
+    return;
+  }
+  auto assoc_fd = unique_fd(assoc_fd_raw);
 
   /// Make sure peeled of socket follows the blocking mode of the parent.
   if (node_cfg.non_blocking_mode) {
@@ -608,14 +613,7 @@ bool sctp_network_server_impl::subscribe_to_broker()
       [this]() { receive(); },
       [this](io_broker::error_code code) {
         logger.info("Connection loss due to IO error code={}.", (int)code);
-        while (not app_exec.defer([this, keepalive = keepalive_token]() {
-          if (*keepalive) {
-            *keepalive = false;
-            handle_socket_shutdown(nullptr);
-          }
-        })) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
+        defer_socket_shutdown(nullptr);
       });
   return io_sub.registered();
 }
