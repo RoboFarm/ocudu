@@ -82,6 +82,7 @@ private:
 
   // Subscribe to IO broker to listen for incoming SCTP messages/events.
   bool subscribe_to_broker();
+  bool subscribe_association_to_broker(unique_fd assoc_fd, sctp_associaton_context& assoc_ctxt);
 
   void handle_socket_shutdown(const char* cause);
   void defer_socket_shutdown(const char* cause);

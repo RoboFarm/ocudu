@@ -482,15 +482,12 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
   }
 
   /// Register peeled-off socket in IO broker.
-  assoc_ctxt.io_sub = broker.register_fd(
-      std::move(assoc_fd),
-      io_rx_executor,
-      [&assoc_ctxt]() { assoc_ctxt.receive(); },
-      [this, &assoc_ctxt](io_broker::error_code code) {
-        logger.info("Connection loss due to IO error code={}.", (int)code);
-        handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
-        remove_association(assoc_ctxt.assoc_id);
-      });
+  if (not subscribe_association_to_broker(std::move(assoc_fd), assoc_ctxt)) {
+    logger.error("Connection loss due to IO error code={}");
+    handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
+    remove_association(assoc_ctxt.assoc_id);
+    return;
+  }
 
   logger.info("{} assoc={}: New client SCTP association (client_addr={})", node_cfg.if_name, assoc_id, assoc_ctxt.addr);
 
@@ -616,6 +613,19 @@ bool sctp_network_server_impl::subscribe_to_broker()
         defer_socket_shutdown(nullptr);
       });
   return io_sub.registered();
+}
+
+bool sctp_network_server_impl::subscribe_association_to_broker(unique_fd assoc_fd, sctp_associaton_context& assoc_ctxt)
+{
+  assoc_ctxt.io_sub = broker.register_fd(
+      std::move(assoc_fd),
+      io_rx_executor,
+      [&assoc_ctxt]() { assoc_ctxt.receive(); },
+      [this](io_broker::error_code code) {
+        logger.info("Connection loss due to IO error code={}.", (int)code);
+        defer_socket_shutdown(nullptr);
+      });
+  return assoc_ctxt.io_sub.registered();
 }
 
 std::unique_ptr<sctp_network_server> sctp_network_server_impl::create(const sctp_network_gateway_config& sctp_cfg,
