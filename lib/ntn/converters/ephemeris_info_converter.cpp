@@ -3,7 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ephemeris_info_converter.h"
-#include <algorithm>
+#include "ocudu/support/error_handling.h"
 #include <array>
 #include <cmath>
 
@@ -12,6 +12,16 @@ using namespace ocudu_ntn;
 
 /// Earth's gravitational parameter (GM) [m^3/s^2].
 static constexpr double MU = 3.986004418e14;
+
+/// Wraps an angle to [0, 2*pi). Corrects a single wrap in either direction, which covers every std::atan2 result
+/// and the anomalies derived from one.
+static double wrap_2pi(double angle)
+{
+  double wrapped = (angle < 0.0) ? angle + 2.0 * M_PI : angle;
+  // Adding 2*pi to a tiny negative angle rounds up to exactly 2*pi, and Kepler's equation can land a hair past
+  // it; fold both back to 0 so the result is never the excluded endpoint.
+  return (wrapped < 2.0 * M_PI) ? wrapped : 0.0;
+}
 
 /// Solve Kepler's equation M = E - e * sin(E) for the eccentric anomaly E, by Newton-Raphson iteration.
 static double
@@ -34,6 +44,15 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
 {
   const auto& position = eci_state.position;
   const auto& velocity = eci_state.velocity;
+
+  // A non-finite component would spread through every expression below and yield a silently unusable element set.
+  // The eccentricity check further down cannot stand in for this one, because every comparison against NaN is
+  // false.
+  if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+      !std::isfinite(velocity.x) || !std::isfinite(velocity.y) || !std::isfinite(velocity.z)) {
+    report_error("eci_to_orbital requires a finite ECI state");
+  }
+
   // Specific angular momentum.
   std::array<double, 3> h = {position.y * velocity.z - position.z * velocity.y,
                              position.z * velocity.x - position.x * velocity.z,
@@ -42,9 +61,14 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
   // Node vector.
   std::array<double, 3> n = {-h[1], h[0], 0.0};
 
+  // Distance from the focus. A satellite at the origin has no orbit, and would make every MU / r below infinite.
+  double r = std::sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
+  if (r == 0.0) {
+    report_error("eci_to_orbital requires a non-zero ECI position");
+  }
+
   // Eccentricity vector.
-  double                v2 = velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z;
-  double                r  = std::sqrt(position.x * position.x + position.y * position.y + position.z * position.z);
+  double                v2      = velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z;
   double                r_dot_v = position.x * velocity.x + position.y * velocity.y + position.z * velocity.z;
   std::array<double, 3> ev      = {((v2 - MU / r) * position.x - r_dot_v * velocity.x) / MU,
                                    ((v2 - MU / r) * position.y - r_dot_v * velocity.y) / MU,
@@ -56,40 +80,73 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
   // Eccentricity.
   double eccentricity = std::sqrt(ev[0] * ev[0] + ev[1] * ev[1] + ev[2] * ev[2]);
 
-  // Inclination.
-  double h_mag       = std::sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
-  double inclination = std::acos(std::clamp(h[2] / h_mag, -1.0, 1.0));
-
-  // Longitude of ascending node.
-  double n_mag     = std::sqrt(n[0] * n[0] + n[1] * n[1]);
-  double longitude = std::atan2(n[1], n[0]);
-  if (longitude < 0) {
-    longitude += 2.0 * M_PI;
+  // This implementation calculates the elliptic eccentric and mean anomalies and therefore does not support parabolic
+  // or hyperbolic orbits.
+  if (eccentricity >= 1.0) {
+    report_error("eci_to_orbital supports only elliptic orbits");
   }
 
-  // Argument of periapsis.
-  double ev_mag    = std::sqrt(ev[0] * ev[0] + ev[1] * ev[1] + ev[2] * ev[2]);
-  double periapsis = std::acos(std::clamp((n[0] * ev[0] + n[1] * ev[1]) / (n_mag * ev_mag), -1.0, 1.0));
-  if (ev[2] < 0) {
-    periapsis = 2.0 * M_PI - periapsis;
-  }
+  double h_mag = std::sqrt(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
+  double n_mag = std::sqrt(n[0] * n[0] + n[1] * n[1]);
+  // Define ev_mag separately, as the circular test below is about the eccentricity vector vanishing, not about the
+  // orbit being round.
+  double ev_mag = eccentricity;
 
-  // True anomaly.
-  double cos_ta       = (ev[0] * position.x + ev[1] * position.y + ev[2] * position.z) / (ev_mag * r);
-  double true_anomaly = std::acos(std::clamp(cos_ta, -1.0, 1.0));
-  if (r_dot_v < 0) {
-    true_anomaly = 2.0 * M_PI - true_anomaly;
+  // Two orbit geometries make the classical angle elements degenerate, because the vector each angle is measured from
+  // vanishes: circular (ev_mag -> 0) leaves the argument of periapsis undefined, along with the true anomaly measured
+  // from it, and equatorial (n_mag -> 0) leaves the ascending node undefined.
+  constexpr double ecc_tol   = 1e-11;
+  constexpr double sin_i_tol = 1e-11;
+
+  const bool circular = ev_mag < ecc_tol;
+  // n_mag / h_mag = |sin(inclination)|, so use a relative dimensionless equatorial test.
+  const bool equatorial = n_mag < sin_i_tol * h_mag;
+
+  // Inclination, from n_mag = h_mag * sin(inclination) against h[2] = h_mag * cos(inclination). Preferred over
+  // acos(h[2] / h_mag) because that ratio rounds to exactly 1.0 for any inclination below sqrt(2 * epsilon), about
+  // 2e-8 rad, collapsing every near-equatorial orbit onto the equator; n_mag carries the same information with no
+  // loss of precision at small angles.
+  double inclination = std::atan2(n_mag, h[2]);
+
+  // Longitude of ascending node. Undefined for an equatorial orbit -> convention 0.
+  double longitude = equatorial ? 0.0 : wrap_2pi(std::atan2(n[1], n[0]));
+
+  // Required when the orbit is equatorial and retrograde.
+  const double equatorial_direction = h[2] >= 0.0 ? 1.0 : -1.0;
+
+  double periapsis;
+  double true_anomaly;
+
+  if (circular) {
+    // No periapsis: argument of periapsis = 0 by convention; the whole in-plane phase goes into the anomaly.
+    periapsis = 0.0;
+    if (!equatorial) {
+      // Argument of latitude: angle from the ascending node to the position vector.
+      true_anomaly = wrap_2pi(std::atan2(position.z * h_mag, n[0] * position.x + n[1] * position.y));
+    } else {
+      // Circular and equatorial: true longitude.
+      true_anomaly = wrap_2pi(std::atan2(equatorial_direction * position.y, position.x));
+    }
+  } else {
+    // Argument of periapsis.
+    if (!equatorial) {
+      periapsis = wrap_2pi(std::atan2(ev[2] * h_mag, n[0] * ev[0] + n[1] * ev[1]));
+    } else {
+      // Equatorial and elliptical: longitude of periapsis, measured from the x-axis.
+      periapsis = wrap_2pi(std::atan2(equatorial_direction * ev[1], ev[0]));
+    }
+    // True anomaly is well-defined whenever the orbit is not circular.
+    true_anomaly =
+        wrap_2pi(std::atan2(r_dot_v * h_mag / MU, ev[0] * position.x + ev[1] * position.y + ev[2] * position.z));
   }
 
   // Eccentric anomaly.
-  double eccentric_anomaly =
-      2.0 * std::atan(std::sqrt((1.0 - eccentricity) / (1.0 + eccentricity)) * std::tan(true_anomaly / 2.0));
+  double eccentric_anomaly = 2.0 * std::atan2(std::sqrt(1.0 - eccentricity) * std::sin(true_anomaly / 2.0),
+                                              std::sqrt(1.0 + eccentricity) * std::cos(true_anomaly / 2.0));
+  eccentric_anomaly        = wrap_2pi(eccentric_anomaly);
 
   // Mean anomaly, from Kepler's equation M = E - e * sin(E).
-  double mean_anomaly = eccentric_anomaly - eccentricity * std::sin(eccentric_anomaly);
-  if (mean_anomaly < 0) {
-    mean_anomaly += 2.0 * M_PI;
-  }
+  double mean_anomaly = wrap_2pi(eccentric_anomaly - eccentricity * std::sin(eccentric_anomaly));
 
   return {semi_major_axis, eccentricity, inclination, longitude, periapsis, mean_anomaly};
 }
