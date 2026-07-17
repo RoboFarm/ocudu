@@ -224,7 +224,8 @@ void srs_resource_manager_aperiodic::cell_context::fill_srs_res_parameters(srs_c
   // NOTE: given that there is only 1 SRS resource per UE, we can assume that the SRS resource ID is 0.
   res_out.id.cell_res_id = res_in.cell_res_id;
   res_out.id.ue_res_id   = static_cast<srs_config::srs_res_id>(0U);
-  ocudu_assert(cell_cfg.ul_carrier.nof_ant == 1 or cell_cfg.ul_carrier.nof_ant == 2 or cell_cfg.ul_carrier.nof_ant == 4,
+  ocudu_assert(cell_cfg.ul_carrier.nof_ant == 1 or cell_cfg.ul_carrier.nof_ant == 2 or
+                   cell_cfg.ul_carrier.nof_ant == 4 or cell_cfg.ul_carrier.nof_ant == 8,
                "The number of UL antenna ports is not valid");
   res_out.nof_ports                    = srs_config::srs_resource::nof_srs_ports::port1;
   res_out.tx_comb.size                 = cell_cfg.init_bwp.srs_cfg.tx_comb;

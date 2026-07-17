@@ -185,7 +185,7 @@ bool srs_resource_manager_periodic::alloc_resources(ue_cell_config& ue_cell_cfg)
   only_ue_srs_res.id.cell_res_id = du_res.cell_res_id;
   only_ue_srs_res.id.ue_res_id   = static_cast<srs_config::srs_res_id>(0U);
   ocudu_assert(ue_du_cell.cell_cfg.ul_carrier.nof_ant == 1 or ue_du_cell.cell_cfg.ul_carrier.nof_ant == 2 or
-                   ue_du_cell.cell_cfg.ul_carrier.nof_ant == 4,
+                   ue_du_cell.cell_cfg.ul_carrier.nof_ant == 4 or ue_du_cell.cell_cfg.ul_carrier.nof_ant == 8,
                "The number of UL antenna ports is not valid");
   only_ue_srs_res.nof_ports                    = srs_config::srs_resource::nof_srs_ports::port1;
   only_ue_srs_res.tx_comb.size                 = ue_du_cell.cell_cfg.init_bwp.srs_cfg.tx_comb;
