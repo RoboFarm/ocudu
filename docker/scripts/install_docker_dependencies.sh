@@ -23,7 +23,7 @@ install_docker_dependencies_debian_ubuntu() {
     local -x DEBIAN_FRONTEND=noninteractive
     local -a pkgs=()
 
-    local -a build_pkgs=(git ca-certificates)
+    local -a build_pkgs=(git ca-certificates binutils)
     local -a run_pkgs=(curl tini)
 
     case "$mode" in

@@ -39,7 +39,7 @@ gnb docker compose:
     - sh -c "docker compose -f docker/docker-compose.yml run --no-deps --entrypoint sh gnb -c 'command -v gnb_split_8'"
     - sh -c "docker compose -f docker/docker-compose.yml run --no-deps --entrypoint sh gnb -c 'command -v gnb_split_7_2'"
     - sh -c "docker compose -f docker/docker-compose.yml run --no-deps --entrypoint sh gnb -c 'command -v ru_emulator'"
-    - sh -c "docker compose -f docker/docker-compose.yml run --no-deps gnb gnb cu_cp amf --no_core=true ru_sdr --device_driver uhd | grep 'Failed to open device with address'"
+    - sh -c "docker compose -f docker/docker-compose.yml run --no-deps gnb gnb cu_cp amf --no_core=true ru_sdr --device_driver uhd expert_execution threads upper_phy --max_pusch_and_srs_concurrency 1 | grep 'Failed to open device with address'"
     - sh -c "docker compose -f docker/docker-compose.yml run --no-deps gnb gnb cu_cp amf --no_core=true hal --eal_args='--help'"
   needs: []
 
