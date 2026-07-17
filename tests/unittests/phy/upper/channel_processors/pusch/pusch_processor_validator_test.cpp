@@ -8,6 +8,7 @@
 #include "ocudu/support/executors/inline_task_executor.h"
 #include "fmt/ostream.h"
 #include "gtest/gtest.h"
+#include <numeric>
 #include <regex>
 
 using namespace ocudu;
@@ -72,10 +73,15 @@ const std::vector<test_case_t> pusch_processor_validator_test_data = {
      R"(The number of transmit layers \(i\.e\., 3\) is out of the range \[1\.\.2\]\.)"},
     {[] {
        pusch_processor::pdu_t pdu = base_pdu;
-       pdu.rx_ports.emplace_back(pusch_constants::MAX_NOF_RX_PORTS);
+       // Configure one more receive port than the maximum supported to trigger the validation failure.
+       pdu.rx_ports.resize(pusch_constants::MAX_NOF_RX_PORTS + 1);
+       std::iota(pdu.rx_ports.begin(), pdu.rx_ports.end(), 0);
        return pdu;
      },
-     R"(The number of receive ports \(i\.e\., 5\) exceeds the maximum number of receive ports \(i\.e\., 4\)\.)"},
+     fmt::format(
+         R"(The number of receive ports \(i\.e\., {}\) exceeds the maximum number of receive ports \(i\.e\., {}\)\.)",
+         pusch_constants::MAX_NOF_RX_PORTS + 1,
+         pusch_constants::MAX_NOF_RX_PORTS)},
     {[] {
        pusch_processor::pdu_t pdu = base_pdu;
        pdu.bwp_size_rb            = 1;
