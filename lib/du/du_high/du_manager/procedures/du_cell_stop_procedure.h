@@ -39,6 +39,11 @@ public:
 
   void operator()(coro_context<async_task<void>>& ctx);
 
+  /// Interval between checks, while awaiting the CU to release the UEs, of whether they have been released.
+  static constexpr std::chrono::milliseconds cu_release_check_period{10};
+  /// Overall time to wait for the CU to release the UEs before giving up and forcing their removal.
+  static constexpr std::chrono::milliseconds cu_release_timeout{500};
+
 private:
   async_task<void> rem_ues_with_matching_pcell();
   async_task<void> await_cu_to_release_ues();

@@ -6,6 +6,8 @@
 /// \brief Tests that check the setup/teardown, addition/removal of UEs in the DU-high class.
 
 #include "apps/units/flexible_o_du/o_du_high/du_high/commands/du_high_remote_commands.h"
+#include "lib/du/du_high/du_manager/procedures/du_cell_stop_procedure.h"
+#include "lib/f1ap/du/procedures/f1ap_du_ue_context_release_procedure.h"
 #include "nlohmann/json.hpp"
 #include "tests/integrationtests/du_high/test_utils/du_high_env_simulator.h"
 #include "tests/test_doubles/f1ap/f1ap_test_message_validators.h"
@@ -255,6 +257,70 @@ TEST_F(du_high_tester, when_f1ap_reset_received_then_ues_are_removed)
         return pdsch != nullptr;
       },
       nof_slots_check));
+}
+
+TEST_F(du_high_tester, when_ue_removal_races_with_cell_stop_reset_sweep_then_du_does_not_crash)
+{
+  // Create UE.
+  rnti_t rnti = to_rnti(0x4601);
+  ASSERT_TRUE(add_ue(rnti));
+  ASSERT_TRUE(run_rrc_setup(rnti));
+  ASSERT_TRUE(run_ue_context_setup(rnti));
+
+  auto& u = ues.at(rnti);
+
+  // EVENT: CU-CP removes the (only) cell served by this DU via gNB-CU Configuration Update. This makes the DU
+  // start du_cell_stop_procedure::await_cu_to_release_ues(), which asks the CU to release the UE and then polls
+  // every 10ms, for up to 500ms, before giving up on the CU and forcing the UE removal itself.
+  cu_notifier.f1ap_ul_msgs.clear();
+  std::vector<nr_cell_global_id_t> cgis_to_deactivate = {
+      nr_cell_global_id_t{plmn_identity::test_value(), nr_cell_identity::create(0).value()}};
+  f1ap_message cu_cfg_update = test_helpers::generate_gnb_cu_configuration_update_request(0, {}, cgis_to_deactivate);
+  this->du_hi->get_f1ap_pdu_handler().handle_message(cu_cfg_update);
+
+  // TEST CASE: DU asks the CU to release the UE.
+  ASSERT_TRUE(this->run_until([this]() { return not cu_notifier.f1ap_ul_msgs.empty(); }));
+  ASSERT_TRUE(
+      test_helpers::is_valid_ue_context_release_request(cu_notifier.f1ap_ul_msgs.rbegin()->second, *u.du_ue_id));
+
+  // Deliberately do not respond to the release request, so that the du_cell_stop_procedure::cu_release_timeout
+  // below is reached and du_cell_stop_procedure is forced to build a du_ue_reset_procedure ("sweep") targeting
+  // this UE.
+
+  // Advance close to, but before, the cell-stop timeout. The independent UE Context Release Command triggered
+  // below takes at least f1ap_du_ue_context_release_procedure::ue_full_release_timeout (plus some scheduling
+  // overhead) to actually erase the UE, once its RRC container is delivered, so it must be injected late enough
+  // that its own completion lands *after* the cell-stop timeout -- otherwise the UE would already be gone by the
+  // time the reset sweep tries to queue anything on it, and the two would never overlap. Backing off by exactly
+  // one ue_full_release_timeout guarantees that overlap regardless of the exact value of either timeout.
+  static_assert(du_cell_stop_procedure::cu_release_timeout >
+                    f1ap_du_ue_context_release_procedure::ue_full_release_timeout,
+                "The margin below assumes the cell-stop timeout is larger than the UE release guard timer");
+  const unsigned slots_before_cu_release_timeout =
+      (du_cell_stop_procedure::cu_release_timeout - f1ap_du_ue_context_release_procedure::ue_full_release_timeout)
+          .count();
+  for (unsigned i = 0; i != slots_before_cu_release_timeout; ++i) {
+    run_slot();
+  }
+
+  // EVENT: Independently of the above, and racing with it, the CU decides to release the UE directly via a UE
+  // CONTEXT RELEASE COMMAND. This starts a *separate* UE deletion procedure for the same UE, which occupies the
+  // UE's own task queue until it completes, after the cell-stop timeout above is reached.
+  cu_notifier.f1ap_ul_msgs.clear();
+  f1ap_message rel_cmd = test_helpers::generate_ue_context_release_command(*u.cu_ue_id, *u.du_ue_id, srb_id_t::srb1);
+  this->du_hi->get_f1ap_pdu_handler().handle_message(rel_cmd);
+
+  // Advance well past both the cell-stop timeout (which triggers the reset "sweep" to run reentrantly on top of
+  // the still in-flight UE deletion above) and the time it takes for that UE deletion to complete on its own. If
+  // the race is mishandled, the DU process aborts here with an assertion failure inside slotted_array::operator[]
+  // (bad ue_ctrl_loop index) -- see the GitHub issue for the original crash report.
+  const unsigned final_wait_slots = 2 * du_cell_stop_procedure::cu_release_timeout.count();
+  for (unsigned i = 0; i != final_wait_slots; ++i) {
+    run_slot();
+  }
+
+  // If we reach this point without the process aborting, the race was handled safely.
+  SUCCEED();
 }
 
 TEST_F(du_high_tester, when_du_high_is_stopped_then_ues_are_removed)

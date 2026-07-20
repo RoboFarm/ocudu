@@ -97,8 +97,7 @@ async_task<void> du_cell_stop_procedure::rem_ues_with_matching_pcell()
 async_task<void> du_cell_stop_procedure::await_cu_to_release_ues()
 {
   // Implementation-defined timeout for graceful UE removal. After which, we will force UE removal.
-  static constexpr std::chrono::milliseconds periodic_check_timeout{10};
-  static constexpr unsigned                  nof_checks = std::chrono::milliseconds{500} / periodic_check_timeout;
+  static constexpr unsigned nof_checks = cu_release_timeout / cu_release_check_period;
 
   return launch_async([this, count = 0U](coro_context<async_task<void>>& ctx) mutable {
     CORO_BEGIN(ctx);
@@ -115,7 +114,7 @@ async_task<void> du_cell_stop_procedure::await_cu_to_release_ues()
 
       // > Wait for all UEs to be released.
       for (; count != nof_checks; ++count) {
-        CORO_AWAIT(async_wait_for(timer, periodic_check_timeout));
+        CORO_AWAIT(async_wait_for(timer, cu_release_check_period));
 
         bool ues_exist = false;
         for (du_ue_index_t ue_idx : ues_to_rem) {
