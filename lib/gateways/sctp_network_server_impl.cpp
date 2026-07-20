@@ -155,7 +155,12 @@ void sctp_network_server_impl::sctp_associaton_context::receive()
       })) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
+    } else {
+      if (!parent.node_cfg.non_blocking_mode) {
+        parent.logger.debug("Socket timeout reached");
+      }
     }
+    return;
   }
 
   /// We pass the actual data and association handling back to the parent, to avoid code duplication.
@@ -446,13 +451,14 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
   if (assoc_fd_raw == -1) {
     logger.error(
         "{} assoc={}: Could not peel off new association. err={}", node_cfg.if_name, assoc_id, ::strerror(errno));
-    /// Call directly socket shutdown, as we are running the in the app excutor already.
-    handle_socket_shutdown(nullptr);
+    /// Remove association as if it was lost. Do it directly, as we are running in the app excutor already.
+    handle_association_shutdown(assoc_id, "Peel-off error");
+    remove_association(assoc_id);
     return;
   }
   auto assoc_fd = unique_fd(assoc_fd_raw);
 
-  /// Make sure peeled of socket follows the blocking mode of the parent.
+  /// Make sure peeled-off socket follows the blocking mode of the parent.
   if (node_cfg.non_blocking_mode) {
     ::set_non_blocking(assoc_fd, logger);
   }
@@ -483,7 +489,7 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
 
   /// Register peeled-off socket in IO broker.
   if (not subscribe_association_to_broker(std::move(assoc_fd), assoc_ctxt)) {
-    logger.error("Connection loss due to IO error code={}");
+    logger.error("Connection loss due to IO broker subscription failure");
     handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
     remove_association(assoc_ctxt.assoc_id);
     return;
