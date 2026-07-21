@@ -7,6 +7,7 @@
 #include "apps/units/flexible_o_du/o_du_high/o_du_high_unit_config.h"
 #include "apps/units/flexible_o_du/o_du_low/du_low_config.h"
 #include "ocudu/ran/cyclic_prefix.h"
+#include "ocudu/ran/n_ta_offset.h"
 #include "ocudu/ran/tdd/tdd_ul_dl_config.h"
 
 namespace ocudu {
@@ -48,6 +49,7 @@ struct flexible_o_du_ru_config {
     arfcn_t                                dl_arfcn;
     arfcn_t                                ul_arfcn;
     frequency_range                        freq_range;
+    n_ta_offset                            ta_offset;
   };
 
   std::vector<cell_config> cells;

@@ -667,7 +667,9 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
     out_cell.enabled        = base_cell.enabled;
 
     // > TA offset.
-    out_cell.ran.ta_offset = band_helper::get_ta_offset(band, base_cell.eutra_coexistence);
+    out_cell.ran.ta_offset = base_cell.ta_offset.has_value()
+                                 ? static_cast<n_ta_offset>(base_cell.ta_offset.value())
+                                 : band_helper::get_ta_offset(band, base_cell.eutra_coexistence);
 
     // > SSB.
     out_cell.ran.ssb_cfg.ssb_period      = static_cast<ssb_periodicity>(base_cell.ssb_cfg.ssb_period_msec);

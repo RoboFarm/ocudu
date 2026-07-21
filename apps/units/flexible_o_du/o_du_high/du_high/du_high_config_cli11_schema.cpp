@@ -2724,6 +2724,14 @@ static void configure_cli11_common_cell_args(CLI::App& app, du_high_unit_base_ce
              "EUTRA coexistence: set to true if cell is deployed in conjunction with EUTRA")
       ->capture_default_str();
   add_option(app,
+             "--ta_offset",
+             cell_params.ta_offset,
+             "n-TimingAdvanceOffset (N_TA_offset) in units of Tc, signalled to UEs in ServingCellConfigCommon. It "
+             "must match the offset applied by the Radio Unit (typically 0 for FDD O-RUs, 25600 for TDD O-RUs). If "
+             "not specified, it is derived from the band and the eutra_coexistence flag")
+      ->capture_default_str()
+      ->check(CLI::IsMember({0, 25600, 39936}));
+  add_option(app,
              "--intra_freq_reselection",
              cell_params.intra_freq_reselection,
              "MIB intraFreqReselection: if true, intra-frequency cell reselection is allowed when cell is barred")
