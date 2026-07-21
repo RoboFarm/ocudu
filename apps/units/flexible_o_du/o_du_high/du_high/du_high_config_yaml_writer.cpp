@@ -697,6 +697,9 @@ static YAML::Node build_cell_entry(const du_high_unit_base_cell_config& config)
   if (config.band.has_value()) {
     node["band"] = static_cast<unsigned>(config.band.value());
   }
+  if (config.ta_offset.has_value()) {
+    node["ta_offset"] = config.ta_offset.value();
+  }
   node["mac_cell_group"] = build_du_high_mac_cell_group_section(config.mcg_cfg);
   node["ssb"]            = build_du_high_ssb_section(config.ssb_cfg);
   node["sib"]            = build_du_high_sib_section(config.sib_cfg);

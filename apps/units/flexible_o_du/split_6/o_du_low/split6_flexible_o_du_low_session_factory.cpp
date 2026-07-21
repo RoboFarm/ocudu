@@ -20,6 +20,7 @@
 #include "ocudu/fapi_adaptor/phy/p7/phy_fapi_p7_sector_fastpath_adaptor.h"
 #include "ocudu/fapi_adaptor/phy/phy_fapi_fastpath_adaptor.h"
 #include "ocudu/fapi_adaptor/phy/phy_fapi_sector_fastpath_adaptor.h"
+#include "ocudu/ran/band_helper.h"
 #include "ocudu/ran/prach/prach_configuration.h"
 #include "ocudu/ran/slot_pdu_capacity_constants.h"
 
@@ -206,6 +207,9 @@ generate_o_du_ru_config(const fapi::cell_configuration& config, unsigned expecte
   out_cell.bw              = MHz_to_bs_channel_bandwidth(config.carrier_cfg.dl_bandwidth);
   out_cell.cp              = config.cp;
   out_cell.freq_range      = split6_du_low::freq_range;
+  out_cell.ta_offset =
+      band_helper::get_ta_offset(band_helper::get_band_from_dl_arfcn(config.carrier_cfg.dl_f_ref_arfcn),
+                                 false /* 5G SA mode */);
 
   // TDD pattern.
   out_cell.tdd_config = config.tdd_ul_dl_cfg_common;

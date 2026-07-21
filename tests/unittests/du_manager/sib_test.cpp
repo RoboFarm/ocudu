@@ -4,6 +4,7 @@
 
 #include "lib/du/du_high/du_manager/converters/asn1_sys_info_packer.h"
 #include "ocudu/asn1/rrc_nr/sys_info.h"
+#include "ocudu/du/du_cell_config_helpers.h"
 #include "ocudu/ran/sib/system_info_config.h"
 #include <chrono>
 #include <gtest/gtest.h>
@@ -46,4 +47,39 @@ TEST(srs_sib19_test, make_asn1_rrc_cell_sib19_buffer)
   EXPECT_TRUE(sib19_decoded.ntn_cfg_r17.ephemeris_info_r17_present);
   EXPECT_EQ(sib19_decoded.ntn_cfg_r17.ephemeris_info_r17.position_velocity_r17().position_x_r17,
             std::get<ecef_coordinates_t>(sib19.ntn_cfg->ephemeris_info.value()).position_x / 1.3);
+}
+
+static asn1::rrc_nr::sib1_s pack_and_unpack_sib1(const odu::du_cell_config& du_cfg)
+{
+  const byte_buffer buf = asn1_packer::pack_sib1(du_cfg);
+  EXPECT_FALSE(buf.empty());
+
+  asn1::cbit_ref       bref(buf);
+  asn1::rrc_nr::sib1_s sib1;
+  EXPECT_EQ(sib1.unpack(bref), asn1::OCUDUASN_SUCCESS);
+  return sib1;
+}
+
+TEST(sib1_ta_offset_test, when_ta_offset_is_n25600_then_sib1_contains_n25600)
+{
+  du_cell_config du_cfg = config_helpers::make_default_du_cell_config();
+  du_cfg.ran.ta_offset  = n_ta_offset::n25600;
+
+  const asn1::rrc_nr::sib1_s sib1 = pack_and_unpack_sib1(du_cfg);
+  ASSERT_TRUE(sib1.serving_cell_cfg_common_present);
+  ASSERT_TRUE(sib1.serving_cell_cfg_common.n_timing_advance_offset_present);
+  EXPECT_EQ(sib1.serving_cell_cfg_common.n_timing_advance_offset.value,
+            asn1::rrc_nr::serving_cell_cfg_common_sib_s::n_timing_advance_offset_opts::n25600);
+}
+
+TEST(sib1_ta_offset_test, when_ta_offset_is_n0_then_sib1_contains_n0)
+{
+  du_cell_config du_cfg = config_helpers::make_default_du_cell_config();
+  du_cfg.ran.ta_offset  = n_ta_offset::n0;
+
+  const asn1::rrc_nr::sib1_s sib1 = pack_and_unpack_sib1(du_cfg);
+  ASSERT_TRUE(sib1.serving_cell_cfg_common_present);
+  ASSERT_TRUE(sib1.serving_cell_cfg_common.n_timing_advance_offset_present);
+  EXPECT_EQ(sib1.serving_cell_cfg_common.n_timing_advance_offset.value,
+            asn1::rrc_nr::serving_cell_cfg_common_sib_s::n_timing_advance_offset_opts::n0);
 }

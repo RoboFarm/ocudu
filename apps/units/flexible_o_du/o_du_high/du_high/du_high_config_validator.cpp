@@ -1662,6 +1662,12 @@ static bool validate_base_cell_unit_config(const du_high_unit_base_cell_config& 
     return false;
   }
 
+  if (config.ta_offset.has_value() and band_helper::get_freq_range(band) != frequency_range::FR1) {
+    fmt::print("ta_offset is only configurable for FR1 bands. For FR2, the value 13792 defined in TS 38.133, "
+               "Section 7.1.2 is always used.\n");
+    return false;
+  }
+
   const unsigned nof_crbs =
       band_helper::get_n_rbs_from_bw(config.channel_bw_mhz, config.common_scs, band_helper::get_freq_range(band));
 

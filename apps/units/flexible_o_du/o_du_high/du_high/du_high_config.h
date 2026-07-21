@@ -1166,6 +1166,11 @@ struct du_high_unit_base_cell_config {
   bool cell_barred = false;
   /// Coexistence with E-UTRA/NB-IoT (TS 38.331): if true, LTE-style UL frequency shift is enabled.
   bool eutra_coexistence = false;
+  /// \brief \c n-TimingAdvanceOffset (\f$N_{TA,offset}\f$), part of \c ServingCellConfigCommon, TS 38.331, in units
+  /// of \f$T_c\f$. Valid values: {0, 25600, 39936}. It must match the offset applied by the Radio Unit (typically 0
+  /// for FDD O-RUs and 25600 for TDD O-RUs). If not set, the value is derived from the band and the
+  /// eutra_coexistence flag, as per TS 38.133, Section 7.1.2.
+  std::optional<unsigned> ta_offset;
   /// MIB intraFreqReselection field (TS 38.331): if true, intra-frequency cell reselection is allowed when barred.
   bool intra_freq_reselection = true;
   /// \c q-RxLevMin, part of \c cellSelectionInfo, \c SIB1, TS 38.331, in dBm.
