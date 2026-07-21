@@ -17,9 +17,11 @@ struct ssb_mtc_s;
 
 } // namespace asn1::rrc_nr
 
-namespace ocudu::odu {
+namespace ocudu {
 
 struct ue_capability_summary;
+
+namespace odu {
 
 /// Single UL periodic resource occasion (SR or periodic CSI). Period and offset in PCell slots.
 struct periodic_uci_config {
@@ -70,4 +72,5 @@ private:
   ocudulog::basic_logger&    logger;
 };
 
-} // namespace ocudu::odu
+} // namespace odu
+} // namespace ocudu

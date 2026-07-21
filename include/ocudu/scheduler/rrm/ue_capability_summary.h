@@ -11,7 +11,6 @@
 #include <unordered_map>
 
 namespace ocudu {
-namespace odu {
 
 /// Flat structure summarizing the decoded ASN.1 UE capabilities.
 struct ue_capability_summary {
@@ -138,5 +137,4 @@ struct ue_capability_summary {
   }
 };
 
-} // namespace odu
 } // namespace ocudu

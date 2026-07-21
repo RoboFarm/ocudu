@@ -5,8 +5,8 @@
 #pragma once
 
 #include "du_ue_resource_config.h"
-#include "ue_capability_summary.h"
 #include "ocudu/f1ap/du/f1ap_du_ue_context_update.h"
+#include "ocudu/scheduler/rrm/ue_capability_summary.h"
 
 namespace ocudu {
 namespace odu {

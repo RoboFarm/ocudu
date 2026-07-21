@@ -4,16 +4,15 @@
 
 #pragma once
 
-#include "ue_capability_summary.h"
-#include "ocudu/adt/span.h"
+#include "ocudu/scheduler/rrm/ue_capability_summary.h"
 #include "ocudu/support/format/delimited_formatter.h"
 #include <fmt/format.h>
 
 namespace fmt {
 
-/// \brief Custom formatter for \c ocudu::odu::ue_capability_summary::supported_band.
+/// \brief Custom formatter for \c ocudu::ue_capability_summary::supported_band.
 template <>
-struct formatter<ocudu::odu::ue_capability_summary::supported_band> {
+struct formatter<ocudu::ue_capability_summary::supported_band> {
   /// Helper used to parse formatting options and format fields.
   ocudu::delimited_formatter helper;
 
@@ -27,7 +26,7 @@ struct formatter<ocudu::odu::ue_capability_summary::supported_band> {
   }
 
   template <typename FormatContext>
-  auto format(const ocudu::odu::ue_capability_summary::supported_band& params, FormatContext& ctx) const
+  auto format(const ocudu::ue_capability_summary::supported_band& params, FormatContext& ctx) const
   {
     helper.format_always(ctx, "pusch_qam256_supported={}", params.pusch_qam256_supported);
     helper.format_always(ctx, "pusch_tx_coherence={}", ocudu::to_string(params.pusch_tx_coherence));
@@ -45,9 +44,9 @@ struct formatter<ocudu::odu::ue_capability_summary::supported_band> {
   }
 };
 
-/// \brief Custom formatter for \c ocudu::odu::ue_capability_summary.
+/// \brief Custom formatter for \c ocudu::ue_capability_summary.
 template <>
-struct formatter<ocudu::odu::ue_capability_summary> {
+struct formatter<ocudu::ue_capability_summary> {
   /// Helper used to parse formatting options and format fields.
   ocudu::delimited_formatter helper;
 
@@ -61,7 +60,7 @@ struct formatter<ocudu::odu::ue_capability_summary> {
   }
 
   template <typename FormatContext>
-  auto format(const ocudu::odu::ue_capability_summary& params, FormatContext& ctx) const
+  auto format(const ocudu::ue_capability_summary& params, FormatContext& ctx) const
   {
     helper.format_always(ctx, "pdsch_qam256_supported={}", params.pdsch_qam256_supported);
     helper.format_always(ctx, "pdsch_qam64lowse_supported={}", params.pdsch_qam64lowse_supported);

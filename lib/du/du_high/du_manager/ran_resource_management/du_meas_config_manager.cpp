@@ -4,7 +4,6 @@
 
 #include "du_meas_config_manager.h"
 #include "du_ue_resource_config.h"
-#include "ue_capability_summary.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg_ies.h"
 #include "ocudu/ocudulog/ocudulog.h"
@@ -13,6 +12,7 @@
 #include "ocudu/ran/sr_configuration.h"
 #include "ocudu/ran/ssb/ssb_properties.h"
 #include "ocudu/ran/subcarrier_spacing.h"
+#include "ocudu/scheduler/rrm/ue_capability_summary.h"
 #include <array>
 #include <numeric>
 #include <optional>

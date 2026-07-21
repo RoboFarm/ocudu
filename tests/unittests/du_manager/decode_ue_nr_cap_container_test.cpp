@@ -3,10 +3,10 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_manager.h"
-#include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_summary_formatter.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/adt/to_array.h"
 #include "ocudu/asn1/rrc_nr/ue_cap.h"
+#include "ocudu/scheduler/rrm/ue_capability_summary_formatter.h"
 #include "ocudu/support/error_handling.h"
 #include <fmt/ostream.h>
 #include <gtest/gtest.h>
@@ -25,15 +25,13 @@ struct decode_ue_nr_cap_container_params {
 };
 
 namespace ocudu {
-namespace odu {
 
-std::ostream& operator<<(std::ostream& os, const ocudu::odu::ue_capability_summary& params)
+std::ostream& operator<<(std::ostream& os, const ocudu::ue_capability_summary& params)
 {
   fmt::print(os, "{:n}", params);
   return os;
 }
 
-} // namespace odu
 } // namespace ocudu
 
 std::ostream& operator<<(std::ostream& os, const decode_ue_nr_cap_container_params& params)

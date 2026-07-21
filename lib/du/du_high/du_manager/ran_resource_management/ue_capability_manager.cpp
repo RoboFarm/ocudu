@@ -26,8 +26,8 @@ static const asn1::rrc_nr::ntn_params_r17_s* get_ntn_params_r17(const asn1::rrc_
 }
 
 /// Helper function to convert advanced UE NR capabilities.
-static expected<ue_capability_summary, std::string>
-decode_advanced_ue_nr_caps(odu::ue_capability_summary& ue_capability, const asn1::rrc_nr::ue_nr_cap_s& ue_cap)
+static expected<ue_capability_summary, std::string> decode_advanced_ue_nr_caps(ue_capability_summary& ue_capability,
+                                                                               const asn1::rrc_nr::ue_nr_cap_s& ue_cap)
 {
   for (const auto& band : ue_cap.rf_params.supported_band_list_nr) {
     // Select band.
