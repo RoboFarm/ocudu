@@ -231,6 +231,9 @@ du_ran_resource_manager_impl::update_context(du_ue_index_t                      
     pdsch_res_mng.update_resources(ue_mcg.cell_group, *u.ue_cap_manager.summary());
     pusch_res_mng.update_resources(ue_mcg.cell_group, *u.ue_cap_manager.summary());
     drx_res_mng.handle_ue_cap_update(ue_mcg.cell_group, u.ue_cap_manager.summary());
+    if (ue_mcg.cell_group.cells.contains(SERVING_PCELL_IDX)) {
+      pucch_res_mng.update_resources(ue_mcg.cell_group.cells.at(SERVING_PCELL_IDX), *u.ue_cap_manager.summary());
+    }
   }
 
   // > Update UE SRBs and DRBs.
