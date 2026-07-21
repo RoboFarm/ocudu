@@ -348,6 +348,20 @@ static void configure_cli11_pdsch_args(CLI::App& app, du_high_unit_pdsch_config&
       "MCS table to use PDSCH")
       ->default_str("qam256")
       ->check(CLI::IsMember({"qam64", "qam256", "qam64lowse"}, CLI::ignore_case));
+  add_option(app,
+             "--max_nof_rep",
+             pdsch_params.max_nof_rep,
+             "Maximum number of PDSCH repetitions offered in the dedicated Rel-16 TDRA list of supporting UEs. Value "
+             "1 disables dynamic PDSCH repetitions.")
+      ->capture_default_str()
+      ->check(CLI::IsMember({1, 2, 3, 4, 5, 6, 7, 8, 16}));
+  add_option(app,
+             "--cqi_rep_threshold",
+             pdsch_params.cqi_rep_threshold,
+             "CQI threshold below which the scheduler uses PDSCH repetitions for supporting UEs. Value 0 disables "
+             "CQI-triggered repetitions.")
+      ->capture_default_str()
+      ->check(CLI::Range(0.0F, 15.0F));
   add_option(app, "--min_rb_size", pdsch_params.min_rb_size, "Minimum RB size for UE PDSCH resource allocation")
       ->capture_default_str()
       ->check(CLI::Range(1U, (unsigned)MAX_NOF_PRBS));

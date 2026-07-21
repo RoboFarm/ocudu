@@ -798,6 +798,7 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
         static_cast<uint8_t>(config.cells_cfg.front().cell.pdsch_cfg.nof_harqs);
     out_cell.ran.init_bwp.pdsch.dl_harq_feedback_disabled = base_cell.pdsch_cfg.harq_feedback_disabled;
     out_cell.ran.init_bwp.pdsch.mcs_table                 = base_cell.pdsch_cfg.mcs_table;
+    out_cell.ran.init_bwp.pdsch.max_nof_repetitions       = base_cell.pdsch_cfg.max_nof_rep;
     out_cell.ran.init_bwp.pdsch.additional_positions =
         uint_to_dmrs_additional_positions(base_cell.pdsch_cfg.dmrs_add_pos);
     out_cell.ran.init_bwp.pdsch.interleaving_bundle_size = base_cell.pdsch_cfg.interleaving_bundle_size;
@@ -805,6 +806,7 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
     out_cell.ran.init_bwp.pusch.min_k2                      = base_cell.pusch_cfg.min_k2;
     out_cell.ran.init_bwp.pusch.transform_precoding_enabled = base_cell.pusch_cfg.enable_transform_precoding;
     out_cell.ran.init_bwp.pusch.mcs_table                   = base_cell.pusch_cfg.mcs_table;
+    out_cell.ran.init_bwp.pusch.max_nof_repetitions         = base_cell.pusch_cfg.max_nof_rep;
     out_cell.ran.init_bwp.pusch.additional_positions =
         uint_to_dmrs_additional_positions(base_cell.pusch_cfg.dmrs_add_pos);
     // Determine the PUSCH transmission maximum number of layers:

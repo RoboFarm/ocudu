@@ -1106,6 +1106,35 @@ make_asn1_rrc_pdsch_time_domain_alloc_list(const pdsch_time_domain_resource_allo
   return out;
 }
 
+static asn1::rrc_nr::pdsch_time_domain_res_alloc_r16_s
+make_asn1_rrc_pdsch_time_domain_alloc_r16(const pdsch_time_domain_resource_allocation& cfg)
+{
+  pdsch_time_domain_res_alloc_r16_s out{};
+  out.k0_r16_present = true;
+  out.k0_r16         = cfg.k0;
+  switch (cfg.map_type) {
+    case sch_mapping_type::typeA:
+      out.map_type_r16 = pdsch_time_domain_res_alloc_r16_s::map_type_r16_opts::type_a;
+      break;
+    case sch_mapping_type::typeB:
+      out.map_type_r16 = pdsch_time_domain_res_alloc_r16_s::map_type_r16_opts::type_b;
+      break;
+    default:
+      ocudu_assertion_failure("Invalid SCH mapping Type={}", fmt::underlying(cfg.map_type));
+  }
+
+  out.start_symbol_and_len_r16 = ofdm_symbol_range_to_sliv(cfg.symbols);
+
+  if (cfg.rep_number.has_value()) {
+    out.repeat_num_r16_present = true;
+    if (not asn1::number_to_enum(out.repeat_num_r16, cfg.rep_number.value())) {
+      ocudu_assertion_failure("Invalid PDSCH repetitionNumber-r16={}", cfg.rep_number.value());
+    }
+  }
+
+  return out;
+}
+
 asn1::rrc_nr::tci_state_s ocudu::odu::make_asn1_rrc_tci_state(const tci_state& cfg)
 {
   tci_state_s tci_st;
@@ -1190,18 +1219,65 @@ calculate_pdsch_config_diff(asn1::rrc_nr::pdsch_cfg_s& out, const pdsch_config& 
       ocudu_assertion_failure("Invalid resource allocation type={}", fmt::underlying(dest.res_alloc));
   }
 
-  // PDSCH Time Domain Allocation.
-  if ((not dest.pdsch_td_alloc_list.empty() && src.pdsch_td_alloc_list.empty()) ||
-      (not dest.pdsch_td_alloc_list.empty() && not src.pdsch_td_alloc_list.empty() &&
-       dest.pdsch_td_alloc_list != src.pdsch_td_alloc_list)) {
-    out.pdsch_time_domain_alloc_list_present = true;
-    auto& alloc_list                         = out.pdsch_time_domain_alloc_list.set_setup();
-    for (const auto& td_alloc : dest.pdsch_td_alloc_list) {
-      alloc_list.push_back(make_asn1_rrc_pdsch_time_domain_alloc_list(td_alloc));
+  // PDSCH Time Domain Allocation: encoded via the legacy IE (pdsch-TimeDomainAllocationList), or, when an entry
+  // carries repetitionNumber-r16, via the Rel-16 IE (pdsch-TimeDomainAllocationList-r16), which replaces the legacy
+  // and common lists for DCI format 1_1. The two IEs are mutually exclusive, so only one is ever signalled; a
+  // transition between them releases the one no longer in use before (or instead of) setting up the other.
+  auto has_repetitions = [](const std::vector<pdsch_time_domain_resource_allocation>& list) {
+    return std::any_of(list.begin(), list.end(), [](const auto& alloc) { return alloc.rep_number.has_value(); });
+  };
+  const bool dest_is_r16 = has_repetitions(dest.pdsch_td_alloc_list);
+  const bool src_is_r16  = has_repetitions(src.pdsch_td_alloc_list);
+
+  if (not dest.pdsch_td_alloc_list.empty() && dest_is_r16) {
+    if (not src_is_r16 && not src.pdsch_td_alloc_list.empty()) {
+      out.pdsch_time_domain_alloc_list_present = true;
+      out.pdsch_time_domain_alloc_list.set_release();
     }
-  } else if (not src.pdsch_td_alloc_list.empty() && dest.pdsch_td_alloc_list.empty()) {
+    if (not src_is_r16 || dest.pdsch_td_alloc_list != src.pdsch_td_alloc_list) {
+      out.ext = true;
+      out.pdsch_time_domain_alloc_list_r16.set_present();
+      auto& alloc_list = out.pdsch_time_domain_alloc_list_r16->set_setup();
+      for (const auto& td_alloc : dest.pdsch_td_alloc_list) {
+        alloc_list.push_back(make_asn1_rrc_pdsch_time_domain_alloc_r16(td_alloc));
+      }
+    }
+  } else if (not dest.pdsch_td_alloc_list.empty()) {
+    // dest is a legacy (non-repetition) list.
+    if (src_is_r16) {
+      out.ext = true;
+      out.pdsch_time_domain_alloc_list_r16.set_present();
+      out.pdsch_time_domain_alloc_list_r16->set_release();
+    }
+    if (src_is_r16 || src.pdsch_td_alloc_list.empty() || dest.pdsch_td_alloc_list != src.pdsch_td_alloc_list) {
+      out.pdsch_time_domain_alloc_list_present = true;
+      auto& alloc_list                         = out.pdsch_time_domain_alloc_list.set_setup();
+      for (const auto& td_alloc : dest.pdsch_td_alloc_list) {
+        alloc_list.push_back(make_asn1_rrc_pdsch_time_domain_alloc_list(td_alloc));
+      }
+    }
+  } else if (src_is_r16) {
+    out.ext = true;
+    out.pdsch_time_domain_alloc_list_r16.set_present();
+    out.pdsch_time_domain_alloc_list_r16->set_release();
+  } else if (not src.pdsch_td_alloc_list.empty()) {
     out.pdsch_time_domain_alloc_list_present = true;
     out.pdsch_time_domain_alloc_list.set_release();
+  }
+
+  // Slot-based repetition scheme (repetitionSchemeConfig-r16 with slotBased-r16), required by the UE to apply
+  // repetitionNumber-r16 of the Rel-16 TDRA list. With a single TCI state indicated in the DCI, the TCI mapping and
+  // the RV sequence offset are not used; nominal values are signalled.
+  if (dest.slot_based_repetition_enabled and not src.slot_based_repetition_enabled) {
+    out.ext = true;
+    out.repeat_scheme_cfg_r16.set_present();
+    auto& slot_based                 = out.repeat_scheme_cfg_r16->set_setup().set_slot_based_r16().set_setup();
+    slot_based.tci_map_r16.value     = slot_based_r16_s::tci_map_r16_opts::cyclic_map;
+    slot_based.seq_offset_for_rv_r16 = 1;
+  } else if (src.slot_based_repetition_enabled and not dest.slot_based_repetition_enabled) {
+    out.ext = true;
+    out.repeat_scheme_cfg_r16.set_present();
+    out.repeat_scheme_cfg_r16->set_release();
   }
 
   // RBG Size.
@@ -2099,6 +2175,42 @@ make_asn1_rrc_pusch_time_domain_alloc_list(const pusch_time_domain_resource_allo
   return out;
 }
 
+static asn1::rrc_nr::pusch_time_domain_res_alloc_r16_s
+make_asn1_rrc_pusch_time_domain_alloc_r16(const pusch_time_domain_resource_allocation& cfg)
+{
+  pusch_time_domain_res_alloc_r16_s out{};
+  out.k2_r16_present = true;
+  out.k2_r16         = cfg.k2;
+
+  pusch_alloc_r16_s alloc{};
+  alloc.map_type_r16_present = true;
+  switch (cfg.map_type) {
+    case sch_mapping_type::typeA:
+      alloc.map_type_r16 = pusch_alloc_r16_s::map_type_r16_opts::type_a;
+      break;
+    case sch_mapping_type::typeB:
+      alloc.map_type_r16 = pusch_alloc_r16_s::map_type_r16_opts::type_b;
+      break;
+    default:
+      ocudu_assertion_failure("Invalid SCH mapping Type={}", fmt::underlying(cfg.map_type));
+  }
+
+  alloc.start_symbol_and_len_r16_present = true;
+  alloc.start_symbol_and_len_r16         = ofdm_symbol_range_to_sliv(cfg.symbols);
+
+  // The field numberOfRepetitions-r16 is mandatory present in entries of pusch-TimeDomainAllocationListDCI-0-1-r16,
+  // as per TS 38.331, conditional presence Format01-02; an unset nof_repetitions (a mirrored, non-repetition entry)
+  // still maps to value 1, corresponding to a single transmission.
+  alloc.nof_repeats_r16_present = true;
+  if (not asn1::number_to_enum(alloc.nof_repeats_r16, cfg.nof_repetitions.value_or(1))) {
+    ocudu_assertion_failure("Invalid PUSCH numberOfRepetitions-r16={}", cfg.nof_repetitions.value_or(1));
+  }
+
+  out.pusch_alloc_list_r16.push_back(alloc);
+
+  return out;
+}
+
 static void
 calculate_pusch_config_diff(asn1::rrc_nr::pusch_cfg_s& out, const pusch_config& src, const pusch_config& dest)
 {
@@ -2190,16 +2302,48 @@ calculate_pusch_config_diff(asn1::rrc_nr::pusch_cfg_s& out, const pusch_config& 
       ocudu_assertion_failure("Invalid PUSCH Resource Allocation={}", fmt::underlying(dest.res_alloc));
   }
 
-  // PUSCH Time Domain Allocation.
-  if ((not dest.pusch_td_alloc_list.empty() && src.pusch_td_alloc_list.empty()) ||
-      (not dest.pusch_td_alloc_list.empty() && not src.pusch_td_alloc_list.empty() &&
-       dest.pusch_td_alloc_list != src.pusch_td_alloc_list)) {
-    out.pusch_time_domain_alloc_list_present = true;
-    auto& alloc_list                         = out.pusch_time_domain_alloc_list.set_setup();
-    for (const auto& td_alloc : dest.pusch_td_alloc_list) {
-      alloc_list.push_back(make_asn1_rrc_pusch_time_domain_alloc_list(td_alloc));
+  // PUSCH Time Domain Allocation: encoded via the legacy IE (pusch-TimeDomainAllocationList), or, when an entry
+  // carries nof_repetitions, via the Rel-16 IE (pusch-TimeDomainAllocationListDCI-0-1-r16), which replaces the legacy
+  // and common lists for DCI format 0_1. The two IEs are mutually exclusive, so only one is ever signalled; a
+  // transition between them releases the one no longer in use before (or instead of) setting up the other.
+  auto has_pusch_repetitions = [](const std::vector<pusch_time_domain_resource_allocation>& list) {
+    return std::any_of(list.begin(), list.end(), [](const auto& alloc) { return alloc.nof_repetitions.has_value(); });
+  };
+  const bool dest_is_r16 = has_pusch_repetitions(dest.pusch_td_alloc_list);
+  const bool src_is_r16  = has_pusch_repetitions(src.pusch_td_alloc_list);
+
+  if (not dest.pusch_td_alloc_list.empty() && dest_is_r16) {
+    if (not src_is_r16 && not src.pusch_td_alloc_list.empty()) {
+      out.pusch_time_domain_alloc_list_present = true;
+      out.pusch_time_domain_alloc_list.set_release();
     }
-  } else if (not src.pusch_td_alloc_list.empty() && dest.pusch_td_alloc_list.empty()) {
+    if (not src_is_r16 || dest.pusch_td_alloc_list != src.pusch_td_alloc_list) {
+      out.ext = true;
+      out.pusch_time_domain_alloc_list_dci_0_1_r16.set_present();
+      auto& alloc_list = out.pusch_time_domain_alloc_list_dci_0_1_r16->set_setup();
+      for (const auto& td_alloc : dest.pusch_td_alloc_list) {
+        alloc_list.push_back(make_asn1_rrc_pusch_time_domain_alloc_r16(td_alloc));
+      }
+    }
+  } else if (not dest.pusch_td_alloc_list.empty()) {
+    // dest is a legacy (non-repetition) list.
+    if (src_is_r16) {
+      out.ext = true;
+      out.pusch_time_domain_alloc_list_dci_0_1_r16.set_present();
+      out.pusch_time_domain_alloc_list_dci_0_1_r16->set_release();
+    }
+    if (src_is_r16 || src.pusch_td_alloc_list.empty() || dest.pusch_td_alloc_list != src.pusch_td_alloc_list) {
+      out.pusch_time_domain_alloc_list_present = true;
+      auto& alloc_list                         = out.pusch_time_domain_alloc_list.set_setup();
+      for (const auto& td_alloc : dest.pusch_td_alloc_list) {
+        alloc_list.push_back(make_asn1_rrc_pusch_time_domain_alloc_list(td_alloc));
+      }
+    }
+  } else if (src_is_r16) {
+    out.ext = true;
+    out.pusch_time_domain_alloc_list_dci_0_1_r16.set_present();
+    out.pusch_time_domain_alloc_list_dci_0_1_r16->set_release();
+  } else if (not src.pusch_td_alloc_list.empty()) {
     out.pusch_time_domain_alloc_list_present = true;
     out.pusch_time_domain_alloc_list.set_release();
   }

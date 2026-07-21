@@ -43,6 +43,11 @@ private:
   harq_dl_feedback_disabled_mask
   select_disabled_harq_feedback(du_cell_index_t cell_idx, const std::optional<ue_capability_summary>& ue_caps) const;
 
+  /// \brief Select dedicated TDRA list. If dedicated TDRA list is applicable for UE build it and return. If dedicated
+  /// TDRA list is not applicable, return empty vector.
+  std::vector<pdsch_time_domain_resource_allocation>
+  select_td_alloc_list(du_cell_index_t cell_idx, const std::optional<ue_capability_summary>& ue_caps) const;
+
   span<const du_cell_config> cell_cfg_list;
   const du_test_mode_config& test_cfg;
 };

@@ -280,6 +280,8 @@ static YAML::Node build_du_high_pdsch_section(const du_high_unit_pdsch_config& c
   node["max_nof_harq_retxs"]               = config.max_nof_harq_retxs;
   node["max_consecutive_kos"]              = config.max_consecutive_kos;
   node["mcs_table"]                        = to_string(config.mcs_table);
+  node["max_nof_rep"]                      = config.max_nof_rep;
+  node["cqi_rep_threshold"]                = config.cqi_rep_threshold;
   node["min_rb_size"]                      = config.min_rb_size;
   node["max_rb_size"]                      = config.max_rb_size;
   node["start_rb"]                         = config.start_rb;

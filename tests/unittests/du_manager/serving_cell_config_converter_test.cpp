@@ -252,6 +252,98 @@ TEST(serving_cell_config_converter_test, test_ue_custom_pdsch_cfg_conversion)
   }
 }
 
+TEST(serving_cell_config_converter_test, test_ue_pdsch_td_alloc_list_r16_conversion)
+{
+  auto                       src_cfg = make_initial_du_ue_resource_config();
+  odu::du_ue_resource_config dest_cfg{src_cfg};
+  auto& dest_pdsch_cfg = dest_cfg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.init_dl_bwp.pdsch_cfg.value();
+  dest_pdsch_cfg.pdsch_td_alloc_list.push_back({.k0 = 0, .map_type = sch_mapping_type::typeA, .symbols = {2, 14}});
+  dest_pdsch_cfg.pdsch_td_alloc_list.push_back(
+      {.k0 = 0, .map_type = sch_mapping_type::typeA, .symbols = {2, 14}, .rep_number = 8});
+  dest_pdsch_cfg.slot_based_repetition_enabled = true;
+
+  asn1::rrc_nr::cell_group_cfg_s rrc_cell_grp_cfg;
+  odu::calculate_cell_group_config_diff(rrc_cell_grp_cfg, src_cfg, dest_cfg);
+
+  auto& rrc_pdsch_cfg = rrc_cell_grp_cfg.sp_cell_cfg.sp_cell_cfg_ded.init_dl_bwp.pdsch_cfg.setup();
+  ASSERT_TRUE(rrc_pdsch_cfg.ext);
+  ASSERT_TRUE(rrc_pdsch_cfg.pdsch_time_domain_alloc_list_r16.is_present());
+  ASSERT_TRUE(rrc_pdsch_cfg.pdsch_time_domain_alloc_list_r16->is_setup());
+
+  // The slot-based repetition scheme must be configured along with the Rel-16 TDRA list.
+  ASSERT_TRUE(rrc_pdsch_cfg.repeat_scheme_cfg_r16.is_present());
+  ASSERT_TRUE(rrc_pdsch_cfg.repeat_scheme_cfg_r16->is_setup());
+  ASSERT_EQ(rrc_pdsch_cfg.repeat_scheme_cfg_r16->setup().type(),
+            asn1::rrc_nr::repeat_scheme_cfg_r16_c::types_opts::slot_based_r16);
+  ASSERT_TRUE(rrc_pdsch_cfg.repeat_scheme_cfg_r16->setup().slot_based_r16().is_setup());
+  const auto& rrc_list = rrc_pdsch_cfg.pdsch_time_domain_alloc_list_r16->setup();
+  ASSERT_EQ(rrc_list.size(), 2);
+  ASSERT_FALSE(rrc_list[0].repeat_num_r16_present);
+  ASSERT_TRUE(rrc_list[1].repeat_num_r16_present);
+  ASSERT_EQ(rrc_list[1].repeat_num_r16.to_number(), 8);
+  ASSERT_EQ(rrc_list[0].start_symbol_and_len_r16, rrc_list[1].start_symbol_and_len_r16);
+
+  // The generated cell group config must be packable.
+  byte_buffer   packed;
+  asn1::bit_ref bref{packed};
+  ASSERT_EQ(rrc_cell_grp_cfg.pack(bref), asn1::OCUDUASN_SUCCESS);
+}
+
+TEST(serving_cell_config_converter_test, test_ue_pdsch_td_alloc_list_r16_release_conversion)
+{
+  auto src_cfg = make_initial_du_ue_resource_config();
+  src_cfg.cell_group.cells.at(SERVING_PCELL_IDX)
+      .serv_cell_cfg.init_dl_bwp.pdsch_cfg->pdsch_td_alloc_list.push_back(
+          {.k0 = 0, .map_type = sch_mapping_type::typeA, .symbols = {2, 14}, .rep_number = 2});
+  odu::du_ue_resource_config dest_cfg{src_cfg};
+  dest_cfg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.init_dl_bwp.pdsch_cfg->pdsch_td_alloc_list.clear();
+
+  asn1::rrc_nr::cell_group_cfg_s rrc_cell_grp_cfg;
+  odu::calculate_cell_group_config_diff(rrc_cell_grp_cfg, src_cfg, dest_cfg);
+
+  auto& rrc_pdsch_cfg = rrc_cell_grp_cfg.sp_cell_cfg.sp_cell_cfg_ded.init_dl_bwp.pdsch_cfg.setup();
+  ASSERT_TRUE(rrc_pdsch_cfg.pdsch_time_domain_alloc_list_r16.is_present());
+  ASSERT_EQ(rrc_pdsch_cfg.pdsch_time_domain_alloc_list_r16->type(), asn1::setup_release_opts::release);
+}
+
+TEST(serving_cell_config_converter_test, test_ue_pusch_td_alloc_list_dci_0_1_r16_conversion)
+{
+  auto src_cfg = make_initial_du_ue_resource_config();
+  src_cfg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.ul_config->init_ul_bwp.pusch_cfg =
+      make_initial_pusch_config();
+  odu::du_ue_resource_config dest_cfg{src_cfg};
+  auto&                      dest_pusch_cfg =
+      dest_cfg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.ul_config->init_ul_bwp.pusch_cfg.value();
+  dest_pusch_cfg.pusch_td_alloc_list.clear();
+  dest_pusch_cfg.pusch_td_alloc_list.push_back({.k2 = 4, .map_type = sch_mapping_type::typeA, .symbols = {0, 14}});
+  dest_pusch_cfg.pusch_td_alloc_list.push_back(
+      {.k2 = 4, .map_type = sch_mapping_type::typeA, .symbols = {0, 14}, .nof_repetitions = 4});
+
+  asn1::rrc_nr::cell_group_cfg_s rrc_cell_grp_cfg;
+  odu::calculate_cell_group_config_diff(rrc_cell_grp_cfg, src_cfg, dest_cfg);
+
+  auto& rrc_pusch_cfg = rrc_cell_grp_cfg.sp_cell_cfg.sp_cell_cfg_ded.ul_cfg.init_ul_bwp.pusch_cfg.setup();
+  ASSERT_TRUE(rrc_pusch_cfg.ext);
+  ASSERT_TRUE(rrc_pusch_cfg.pusch_time_domain_alloc_list_dci_0_1_r16.is_present());
+  ASSERT_TRUE(rrc_pusch_cfg.pusch_time_domain_alloc_list_dci_0_1_r16->is_setup());
+  const auto& rrc_list = rrc_pusch_cfg.pusch_time_domain_alloc_list_dci_0_1_r16->setup();
+  ASSERT_EQ(rrc_list.size(), 2);
+  ASSERT_TRUE(rrc_list[0].k2_r16_present);
+  ASSERT_EQ(rrc_list[0].k2_r16, 4);
+  ASSERT_EQ(rrc_list[0].pusch_alloc_list_r16.size(), 1);
+  // numberOfRepetitions-r16 is mandatory present in the DCI 0_1 list; a single transmission is encoded as n1.
+  ASSERT_TRUE(rrc_list[0].pusch_alloc_list_r16[0].nof_repeats_r16_present);
+  ASSERT_EQ(rrc_list[0].pusch_alloc_list_r16[0].nof_repeats_r16.to_number(), 1);
+  ASSERT_EQ(rrc_list[1].pusch_alloc_list_r16.size(), 1);
+  ASSERT_TRUE(rrc_list[1].pusch_alloc_list_r16[0].nof_repeats_r16_present);
+  ASSERT_EQ(rrc_list[1].pusch_alloc_list_r16[0].nof_repeats_r16.to_number(), 4);
+
+  // The generated cell group config must be packable.
+  byte_buffer   packed;
+  asn1::bit_ref bref{packed};
+  ASSERT_EQ(rrc_cell_grp_cfg.pack(bref), asn1::OCUDUASN_SUCCESS);
+}
+
 TEST(serving_cell_config_converter_test, test_default_initial_ue_uplink_cfg_conversion)
 {
   auto                           dest_cfg = make_initial_du_ue_resource_config();

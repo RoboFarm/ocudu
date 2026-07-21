@@ -9,6 +9,7 @@
 
 #include "ocudu/ran/resource_block.h"
 #include "ocudu/support/units.h"
+#include <array>
 
 namespace ocudu {
 
@@ -58,6 +59,10 @@ constexpr unsigned MAX_NOF_DMRS_SUBC = MAX_NOF_SUBCARRIERS / 2;
 
 /// Maximum number of PUSCH time domain resource allocations. See TS 38.331, \c maxNrofUL-Allocations.
 constexpr unsigned MAX_NOF_PUSCH_TD_RES_ALLOCS = 16;
+
+/// \brief Valid \e numberOfRepetitions-r16 values for an entry of the PUSCH Rel-16 dedicated TDRA list.
+/// See TS 38.331, \c PUSCH-Allocation-r16.
+constexpr std::array<uint8_t, 8> VALID_NOF_REPETITIONS = {1, 2, 3, 4, 7, 8, 12, 16};
 
 } // namespace pusch_constants
 

@@ -37,6 +37,9 @@ struct pdsch_builder_params {
   /// See TS 38.331, \c downlinkHARQ-FeedbackDisabled.
   /// A bit set to 1 indicates HARQ processes with disabled DL HARQ feedback; a bit set to 0 indicate feedback enabled.
   harq_dl_feedback_disabled_mask dl_harq_feedback_disabled = harq_dl_feedback_disabled_mask(MAX_NOF_HARQS);
+  /// \brief Maximum number of PDSCH repetitions offered in the dedicated Rel-16 TDRA list of supporting UEs.
+  /// Value 1 disables dynamic PDSCH repetitions. Values: {1, 2, 3, 4, 5, 6, 7, 8, 16}.
+  uint8_t max_nof_repetitions = 1;
 };
 
 /// PUCCH parameters for a given BWP of a given DU cell.
@@ -84,6 +87,9 @@ struct pusch_builder_params {
   std::optional<uint8_t> cbg_tx;
   /// \c xOverhead.
   x_overhead x_ov_head{x_overhead::not_set};
+  /// \brief Maximum number of PUSCH repetitions offered in the dedicated Rel-16 TDRA list of supporting UEs.
+  /// Value 1 disables dynamic PUSCH repetitions.
+  uint8_t max_nof_repetitions = 1;
 };
 
 /// Random Access parameters for this BWP.

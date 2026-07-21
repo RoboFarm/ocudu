@@ -191,6 +191,12 @@ struct du_high_unit_pdsch_config {
   std::vector<unsigned> rv_sequence = {0, 2, 3, 1};
   /// MCS table to use for PDSCH
   pdsch_mcs_table mcs_table = pdsch_mcs_table::qam256;
+  /// \brief Maximum number of PDSCH repetitions offered in the dedicated Rel-16 TDRA list of supporting UEs. Value 1
+  /// disables dynamic PDSCH repetitions. Values: {1, 2, 3, 4, 5, 6, 7, 8, 16}.
+  unsigned max_nof_rep = 1;
+  /// \brief CQI threshold below which the scheduler uses PDSCH repetitions for supporting UEs. The effective CQI
+  /// is compared against this value. Value 0 disables CQI-triggered repetitions. Values: [0,...,15].
+  float cqi_rep_threshold = 0.0F;
   /// Minimum number of RBs for resource allocation of UE PDSCHs.
   unsigned min_rb_size = 1;
   /// Maximum number of RBs for resource allocation of UE PDSCHs.
@@ -265,6 +271,10 @@ struct du_high_unit_pusch_config {
   unsigned max_rank = 4;
   /// MCS table to use for PUSCH
   pusch_mcs_table mcs_table = pusch_mcs_table::qam256;
+  /// \brief Maximum number of PUSCH repetitions offered in the dedicated Rel-16 TDRA list of supporting UEs. Value 1
+  /// disables dynamic PUSCH repetitions. Values: {1, 2, 3, 4, 7, 8, 12, 16}.
+  /// \note Not currently exposed via CLI11/YAML; PUSCH repetitions are not yet handled by the scheduler.
+  unsigned max_nof_rep = 1;
   /// \c msg3-DeltaPreamble, TS 38.331. Values: {-1,...,6}.
   int msg3_delta_preamble = 6;
   /// \c p0-NominalWithGrant, TS 38.331. Value in dBm. Only even values allowed within {-202,...,24}.
