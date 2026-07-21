@@ -20,7 +20,8 @@ namespace sched_helper {
 struct dl_sched_context {
   /// SearchSpace to use.
   search_space_id ss_id;
-  /// PDSCH time-domain resource index.
+  /// PDSCH time-domain resource index. Indexes the PDSCH TDRA list in use for the SearchSpace (Rel-16 list if
+  /// configured, else common/legacy) and is signalled directly in the DCI Time domain resource assignment field.
   uint8_t pdsch_td_res_index;
   /// Recommended MCS, considering channel state or, in case of reTx, last HARQ MCS.
   sch_mcs_index recommended_mcs;
@@ -30,21 +31,31 @@ struct dl_sched_context {
   unsigned expected_nof_rbs;
   /// Pending bytes for newTx.
   units::bytes pending_bytes;
+  /// Number of Rel-16 slot-based PDSCH repetitions of the selected TDRA row, or nullopt for a single transmission.
+  /// Equals the \c nof_repetitions requested by the caller when a repetition row was selected.
+  std::optional<uint8_t> nof_repetitions;
 };
 
 /// Retrieve recommended PDCCH and PDSCH parameters for a newTx DL grant.
-std::optional<dl_sched_context> get_newtx_dl_sched_context(const slice_ue& u,
-                                                           slot_point      pdcch_slot,
-                                                           slot_point      pdsch_slot,
-                                                           bool            interleaving_enabled,
-                                                           units::bytes    pending_bytes);
+/// \param[in] nof_repetitions Requested number of PDSCH repetitions (link-adaptation decision). When set, the selector
+/// picks the Rel-16 TDRA row carrying that repetitionNumber-r16 and returns nullopt if it does not fit the slot; when
+/// unset, it picks a single-transmission row.
+std::optional<dl_sched_context> get_newtx_dl_sched_context(const slice_ue&        u,
+                                                           slot_point             pdcch_slot,
+                                                           slot_point             pdsch_slot,
+                                                           bool                   interleaving_enabled,
+                                                           units::bytes           pending_bytes,
+                                                           std::optional<uint8_t> nof_repetitions);
 
 /// Retrieve recommended PDCCH and PDSCH parameters for a reTx DL grant.
+/// \param[in] nof_repetitions Requested number of PDSCH repetitions (link-adaptation decision). See
+/// \ref get_newtx_dl_sched_context.
 std::optional<dl_sched_context> get_retx_dl_sched_context(const slice_ue&               u,
                                                           slot_point                    pdcch_slot,
                                                           slot_point                    pdsch_slot,
                                                           bool                          interleaving_enabled,
                                                           const dl_harq_process_handle& h_dl,
+                                                          std::optional<uint8_t>        nof_repetitions,
                                                           unsigned                      max_rbs = MAX_NOF_PRBS);
 
 /// Select DL VRBs to allocate for a newTx.

@@ -18,6 +18,7 @@ dl_msg_alloc make_dummy_ue_pdsch_info()
   pdsch.rnti               = to_rnti(0x4601);
   pdsch.harq_id            = to_harq_id(0);
   pdsch.mcs_table          = ocudu::pdsch_mcs_table::qam64;
+  pdsch.nof_layers         = 1;
   pdsch.codewords.resize(1);
   pdsch.codewords[0].mcs_index     = 10;
   pdsch.codewords[0].tb_size_bytes = units::bytes{10000};

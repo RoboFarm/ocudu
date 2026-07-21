@@ -184,7 +184,7 @@ protected:
   {
     auto result = alloc.allocate_dl_grant(ue_retx_dl_grant_request{user, current_slot, h_dl, used_dl_vrbs});
     if (result.has_value()) {
-      used_dl_vrbs.fill(result.value().start(), result.value().stop());
+      used_dl_vrbs.fill(result.value().vrbs.start(), result.value().vrbs.stop());
     }
   }
 
@@ -773,6 +773,117 @@ TEST_P(ue_grid_allocator_expert_cfg_pxsch_crb_limits_tester, allocates_pusch_wit
   // Successfully allocates PUSCH within RB limits.
   ASSERT_EQ(find_ue_pusch(u1.crnti, res_grid[0].result.ul)->pusch_cfg.rbs.type1(), pusch_vrb_limits);
 }
+
+class ue_grid_allocator_pdsch_repetition_test : public ue_grid_allocator_test
+{
+protected:
+  static constexpr uint8_t nof_reps = 4;
+  const lcid_t             drb_lcid = uint_to_lcid(4);
+
+  ue_grid_allocator_pdsch_repetition_test() :
+    ue_grid_allocator_test(test_params{[]() {
+      auto cfg                       = config_helpers::make_default_scheduler_expert_config();
+      cfg.ue.pdsch_cqi_rep_threshold = 6.0F;
+      // Disable OLLA so the effective CQI equals the reported wideband CQI, making the repetition trigger
+      // deterministic.
+      cfg.ue.olla_cqi_inc = 0;
+      return cfg;
+    }()})
+  {
+  }
+
+  // Adds a UE configured with a Rel-16 PDSCH TDRA list that mirrors the common list and appends a repetition entry.
+  const ue& add_repetition_ue()
+  {
+    sched_ue_creation_request_message req =
+        sched_config_helper::create_default_sched_ue_creation_request(cell_cfg.params);
+    req.ue_index = to_du_ue_index(0);
+    req.crnti    = to_rnti(0x4601);
+    req.cfg.lc_config_list->push_back(config_helpers::create_default_logical_channel_config(drb_lcid));
+    (*req.cfg.cells)[0].serv_cell_cfg.init_dl_bwp.pdcch_cfg = cell_cfg.bwp_res[to_bwp_id(0)].dl().ded_pdcchs[0];
+
+    auto&       pdsch_cfg   = (*req.cfg.cells)[0].serv_cell_cfg.init_dl_bwp.pdsch_cfg.value();
+    const auto& common_list = cell_cfg.params.dl_cfg_common.init_dl_bwp.pdsch_common.pdsch_td_alloc_list;
+    for (const auto& common_alloc : common_list) {
+      pdsch_cfg.pdsch_td_alloc_list.push_back(common_alloc);
+    }
+    rep_time_resource                               = pdsch_cfg.pdsch_td_alloc_list.size();
+    pdsch_time_domain_resource_allocation rep_alloc = common_list.front();
+    rep_alloc.rep_number                            = nof_reps;
+    pdsch_cfg.pdsch_td_alloc_list.push_back(rep_alloc);
+
+    return add_ue(req);
+  }
+
+  void set_reported_cqi(ue_cell& ue_cc, uint8_t cqi)
+  {
+    csi_report_data csi;
+    csi.first_tb_wideband_cqi = csi_report_data::wideband_cqi_type{cqi};
+    ue_cc.handle_csi_report(csi);
+  }
+
+  // Time-domain resource of the DL DCI (format 1_1) scheduled for the UE in the current slot, if any.
+  std::optional<unsigned> current_dl_dci_time_resource(rnti_t rnti) const
+  {
+    const pdcch_dl_information* pdcch = find_ue_dl_pdcch(rnti, res_grid[0].result.dl);
+    if (pdcch == nullptr or pdcch->dci.type() != dci_dl_rnti_config_type::c_rnti_f1_1) {
+      return std::nullopt;
+    }
+    return pdcch->dci.as_c_rnti_f1_1().time_resource;
+  }
+
+  uint8_t rep_time_resource = 0;
+};
+
+// A HARQ reTx reuses the transmission scheme of the original transmission (like the number of layers), so the number
+// of PDSCH repetitions is taken from the HARQ grant parameters, not re-decided from the current link quality. Verify
+// that once the CQI recovers above the threshold, a reTx of a grant started at low CQI is still scheduled as a
+// repetition bundle, while a fresh newTx is a single transmission.
+TEST_P(ue_grid_allocator_pdsch_repetition_test, retx_reuses_original_repetition_scheme_after_cqi_recovers)
+{
+  const ue& u     = add_repetition_ue();
+  ue_cell&  ue_cc = ues[u.ue_index].get_pcell();
+
+  auto ue_dl_grant = [&]() { return find_ue_pdsch(u.crnti, res_grid[0].result.dl.ue_grants); };
+
+  // Low CQI: the newTx must be scheduled as a repetition bundle.
+  set_reported_cqi(ue_cc, 3);
+  push_dl_bs(u.ue_index, drb_lcid, 100000);
+  ASSERT_TRUE(run_until([&]() { allocate_dl_newtx_grant(slice_ues[u.ue_index], units::bytes{1000}, false); },
+                        [&]() {
+                          const dl_msg_alloc* g = ue_dl_grant();
+                          return g != nullptr and g->context.nof_retxs == 0;
+                        }));
+  ASSERT_EQ(current_dl_dci_time_resource(u.crnti).value(), rep_time_resource)
+      << "newTx at low CQI was not scheduled as a repetition bundle";
+
+  // NACK the bundle to force a reTx.
+  std::optional<dl_harq_process_handle> h_dl = ue_cc.harqs.find_dl_harq_waiting_ack();
+  ASSERT_TRUE(h_dl.has_value());
+  ASSERT_TRUE(h_dl->dl_ack_info(mac_harq_ack_report_status::nack, std::nullopt));
+
+  // CQI recovers above the threshold. A fresh newTx would now be a single transmission, but the reTx must keep the
+  // repetition scheme of the original transmission.
+  set_reported_cqi(ue_cc, 15);
+  ASSERT_TRUE(run_until(
+      [&]() {
+        std::optional<dl_harq_process_handle> h_retx = ue_cc.harqs.find_pending_dl_retx();
+        if (h_retx.has_value()) {
+          allocate_dl_retx_grant(slice_ues[u.ue_index], *h_retx);
+        }
+      },
+      [&]() {
+        const dl_msg_alloc* g = ue_dl_grant();
+        return g != nullptr and g->context.nof_retxs > 0;
+      }));
+  ASSERT_EQ(current_dl_dci_time_resource(u.crnti).value(), rep_time_resource)
+      << "reTx did not keep its repetition scheme after CQI recovered (reTx repetitions were incorrectly re-decided "
+         "from the current CQI)";
+}
+
+INSTANTIATE_TEST_SUITE_P(ue_grid_allocator_test,
+                         ue_grid_allocator_pdsch_repetition_test,
+                         testing::Values(duplex_mode::FDD));
 
 INSTANTIATE_TEST_SUITE_P(ue_grid_allocator_test,
                          ue_grid_allocator_css_test,

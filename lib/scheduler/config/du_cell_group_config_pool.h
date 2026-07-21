@@ -44,7 +44,8 @@ public:
 private:
   /// \brief Retrieve the DL TD resource mapper to use for a UE with the given dedicated DL BWP config (or \c nullptr
   /// for the cell-wide common config). Builds a new mapper and interns it in \c dl_td_mapper_pool, unless an equal
-  /// one already exists in the pool (flyweight pattern).
+  /// one already exists in the pool (flyweight pattern). The dedicated list may carry repetition rows (TS 38.214,
+  /// Table 5.1.2.1.1-1).
   const dl_time_domain_mapper& get_dl_td_mapper(const bwp_downlink_dedicated* dl_ded);
 
   const bwp_id_t                               bwp_id;

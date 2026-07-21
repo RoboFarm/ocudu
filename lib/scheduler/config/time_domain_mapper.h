@@ -27,7 +27,9 @@ struct dl_time_domain_builder_params {
   struct explicit_resources {
     /// PDSCH TD resource list used with DCI format 1_0, derived from PDSCH-ConfigCommon.
     std::vector<pdsch_time_domain_resource_allocation> common_pdsch_td_res_list;
-    /// \brief PDSCH TD resource list used with DCI format 1_1, derived from a UE's dedicated PDSCH-Config.
+    /// \brief PDSCH TD resource list used with DCI format 1_1, derived from a UE's dedicated PDSCH-Config (legacy or
+    /// Rel-16 TDRA list; entries of a Rel-16 list may carry a \e repetitionNumber-r16 enabling slot-based PDSCH
+    /// repetitions, see \c pdsch_time_domain_resource_allocation::rep_number).
     /// \remark When empty, DCI format 1_1 falls back to \c common_pdsch_td_res_list.
     std::vector<pdsch_time_domain_resource_allocation> dedicated_pdsch_td_res_list;
   };
@@ -67,6 +69,9 @@ struct dl_time_domain_mapper {
     return dci_format == dci_dl_format::f1_0 ? common_pdsch_td_resources() : dedicated_pdsch_td_resources();
   }
 
+  /// \brief Number of PDSCH TD resources applicable for the given DCI DL format. See \ref pdsch_td_resource.
+  unsigned nof_pdsch_td_res(dci_dl_format dci_format) const { return pdsch_td_resources(dci_format).size(); }
+
   /// \brief Get the list of indices into \ref common_pdsch_td_resources() that are applicable PDSCH TD resource
   /// candidates for a PDSCH scheduled by a PDCCH in the given slot index.
   /// \remark Each resource ends at the last DL symbol of the slot: the number of symbols per slot in a full DL slot,
@@ -83,23 +88,46 @@ struct dl_time_domain_mapper {
     return dedicated_pdsch_td_res_indices_per_slot[pdcch_slot_index % dedicated_pdsch_td_res_indices_per_slot.size()];
   }
 
-  /// \brief Get the list of indices into \ref pdsch_td_resources(dci_dl_format) const that are applicable PDSCH TD
-  /// resource candidates for a PDSCH scheduled by a PDCCH in the given slot index, for the given DCI DL format.
+  /// \brief Get the list of indices into \ref pdsch_td_resources(dci_dl_format) const that are applicable
+  /// PDSCH TD resource candidates for a PDSCH scheduled by a PDCCH in the given slot index, for the given DCI DL
+  /// format.
   span<const uint8_t> pdsch_td_res_indices(dci_dl_format dci_format, unsigned pdcch_slot_index) const
   {
     return dci_format == dci_dl_format::f1_0 ? common_pdsch_td_res_indices(pdcch_slot_index)
                                              : dedicated_pdsch_td_res_indices(pdcch_slot_index);
   }
 
-  /// \brief Get the index into \ref pdsch_td_resources(dci_dl_format) const of the best-matching PDSCH TD resource
-  /// candidate for a PDCCH in \c pdcch_slot, whose k0 leads to \c pdsch_slot and whose symbols are fully contained
-  /// within \c usable_symbols. "Best" means the candidate with the largest \c symbols.length() among those that
-  /// qualify; ties keep the first one encountered.
+  /// \brief Get the index into \ref pdsch_td_resources(dci_dl_format) const of the best-matching PDSCH TD
+  /// resource candidate for a PDCCH in \c pdcch_slot, whose k0 leads to \c pdsch_slot and whose symbols are fully
+  /// contained within \c usable_symbols. "Best" means the candidate with the largest \c symbols.length() among those
+  /// that qualify; ties keep the first one encountered.
   /// \return The matching index, or \c std::nullopt if no candidate qualifies.
   std::optional<uint8_t> find_pdsch_td_res_index(dci_dl_format     dci_format,
                                                  slot_point        pdcch_slot,
                                                  slot_point        pdsch_slot,
                                                  ofdm_symbol_range usable_symbols) const;
+
+  /// \brief Repetition count (\e repetitionNumber-r16) of the entry at \c idx in \ref dedicated_pdsch_td_resources(),
+  /// or nullopt for a single transmission. \c idx is only meaningful relative to the same \c dci_format used to
+  /// obtain it (see \ref pdsch_td_res_indices); DCI format 1_0 always resolves to nullopt, as the common list never
+  /// carries a repetition row.
+  std::optional<uint8_t> get_pdsch_repetition_number(dci_dl_format dci_format, unsigned idx) const
+  {
+    if (dci_format == dci_dl_format::f1_0) {
+      return std::nullopt;
+    }
+    return dedicated_pdsch_td_res_list[idx].rep_number;
+  }
+
+  /// \brief Highest \e repetitionNumber-r16 configured in the dedicated PDSCH TDRA list, or nullopt if no repetition
+  /// row exists (either the list is legacy, or no Rel-16 row happens to carry a repetition). This is the number of
+  /// repetitions requested when link quality triggers repetitions.
+  /// \remark Precomputed at construction (see \ref max_dedicated_pdsch_repetitions), since the mapper is
+  /// pooled/interned per BWP config and the underlying list never changes afterwards.
+  std::optional<uint8_t> max_pdsch_repetitions(dci_dl_format dci_format) const
+  {
+    return dci_format == dci_dl_format::f1_0 ? std::nullopt : max_dedicated_pdsch_repetitions;
+  }
 
   /// \brief Compares the underlying common and dedicated PDSCH TD resource lists, from which everything else in this
   /// class is derived.
@@ -114,17 +142,22 @@ private:
   /// \brief Common (fallback) PDSCH time-domain resource allocations for the BWP, used with DCI format 1_0.
   std::vector<pdsch_time_domain_resource_allocation> common_pdsch_td_res_list;
 
-  /// \brief Dedicated PDSCH time-domain resource allocations for the BWP, used with DCI format 1_1. Falls back to
-  /// \c common_pdsch_td_res_list if no dedicated list was configured.
+  /// \brief Dedicated PDSCH time-domain resource allocations for the BWP, used with DCI format 1_1 (legacy or Rel-16
+  /// TDRA list). Falls back to \c common_pdsch_td_res_list if no dedicated list was configured.
   std::vector<pdsch_time_domain_resource_allocation> dedicated_pdsch_td_res_list;
 
   /// List of indices into \c common_pdsch_td_res_list applicable for a PDSCH scheduled in each slot within the TDD
   /// period.
   std::vector<std::vector<uint8_t>> common_pdsch_td_res_indices_per_slot;
 
-  /// List of indices into \c dedicated_pdsch_td_res_list applicable for a PDSCH scheduled in each slot within the
-  /// TDD period.
+  /// \brief List of indices into \c dedicated_pdsch_td_res_list applicable for a PDSCH scheduled in each slot within
+  /// the TDD period.
   std::vector<std::vector<uint8_t>> dedicated_pdsch_td_res_indices_per_slot;
+
+  /// \brief Highest \e repetitionNumber-r16 among \c dedicated_pdsch_td_res_list, or nullopt if no repetition row
+  /// exists. Precomputed once at construction (see \ref max_pdsch_repetitions) instead of scanning the list on
+  /// every call, since it is immutable afterwards.
+  std::optional<uint8_t> max_dedicated_pdsch_repetitions;
 };
 
 /// Parameters for building UL (PUSCH and PUCCH dl-DataToUL-ACK / k1) TD resource info.

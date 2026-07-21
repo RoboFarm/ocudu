@@ -85,7 +85,12 @@ void inter_slice_scheduler::slot_indication(slot_point slot_tx, const cell_resou
   const bool pdsch_enabled =
       cell_cfg.expert_cfg.ue.enable_csi_rs_pdsch_multiplexing or res_grid[0].result.dl.csi_rs.empty();
   for (const auto& slice : slices) {
-    if (not pdsch_enabled or slice.inst.pdsch_rb_count >= slice.inst.cfg.rbs.max()) {
+    // NOTE: Unlike the old \c pdsch_rb_count member, which was always 0 at this point because slot_tx had not been
+    // scheduled yet, \c nof_pdsch_rbs_allocated(slot_tx) can already be non-zero here: a PDSCH repetition occasion
+    // targeting slot_tx may have been recorded by an earlier slot's allocation. We must therefore query the up-to-date,
+    // per-slot count instead of assuming the slice starts slot_tx with a clean budget.
+    const unsigned pdsch_rb_count = slice.inst.nof_pdsch_rbs_allocated(slot_tx);
+    if (not pdsch_enabled or pdsch_rb_count >= slice.inst.cfg.rbs.max()) {
       // PDSCH is disabled or slice already reached max RBs. We can skip this slice.
       continue;
     }
@@ -93,17 +98,16 @@ void inter_slice_scheduler::slot_indication(slot_point slot_tx, const cell_resou
     interval<unsigned> rb_lims;
     // When minRB > 0, minRB != maxRB, sliceRBs < min_RB, we create two candidates. One with limit set to minRB
     // with high priority, and another one with limit set to maxRB with normal priority.
-    if (slice.inst.pdsch_rb_count < slice.inst.cfg.rbs.min() and slice.inst.cfg.rbs.min() > 0 and
+    if (pdsch_rb_count < slice.inst.cfg.rbs.min() and slice.inst.cfg.rbs.min() > 0 and
         slice.inst.cfg.rbs.shared() > 0) {
-      // NOTE: slice.inst.pdsch_rb_count is always 0 after running slot_indication() for each slice at the beginning
-      // of this function; this is at least valid as long as k0 = 0. Even though pdsch_rb_count = 0, we still keep it
-      // in the rb_lim computation for it to be ready when we support k0 != 0.
-      rb_lims         = {slice.inst.pdsch_rb_count, slice.inst.cfg.rbs.min()};
+      // rb_lims starts at pdsch_rb_count (not 0) to account for RBs already reserved in slot_tx by repetition
+      // occasions from earlier slots, so the candidate's priority/limits reflect the slice's true remaining budget.
+      rb_lims         = {pdsch_rb_count, slice.inst.cfg.rbs.min()};
       const auto prio = slice.get_prio(true, slot_tx, slot_tx, rb_lims.stop());
       dl_prio_queue.push(slice_candidate_context{slice.inst.id, prio, rb_lims, slot_tx});
       rb_lims = {slice.inst.cfg.rbs.min(), slice.inst.cfg.rbs.max()};
     } else {
-      rb_lims = {slice.inst.pdsch_rb_count, slice.inst.cfg.rbs.max()};
+      rb_lims = {pdsch_rb_count, slice.inst.cfg.rbs.max()};
     }
     const auto prio = slice.get_prio(true, slot_tx, slot_tx, rb_lims.stop());
     dl_prio_queue.push(slice_candidate_context{slice.inst.id, prio, rb_lims, slot_tx});
@@ -307,8 +311,8 @@ inter_slice_scheduler::get_next_candidate()
                                              : cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params.crbs.length();
     // Consider the limit imposed by dedicated resources or RBs allocated for already scheduled slices.
     const unsigned nof_used_rbs = get_nof_used_reserved_rbs<IsDownlink>(pxsch_slot);
-    const unsigned rb_count =
-        IsDownlink ? chosen_slice.inst.pdsch_rb_count : chosen_slice.inst.nof_pusch_rbs_allocated(pxsch_slot);
+    const unsigned rb_count     = IsDownlink ? chosen_slice.inst.nof_pdsch_rbs_allocated(pxsch_slot)
+                                             : chosen_slice.inst.nof_pusch_rbs_allocated(pxsch_slot);
     // Subtract the dedicated RBs not yet assigned to the slice from \ref nof_used_rbs; without this, we would prevent
     // the slice candidate from using its own dedicated RBs.
     const unsigned rbs_to_discount =
@@ -371,7 +375,8 @@ unsigned inter_slice_scheduler::get_nof_used_reserved_rbs(slot_point pxsch_slot)
 {
   unsigned nof_used_rbs = 0;
   for (const auto& slice : slices) {
-    const unsigned rb_count = IsDownlink ? slice.inst.pdsch_rb_count : slice.inst.nof_pusch_rbs_allocated(pxsch_slot);
+    const unsigned rb_count =
+        IsDownlink ? slice.inst.nof_pdsch_rbs_allocated(pxsch_slot) : slice.inst.nof_pusch_rbs_allocated(pxsch_slot);
     nof_used_rbs += std::max(slice.inst.cfg.rbs.dedicated(), rb_count);
   }
   return nof_used_rbs;

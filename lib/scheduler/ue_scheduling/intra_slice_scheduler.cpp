@@ -314,9 +314,15 @@ unsigned intra_slice_scheduler::schedule_dl_retx_candidates(dl_ran_slice_candida
     }
 
     if (result.has_value()) {
-      vrb_interval alloc_vrbs = result.value();
+      vrb_interval alloc_vrbs = result.value().vrbs;
       used_dl_vrbs.fill(alloc_vrbs.start(), alloc_vrbs.stop());
       slice.store_grant(alloc_vrbs.length());
+      // PDSCH repetition occasions land in future slots that are not covered by this slice candidate's own
+      // remaining_rbs() budget (scoped to pdsch_slot); register their RB usage against the slice's budget for those
+      // slots directly.
+      for (slot_point occasion_slot : result.value().repetition_slots) {
+        slice.store_grant(alloc_vrbs.length(), occasion_slot);
+      }
       if (++alloc_count >= max_ue_grants_to_alloc or slice.remaining_rbs() == 0) {
         // Maximum number of allocations reached.
         break;
@@ -551,7 +557,7 @@ unsigned intra_slice_scheduler::schedule_dl_newtx_candidates(dl_ran_slice_candid
     }
 
     // Save CRBs, MCS and RI.
-    grant_builder.set_pdsch_params(alloc_vrbs, alloc_crbs, enable_pdsch_interleaving);
+    auto committed_repetition_slots = grant_builder.set_pdsch_params(alloc_vrbs, alloc_crbs, enable_pdsch_interleaving);
 
     // Fill used VRBs.
     const unsigned nof_rbs_alloc = alloc_vrbs.length();
@@ -559,6 +565,12 @@ unsigned intra_slice_scheduler::schedule_dl_newtx_candidates(dl_ran_slice_candid
 
     // Update slice state.
     slice.store_grant(nof_rbs_alloc);
+    // PDSCH repetition occasions land in future slots that are not covered by this slice candidate's own
+    // remaining_rbs() budget (scoped to pdsch_slot); register their RB usage against the slice's budget for those
+    // slots directly.
+    for (slot_point occasion_slot : committed_repetition_slots) {
+      slice.store_grant(nof_rbs_alloc, occasion_slot);
+    }
     rb_count += nof_rbs_alloc;
     rbs_missing = (max_grant_size - nof_rbs_alloc);
   }
@@ -685,7 +697,13 @@ bool intra_slice_scheduler::can_allocate_pdsch(const slice_ue& u, const ue_cell&
 {
   // Check if PDCCH/PDSCH is possible for this slot (e.g. not in UL slot or measGap)
   ocudu_assert(not ue_cc.is_in_fallback_mode(), "Slice UE cannot be in fallback mode");
-  return ue_cc.is_pdsch_enabled(pdcch_slot, pdsch_slot);
+  if (not ue_cc.is_pdsch_enabled(pdcch_slot, pdsch_slot)) {
+    return false;
+  }
+  // The UE may already have a PDSCH in this slot (e.g. a PDSCH repetition occasion carried over from a bundle
+  // scheduled in a preceding slot). Reject it here, before it is picked as a candidate and consumes a PDCCH
+  // allocation attempt.
+  return not ue_alloc.has_pdsch_in_slot(pdsch_slot, u.crnti());
 }
 
 bool intra_slice_scheduler::can_allocate_pusch(const slice_ue& u, const ue_cell& ue_cc) const

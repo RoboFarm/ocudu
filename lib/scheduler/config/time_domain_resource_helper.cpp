@@ -65,6 +65,39 @@ time_domain_resource_helper::generate_k1_candidates(const std::optional<tdd_ul_d
   return {min_k1};
 }
 
+std::vector<std::vector<uint8_t>> time_domain_resource_helper::generate_pdsch_td_res_indices_per_tdd_slot(
+    span<const pdsch_time_domain_resource_allocation> pdsch_td_candidates,
+    const std::optional<tdd_ul_dl_config_common>&     tdd_cfg,
+    cyclic_prefix                                     cp)
+{
+  if (not tdd_cfg.has_value()) {
+    // In FDD every slot is a full DL slot, so all candidates apply.
+    std::vector<uint8_t> all_indices;
+    all_indices.reserve(pdsch_td_candidates.size());
+    for (unsigned idx = 0, sz = pdsch_td_candidates.size(); idx < sz; ++idx) {
+      all_indices.push_back(static_cast<uint8_t>(idx));
+    }
+    return {all_indices};
+  }
+
+  const tdd_ul_dl_config_common&    tdd              = *tdd_cfg;
+  const unsigned                    tdd_period_slots = nof_slots_per_tdd_period(tdd);
+  std::vector<std::vector<uint8_t>> result(tdd_period_slots);
+
+  for (unsigned slot_idx = 0; slot_idx < tdd_period_slots; ++slot_idx) {
+    // A candidate applies if it ends at the last DL symbol of the slot: the number of symbols per slot in a full DL
+    // slot, or the last DL symbol in a special slot.
+    const uint8_t last_dl_symbol = get_active_tdd_dl_symbols(tdd, slot_idx, cp).stop();
+    for (unsigned idx = 0, sz = pdsch_td_candidates.size(); idx < sz; ++idx) {
+      if (pdsch_td_candidates[idx].symbols.stop() == last_dl_symbol) {
+        result[slot_idx].push_back(static_cast<uint8_t>(idx));
+      }
+    }
+  }
+
+  return result;
+}
+
 /// Helper function to determine the start of the PDSCH symbols, considering a CORESET config.
 static uint8_t calc_min_pdsch_symbol(const coreset_configuration&       cs_cfg,
                                      const pdcch_config_common&         common_pdcch_cfg,

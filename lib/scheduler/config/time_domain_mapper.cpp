@@ -3,45 +3,12 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "time_domain_mapper.h"
+#include "ocudu/ran/pdcch/dci_format.h"
 #include "ocudu/scheduler/config/pusch_td_resource_indices.h"
 #include "ocudu/support/ocudu_assert.h"
+#include <optional>
 
 using namespace ocudu;
-
-/// \brief Computes the list circularly indexed by slot containing the list of indices into \c pdsch_td_candidates
-/// that are applicable PDSCH TD resource candidates for a PDSCH scheduled by a PDCCH in each slot.
-static std::vector<std::vector<uint8_t>>
-generate_pdsch_td_res_indices_per_tdd_slot(span<const pdsch_time_domain_resource_allocation> pdsch_td_candidates,
-                                           const std::optional<tdd_ul_dl_config_common>&     tdd_cfg,
-                                           cyclic_prefix                                     cp)
-{
-  if (not tdd_cfg.has_value()) {
-    // In FDD every slot is a full DL slot, so all candidates apply.
-    std::vector<uint8_t> all_indices;
-    all_indices.reserve(pdsch_td_candidates.size());
-    for (unsigned idx = 0, sz = pdsch_td_candidates.size(); idx < sz; ++idx) {
-      all_indices.push_back(static_cast<uint8_t>(idx));
-    }
-    return {all_indices};
-  }
-
-  const tdd_ul_dl_config_common&    tdd              = *tdd_cfg;
-  const unsigned                    tdd_period_slots = nof_slots_per_tdd_period(tdd);
-  std::vector<std::vector<uint8_t>> result(tdd_period_slots);
-
-  for (unsigned slot_idx = 0; slot_idx < tdd_period_slots; ++slot_idx) {
-    // A candidate applies if it ends at the last DL symbol of the slot: the number of symbols per slot in a full DL
-    // slot, or the last DL symbol in a special slot.
-    const uint8_t last_dl_symbol = get_active_tdd_dl_symbols(tdd, slot_idx, cp).stop();
-    for (unsigned idx = 0, sz = pdsch_td_candidates.size(); idx < sz; ++idx) {
-      if (pdsch_td_candidates[idx].symbols.stop() == last_dl_symbol) {
-        result[slot_idx].push_back(static_cast<uint8_t>(idx));
-      }
-    }
-  }
-
-  return result;
-}
 
 dl_time_domain_mapper::dl_time_domain_mapper(const dl_time_domain_builder_params& params)
 {
@@ -56,17 +23,29 @@ dl_time_domain_mapper::dl_time_domain_mapper(const dl_time_domain_builder_params
     ocudu_assert(not explicit_res.common_pdsch_td_res_list.empty(), "Common PDSCH TD resource list must not be empty.");
     common_pdsch_td_res_list = explicit_res.common_pdsch_td_res_list;
   }
-  // A UE without a dedicated PDSCH-TimeDomainAllocationList falls back to the common list for DCI format 1_1.
-  const auto* explicit_res    = std::get_if<builder_params::explicit_resources>(&params.params);
-  dedicated_pdsch_td_res_list = explicit_res != nullptr and not explicit_res->dedicated_pdsch_td_res_list.empty()
-                                    ? explicit_res->dedicated_pdsch_td_res_list
-                                    : common_pdsch_td_res_list;
+
+  // A UE without a dedicated PDSCH-TimeDomainAllocationList (legacy or Rel-16) falls back to the common list for DCI
+  // format 1_1.
+  const auto* explicit_res = std::get_if<builder_params::explicit_resources>(&params.params);
+  if (explicit_res != nullptr and not explicit_res->dedicated_pdsch_td_res_list.empty()) {
+    dedicated_pdsch_td_res_list = explicit_res->dedicated_pdsch_td_res_list;
+  } else {
+    dedicated_pdsch_td_res_list = common_pdsch_td_res_list;
+  }
 
   // Generate the PDSCH TD resource index candidates for a PDSCH scheduled in each slot (handles both FDD and TDD).
-  common_pdsch_td_res_indices_per_slot =
-      generate_pdsch_td_res_indices_per_tdd_slot(common_pdsch_td_res_list, params.tdd_cfg, params.cp);
-  dedicated_pdsch_td_res_indices_per_slot =
-      generate_pdsch_td_res_indices_per_tdd_slot(dedicated_pdsch_td_res_list, params.tdd_cfg, params.cp);
+  common_pdsch_td_res_indices_per_slot = time_domain_resource_helper::generate_pdsch_td_res_indices_per_tdd_slot(
+      common_pdsch_td_res_list, params.tdd_cfg, params.cp);
+  dedicated_pdsch_td_res_indices_per_slot = time_domain_resource_helper::generate_pdsch_td_res_indices_per_tdd_slot(
+      dedicated_pdsch_td_res_list, params.tdd_cfg, params.cp);
+
+  // Precompute the highest repetitionNumber-r16 in the dedicated list once, since it never changes afterwards.
+  for (const pdsch_time_domain_resource_allocation& entry : dedicated_pdsch_td_res_list) {
+    if (entry.rep_number.has_value() and (not max_dedicated_pdsch_repetitions.has_value() or
+                                          max_dedicated_pdsch_repetitions.value() < entry.rep_number.value())) {
+      max_dedicated_pdsch_repetitions = entry.rep_number;
+    }
+  }
 }
 
 std::optional<uint8_t> dl_time_domain_mapper::find_pdsch_td_res_index(dci_dl_format     dci_format,
@@ -74,8 +53,7 @@ std::optional<uint8_t> dl_time_domain_mapper::find_pdsch_td_res_index(dci_dl_for
                                                                       slot_point        pdsch_slot,
                                                                       ofdm_symbol_range usable_symbols) const
 {
-  span<const pdsch_time_domain_resource_allocation> pdsch_td_res_list = pdsch_td_resources(dci_format);
-
+  const auto             pdsch_td_res_list = pdsch_td_resources(dci_format);
   std::optional<uint8_t> best;
   for (uint8_t idx : pdsch_td_res_indices(dci_format, pdcch_slot.count())) {
     const pdsch_time_domain_resource_allocation& pdsch_td_res = pdsch_td_res_list[idx];

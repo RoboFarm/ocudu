@@ -94,14 +94,25 @@ enum class dl_alloc_failure_cause { other, skip_slot, pdcch_alloc_failed, uci_al
 /// UE grants.
 class ue_cell_grid_allocator
 {
+  // Parameters of a DL grant using Rel-16 PDSCH repetitions. Occasion 0 is the PDSCH scheduled at the PDSCH slot; the
+  // remaining occasions are PDCCH-less copies of the same TB transmitted at PDSCH slot + offset, for each offset in
+  // tx_offsets. Occasions falling in slots that cannot carry the PDSCH symbols are dropped, losing their RV.
+  struct dl_repetition_info {
+    // Nominal number of repetitions (window of consecutive slots).
+    uint8_t nof_occasions;
+    // Slot offsets (> 0) of the repetition occasions that are actually transmitted.
+    static_vector<uint8_t, 15> tx_offsets;
+  };
+
   // Information relative to a pending DL grant for this slot.
   struct dl_grant_info {
-    const slice_ue*                user;
-    sched_helper::dl_sched_context cfg;
-    dl_harq_process_handle         h_dl;
-    pdcch_dl_information*          pdcch;
-    dl_msg_alloc*                  pdsch;
-    uci_allocation                 uci_alloc;
+    const slice_ue*                   user;
+    sched_helper::dl_sched_context    cfg;
+    dl_harq_process_handle            h_dl;
+    pdcch_dl_information*             pdcch;
+    dl_msg_alloc*                     pdsch;
+    uci_allocation                    uci_alloc;
+    std::optional<dl_repetition_info> reps;
   };
 
   // Information relative to a pending UL grant for this slot.
@@ -114,6 +125,22 @@ class ue_cell_grid_allocator
   };
 
 public:
+  /// \brief List of slots where a PDSCH repetition occasion was actually committed to the resource grid. This is a
+  /// subset of the nominal repetition window, as an occasion can be dropped if it collides with another grant
+  /// already placed in that (future) slot. Empty when the associated grant does not use repetitions.
+  /// \remark Exposed so the caller can register the RBs of these occasions against the RAN slice's per-slot budget
+  /// for the corresponding (future) slots, which the direct grant's own slice bookkeeping does not cover.
+  using dl_repetition_occasion_list = static_vector<slot_point, 15>;
+
+  /// Result of a successful reTx DL grant allocation.
+  struct dl_retx_grant_result {
+    /// Allocated VRBs for the (direct) reTx grant.
+    vrb_interval vrbs;
+    /// Slots of any PDSCH repetition occasions actually committed to the resource grid (see \ref
+    /// dl_repetition_occasion_list).
+    dl_repetition_occasion_list repetition_slots;
+  };
+
   /// \brief Interface for a DL grant, which allows deferred setting of PDSCH parameters.
   class dl_newtx_grant_builder
   {
@@ -122,10 +149,11 @@ public:
     dl_newtx_grant_builder& operator=(dl_newtx_grant_builder&&) noexcept = default;
     ~dl_newtx_grant_builder() { ocudu_assert(parent == nullptr, "PDSCH parameters were not set"); }
 
-    /// Sets the final VRBs for the PDSCH allocation.
-    void set_pdsch_params(vrb_interval                                 alloc_vrbs,
-                          const std::pair<crb_interval, crb_interval>& alloc_crbs,
-                          bool                                         enable_interleaving);
+    /// \brief Sets the final VRBs for the PDSCH allocation. Returns the slots of any PDSCH repetition occasions that
+    /// were actually committed to the resource grid (see \ref dl_repetition_occasion_list).
+    dl_repetition_occasion_list set_pdsch_params(vrb_interval                                 alloc_vrbs,
+                                                 const std::pair<crb_interval, crb_interval>& alloc_crbs,
+                                                 bool                                         enable_interleaving);
 
     /// For a given max number of RBs and a bitmap of used VRBs, returns the recommended parameters for the PDSCH grant.
     vrb_interval recommended_vrbs(const vrb_bitmap& used_vrbs, unsigned max_nof_rbs = MAX_NOF_PRBS) const
@@ -202,7 +230,8 @@ public:
   expected<dl_newtx_grant_builder, dl_alloc_failure_cause> allocate_dl_grant(const ue_newtx_dl_grant_request& request);
 
   /// Allocates DL grant for a UE HARQ reTx.
-  expected<vrb_interval, dl_alloc_failure_cause> allocate_dl_grant(const ue_retx_dl_grant_request& request) const;
+  expected<dl_retx_grant_result, dl_alloc_failure_cause>
+  allocate_dl_grant(const ue_retx_dl_grant_request& request) const;
 
   /// Allocate PDCCH, UCI and PUSCH PDUs for a UE UL grant and return a builder to set the PUSCH parameters.
   expected<ul_newtx_grant_builder, alloc_status> allocate_ul_grant(const ue_newtx_ul_grant_request& request);
@@ -215,23 +244,55 @@ public:
   /// In particular, this function can redimension the existing grants to fill the remaining RBs if it deems necessary.
   void post_process_results();
 
+  /// \brief Determines whether the UE already has a PDSCH (e.g. a repetition occasion of a grant scheduled in a
+  /// preceding slot) allocated in the given slot.
+  /// \remark Exposed so that candidate eligibility/prioritization can skip a UE that is already known to fail this
+  /// check before spending a PDCCH allocation attempt on it (see \c allocate_dl_grant).
+  bool has_pdsch_in_slot(slot_point pdsch_slot, rnti_t rnti) const;
+
 private:
   // Setup DL grant builder.
   expected<dl_grant_info, dl_alloc_failure_cause>
   setup_dl_grant_builder(const slice_ue&                       user,
                          const sched_helper::dl_sched_context& params,
-                         std::optional<dl_harq_process_handle> h_dl) const;
+                         std::optional<dl_harq_process_handle> h_dl,
+                         std::optional<dl_repetition_info>     reps = std::nullopt) const;
+
+  // Outcome of the PDSCH repetition selection for a newTx grant.
+  struct dl_repetition_selection {
+    // When set, the grant uses PDSCH repetitions with these parameters.
+    std::optional<dl_repetition_info> reps;
+    // When true, the UE qualifies for repetitions but a bundle cannot start in this slot (e.g. less than 2 slots to
+    // the special slot); the allocation shall be deferred to a later slot instead of falling back to a single
+    // transmission.
+    bool defer = false;
+  };
+
+  // Decides the number of Rel-16 PDSCH repetitions to request for a grant on the given SearchSpace, based on the
+  // configured CQI threshold and the UE's effective CQI, or nullopt for a single transmission. Only applies to a DCI
+  // format 1_1 SearchSpace using the Rel-16 TDRA list.
+  std::optional<uint8_t> select_pdsch_repetition_count(const ue_cell& ue_cc, const search_space_info& ss_info) const;
+
+  // Builds the PDSCH repetition bundle for a grant whose selected TDRA row is a repetition row: computes the
+  // transmitted occasions within the window and decides whether the bundle can start in this slot. Returns a deferral
+  // when it cannot (a repetition grant is never downgraded to a single transmission). The repetition count is read
+  // directly off the TDRA row at \c pdsch_td_res_index (see \c dl_time_domain_mapper::get_pdsch_repetition_number),
+  // rather than being passed in, since the row is already the sole source of truth for it; the caller must have
+  // already checked that this row does carry a repetition count.
+  dl_repetition_selection
+  select_pdsch_repetitions(const ue_cell& ue_cc, const search_space_info& ss_info, uint8_t pdsch_td_res_index) const;
 
   // Setup UL grant builder.
   expected<ul_grant_info, alloc_status> setup_ul_grant_builder(const slice_ue&                       user,
                                                                const sched_helper::ul_sched_context& params,
                                                                std::optional<ul_harq_process_handle> h_ul) const;
 
-  // Set final PDSCH parameters and allocate remaining DL grant resources.
-  void set_pdsch_params(dl_grant_info&                        grant,
-                        vrb_interval                          vrbs,
-                        std::pair<crb_interval, crb_interval> crbs,
-                        bool                                  enable_interleaving) const;
+  // Set final PDSCH parameters and allocate remaining DL grant resources. Returns the slots of any PDSCH repetition
+  // occasions actually committed to the resource grid.
+  dl_repetition_occasion_list set_pdsch_params(dl_grant_info&                        grant,
+                                               vrb_interval                          vrbs,
+                                               std::pair<crb_interval, crb_interval> crbs,
+                                               bool                                  enable_interleaving) const;
 
   // Set final PUSCH parameters and allocate remaining UL grant resources.
   void set_pusch_params(ul_grant_info& grant, const vrb_interval& vrbs) const;
@@ -246,8 +307,10 @@ private:
   expected<pdcch_dl_information*, alloc_status> alloc_dl_pdcch(const ue_cell&           ue_cc,
                                                                const search_space_info& ss_info) const;
 
-  std::optional<uci_allocation>
-  alloc_uci(const ue_cell& ue_cc, const search_space_info& ss_info, uint8_t pdsch_td_res_index) const;
+  std::optional<uci_allocation> alloc_uci(const ue_cell&           ue_cc,
+                                          const search_space_info& ss_info,
+                                          uint8_t                  pdsch_td_res_index,
+                                          unsigned                 last_occasion_offset = 0) const;
 
   // Save the PUCCH power control results for the given slot.
   void post_process_pucch_pw_ctrl_results(slot_point slot) const;

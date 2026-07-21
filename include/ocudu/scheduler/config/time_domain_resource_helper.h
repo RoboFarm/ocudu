@@ -29,6 +29,13 @@ generate_k1_candidates(const std::optional<tdd_ul_dl_config_common>& tdd_cfg, ui
 /// \remark The returned values are the fixed set {min_k1,...,8}, independent of the cell configuration.
 span<const uint8_t> generate_common_k1_candidates(uint8_t min_k1);
 
+/// \brief Computes the list circularly indexed by slot containing the list of indices into \c pdsch_td_candidates
+/// that are applicable PDSCH TD resource candidates for a PDSCH scheduled by a PDCCH in each slot.
+std::vector<std::vector<uint8_t>>
+generate_pdsch_td_res_indices_per_tdd_slot(span<const pdsch_time_domain_resource_allocation> pdsch_td_candidates,
+                                           const std::optional<tdd_ul_dl_config_common>&     tdd_cfg,
+                                           cyclic_prefix                                     cp);
+
 /// \brief Computes the minimum symbol available for PDSCH, considering that they won't collide with the symbols
 /// reserved for PDCCH in the slot.
 /// \param[in] common_pdcch_cfg Common PDCCH configuration.

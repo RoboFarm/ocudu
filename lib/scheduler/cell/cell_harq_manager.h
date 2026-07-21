@@ -88,10 +88,13 @@ struct dl_harq_process_impl : public base_harq_process {
       units::bytes  sched_bytes;
     };
 
-    dci_dl_rnti_config_type                     dci_cfg_type;
-    vrb_alloc                                   rbs;
-    uint8_t                                     nof_symbols;
-    uint8_t                                     nof_layers{1};
+    dci_dl_rnti_config_type dci_cfg_type;
+    vrb_alloc               rbs;
+    uint8_t                 nof_symbols;
+    uint8_t                 nof_layers{1};
+    /// Number of Rel-16 slot-based PDSCH repetitions of the grant. Value 1 means a single transmission. Fixed across
+    /// HARQ retxs, so reTxs reuse the repetition scheme of the original transmission.
+    uint8_t                                     nof_repetitions{1};
     bool                                        is_fallback{false};
     cqi_value                                   cqi;
     pdsch_mcs_table                             mcs_table;
@@ -253,6 +256,8 @@ struct dl_harq_alloc_context {
   std::optional<cqi_value> cqi;
   /// Whether the HARQ allocation was done in fallback mode.
   bool is_fallback = false;
+  /// Number of Rel-16 slot-based PDSCH repetitions of the grant (1 = single transmission).
+  uint8_t nof_repetitions = 1;
 };
 
 /// \brief Context of the scheduler during the current PUSCH allocation.

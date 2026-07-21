@@ -1285,6 +1285,7 @@ static scheduler_expert_config generate_scheduler_expert_config(const du_high_un
   const du_high_unit_scheduler_config& app_sched_expert_cfg = cell.scheduler_cfg;
   out_cfg.ue.dl_mcs                                         = {pdsch.min_ue_mcs, pdsch.max_ue_mcs};
   out_cfg.ue.pdsch_rv_sequence.assign(pdsch.rv_sequence.begin(), pdsch.rv_sequence.end());
+  out_cfg.ue.pdsch_cqi_rep_threshold           = pdsch.cqi_rep_threshold;
   out_cfg.ue.dl_harq_la_cqi_drop_threshold     = pdsch.harq_la_cqi_drop_threshold;
   out_cfg.ue.dl_harq_la_ri_drop_threshold      = pdsch.harq_la_ri_drop_threshold;
   out_cfg.ue.max_nof_dl_harq_retxs             = pdsch.max_nof_harq_retxs;

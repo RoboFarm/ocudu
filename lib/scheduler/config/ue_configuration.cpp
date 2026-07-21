@@ -39,12 +39,11 @@ void search_space_info::update_pdcch_candidates(
 
 void search_space_info::update_pdsch_time_domain_list(const ue_cell_configuration& ue_cell_cfg)
 {
-  span<const pdsch_time_domain_resource_allocation> pdsch_time_domain_list =
-      bwp->dl.td_mapper().pdsch_td_resources(get_dl_dci_format());
+  const unsigned nof_res = bwp->dl.td_mapper().nof_pdsch_td_res(get_dl_dci_format());
 
-  pdsch_cfg_list.resize(pdsch_time_domain_list.size());
-  for (unsigned i = 0; i != pdsch_time_domain_list.size(); ++i) {
-    const auto& pdsch_td_res = pdsch_time_domain_list[i];
+  pdsch_cfg_list.resize(nof_res);
+  for (unsigned i = 0; i != nof_res; ++i) {
+    const auto& pdsch_td_res = bwp->dl.td_mapper().pdsch_td_resources(get_dl_dci_format())[i];
     switch (get_dl_dci_format()) {
       case dci_dl_format::f1_0: {
         pdsch_cfg_list[i].resize(1);
@@ -148,7 +147,25 @@ static dci_size_config get_dci_size_config(const ue_cell_configuration& ue_cell_
   // TODO: Once additional UL BWPs are added to uplinkConfig, populate below field from configs.
   dci_sz_cfg.nof_ul_bwp_rrc         = 0;
   dci_sz_cfg.nof_ul_time_domain_res = active_bwp.ul.td_mapper().pusch_td_resources().size();
-  dci_sz_cfg.report_trigger_size    = 0;
+  if (ss_info.get_ul_dci_format() == dci_ul_format::f0_1 and init_bwp.ul.ded() != nullptr and
+      init_bwp.ul.ded()->pusch_cfg.has_value()) {
+    const auto& td_list_r16 = init_bwp.ul.ded()->pusch_cfg->pusch_td_alloc_list;
+    const bool  is_r16      = std::any_of(
+        td_list_r16.begin(), td_list_r16.end(), [](const auto& alloc) { return alloc.nof_repetitions.has_value(); });
+    if (is_r16) {
+      // When pusch-TimeDomainAllocationListDCI-0-1-r16 is configured, the UE indexes that list with the DCI format
+      // 0_1 Time domain resource assignment field, as per TS 38.214, Table 6.1.2.1.1-1, and the field width follows
+      // its size. The scheduler keeps selecting rows of the mirrored prefix (see du_pusch_resource_manager), so only
+      // the field width changes.
+      span<const pusch_time_domain_resource_allocation> pusch_time_domain_list =
+          active_bwp.ul.td_mapper().pusch_td_resources();
+      ocudu_assert(td_list_r16.size() >= pusch_time_domain_list.size() and
+                       std::equal(pusch_time_domain_list.begin(), pusch_time_domain_list.end(), td_list_r16.begin()),
+                   "pusch-TimeDomainAllocationListDCI-0-1-r16 must mirror the applied TDRA list in its first entries");
+      dci_sz_cfg.nof_ul_time_domain_res = td_list_r16.size();
+    }
+  }
+  dci_sz_cfg.report_trigger_size = 0;
   if (opt_csi_meas_cfg != nullptr and opt_csi_meas_cfg->report_trigger_size.has_value()) {
     dci_sz_cfg.report_trigger_size = opt_csi_meas_cfg->report_trigger_size.value();
   }
@@ -265,16 +282,16 @@ static dci_size_config get_dci_size_config(const ue_cell_configuration& ue_cell_
   }
 
   // Fill out parameters for Format 1_1.
-  dci_sz_cfg.nof_dl_bwp_rrc         = ue_cell_cfg.bwps().size() - (ue_cell_cfg.has_bwp_id(to_bwp_id(0)) ? 1 : 0);
-  dci_sz_cfg.nof_dl_time_domain_res = active_bwp.dl.td_mapper().pdsch_td_resources(ss_info.get_dl_dci_format()).size();
-  dci_sz_cfg.nof_aperiodic_zp_csi   = 0;
-  dci_sz_cfg.nof_pdsch_ack_timings  = ss_info.get_dl_dci_format() == dci_dl_format::f1_0
-                                          ? pucch_td_helper::get_common_k1_candidates().size()
-                                          : active_bwp.ul.td_mapper().dedicated_k1_candidates().size();
-  dci_sz_cfg.dynamic_prb_bundling   = false;
-  dci_sz_cfg.rm_pattern_group1      = false;
-  dci_sz_cfg.rm_pattern_group2      = false;
-  dci_sz_cfg.pdsch_two_codewords    = false;
+  dci_sz_cfg.nof_dl_bwp_rrc            = ue_cell_cfg.bwps().size() - (ue_cell_cfg.has_bwp_id(to_bwp_id(0)) ? 1 : 0);
+  dci_sz_cfg.nof_dl_time_domain_res    = active_bwp.dl.td_mapper().nof_pdsch_td_res(ss_info.get_dl_dci_format());
+  dci_sz_cfg.nof_aperiodic_zp_csi      = 0;
+  dci_sz_cfg.nof_pdsch_ack_timings     = ss_info.get_dl_dci_format() == dci_dl_format::f1_0
+                                             ? pucch_td_helper::get_common_k1_candidates().size()
+                                             : active_bwp.ul.td_mapper().dedicated_k1_candidates().size();
+  dci_sz_cfg.dynamic_prb_bundling      = false;
+  dci_sz_cfg.rm_pattern_group1         = false;
+  dci_sz_cfg.rm_pattern_group2         = false;
+  dci_sz_cfg.pdsch_two_codewords       = false;
   dci_sz_cfg.pdsch_res_allocation_type = resource_allocation::resource_allocation_type_1;
   if (opt_pdsch_cfg != nullptr) {
     dci_sz_cfg.dynamic_prb_bundling =

@@ -85,6 +85,63 @@ TEST_F(ue_configuration_test, configuration_valid_on_reconfiguration)
   ASSERT_EQ(ue_cfg.init_bwp().dl.pdsch().ded()->mcs_table, pdsch_mcs_table::qam64);
 }
 
+TEST_F(ue_configuration_test, when_td_alloc_list_r16_is_configured_then_dci_tdra_field_size_follows_it)
+{
+  const cell_configuration& cell_cfg = add_cell();
+  ue_cell_configuration ue_cfg{to_rnti(0x4601), cell_cfg, cfg_pool.add_ue(ue_create_msg).cells[cell_cfg.cell_index]};
+
+  // Without Rel-16 TDRA lists, the DCI 1_1/0_1 TDRA field size follows the applied legacy/common lists.
+  {
+    const search_space_info& ss = ue_cfg.search_space(to_search_space_id(2));
+    ASSERT_TRUE(ss.dci_sz.format1_1_ue_size.has_value());
+    ASSERT_EQ(ss.dci_sz.format1_1_ue_size->time_resource,
+              units::bits(log2_ceil(ss.bwp->dl.td_mapper().dedicated_pdsch_td_resources().size())));
+    ASSERT_TRUE(ss.dci_sz.format0_1_ue_size.has_value());
+    ASSERT_EQ(ss.dci_sz.format0_1_ue_size->time_resource,
+              units::bits(log2_ceil(ss.bwp->ul.td_mapper().pusch_td_resources().size())));
+  }
+
+  // Reconfigure the UE with Rel-16 TDRA lists that mirror the applied lists and append repetition entries.
+  sched_ue_reconfiguration_message recfg_req;
+  recfg_req.ue_index = ue_create_msg.ue_index;
+  recfg_req.crnti    = ue_create_msg.crnti;
+  recfg_req.cfg.cells.emplace();
+  recfg_req.cfg.cells.value().push_back(ue_create_msg.cfg.cells->at(0));
+  recfg_req.cfg.cells.value()[0].bwps = ue_create_msg.cfg.cells->at(0).bwps;
+  serving_cell_config& serv_cell      = recfg_req.cfg.cells.value()[0].serv_cell_cfg;
+
+  auto&                        pdsch_cfg = serv_cell.init_dl_bwp.pdsch_cfg.value();
+  const dl_time_domain_mapper& dl_mapper = ue_cfg.search_space(to_search_space_id(2)).bwp->dl.td_mapper();
+  for (const auto& alloc : dl_mapper.dedicated_pdsch_td_resources()) {
+    pdsch_cfg.pdsch_td_alloc_list.push_back(alloc);
+  }
+  for (uint8_t rep : {2, 4, 8}) {
+    pdsch_time_domain_resource_allocation rep_alloc = pdsch_cfg.pdsch_td_alloc_list.front();
+    rep_alloc.rep_number                            = rep;
+    pdsch_cfg.pdsch_td_alloc_list.push_back(rep_alloc);
+  }
+  auto& pusch_cfg = serv_cell.ul_config->init_ul_bwp.pusch_cfg.value();
+  for (const auto& alloc : ue_cfg.search_space(to_search_space_id(2)).bwp->ul.td_mapper().pusch_td_resources()) {
+    pusch_cfg.pusch_td_alloc_list.push_back(alloc);
+  }
+  for (uint8_t rep : {2, 4, 8}) {
+    pusch_time_domain_resource_allocation rep_alloc = pusch_cfg.pusch_td_alloc_list.front();
+    rep_alloc.nof_repetitions                       = rep;
+    pusch_cfg.pusch_td_alloc_list.push_back(rep_alloc);
+  }
+  ue_cfg.reconfigure(cfg_pool.reconf_ue(recfg_req).cells[to_du_cell_index(0)]);
+
+  // The TDRA field size of the non-fallback DCI formats now follows the Rel-16 lists, which the scheduler selects rows
+  // from and signals directly in the DCI.
+  {
+    const search_space_info& ss = ue_cfg.search_space(to_search_space_id(2));
+    ASSERT_TRUE(ss.dci_sz.format1_1_ue_size.has_value());
+    ASSERT_EQ(ss.dci_sz.format1_1_ue_size->time_resource, units::bits(log2_ceil(pdsch_cfg.pdsch_td_alloc_list.size())));
+    ASSERT_TRUE(ss.dci_sz.format0_1_ue_size.has_value());
+    ASSERT_EQ(ss.dci_sz.format0_1_ue_size->time_resource, units::bits(log2_ceil(pusch_cfg.pusch_td_alloc_list.size())));
+  }
+}
+
 TEST_F(ue_configuration_test, when_reconfiguration_is_received_then_ue_updates_logical_channel_states)
 {
   // Test Preamble.

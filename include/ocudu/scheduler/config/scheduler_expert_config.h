@@ -190,6 +190,9 @@ struct scheduler_ue_expert_config {
   /// Minimum PUSCH SINR, in dB, that a CRC must report to be considered by the UL OLLA algorithm. CRCs reporting a
   /// lower SINR are ignored, as they are unreliable indicators of the link adaptation bias.
   float olla_ul_min_pusch_snr{-10.0};
+  /// \brief Effective CQI threshold below which the scheduler uses PDSCH repetitions
+  /// for UEs configured with the Rel-16 dedicated PDSCH TDRA list. Value 0 disables CQI-triggered repetitions.
+  float pdsch_cqi_rep_threshold{0.0f};
   /// Threshold for drop in CQI of the first HARQ transmission above which HARQ retransmissions are cancelled.
   uint8_t dl_harq_la_cqi_drop_threshold{2};
   /// Threshold for drop in nof. layers of the first HARQ transmission above which HARQ retransmission is cancelled.

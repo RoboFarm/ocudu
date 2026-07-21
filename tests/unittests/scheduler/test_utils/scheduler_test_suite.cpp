@@ -1097,8 +1097,16 @@ void test_helper::harq_tracker::on_new_result(slot_point /*sl_tx*/, const sched_
     const pdsch_codeword&    cw     = pdsch.codewords[0];
     const harq_key           key    = {pdsch.rnti, pdsch.harq_id};
     const auto               ndi_it = dl_ndi_map.find(key);
-    ASSERT_TRUE(ndi_it != dl_ndi_map.end()) << fmt::format(
-        "DL UE grant has no matching PDCCH for rnti={} h_id={}", pdsch.rnti, fmt::underlying(pdsch.harq_id));
+    if (ndi_it == dl_ndi_map.end()) {
+      // PDCCH-less PDSCH: only allowed for Rel-16 PDSCH repetition occasions, which re-transmit the TB of a PDSCH
+      // scheduled in a preceding slot.
+      ASSERT_FALSE(cw.new_data) << fmt::format(
+          "DL UE grant has no matching PDCCH for rnti={} h_id={}", pdsch.rnti, fmt::underlying(pdsch.harq_id));
+      const auto rep_it = dl_harqs.find(key);
+      ASSERT_NE(rep_it, dl_harqs.end()) << "PDSCH repetition occasion but no previous PDSCH for the same HARQ";
+      ASSERT_EQ(rep_it->second.tbs, cw.tb_size_bytes) << "TBS mismatch for PDSCH repetition occasion";
+      continue;
+    }
     const bool ndi = ndi_it->second;
     const auto it  = dl_harqs.find(key);
     if (cw.new_data) {
