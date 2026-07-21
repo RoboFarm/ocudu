@@ -62,6 +62,8 @@ struct ue_capability_summary {
     ///
     /// It is given by field \e puschTypeA-RepetitionsAvailSlot-r17 in Information Element \e BandNR.
     bool pusch_rep_type_a_avail_slot_supported = false;
+    /// Indicates whether the UE supports transmission of a PUCCH format 0 and 2 over multiple slots.
+    bool pucch_repeat_f0_2_r17_supported = false;
 
     /// Equality operator.
     bool operator==(const supported_band& other) const
@@ -74,7 +76,8 @@ struct ue_capability_summary {
           (ul_ta_reporting_supported != other.ul_ta_reporting_supported) ||
           (ue_specific_k_offset_supported != other.ue_specific_k_offset_supported) ||
           (max_pdsch_tdra_rep_number != other.max_pdsch_tdra_rep_number) ||
-          (pusch_rep_type_a_avail_slot_supported != other.pusch_rep_type_a_avail_slot_supported)) {
+          (pusch_rep_type_a_avail_slot_supported != other.pusch_rep_type_a_avail_slot_supported) ||
+          (pucch_repeat_f0_2_r17_supported != other.pucch_repeat_f0_2_r17_supported)) {
         return false;
       }
       return true;
@@ -108,6 +111,10 @@ struct ue_capability_summary {
   bool ul_harq_mode_b_supported = false;
   /// Measurement gap patterns supported by the UE, defaults to patterns 0 and 1 supported.
   supported_meas_gap_patterns supported_meas_gaps;
+  /// Indicates whether the UE supports transmission of a PUCCH format 1 or 3 or 4 over multiple slots.
+  bool pucch_repeat_f1_3_4_supported = false;
+  /// Indicates whether the UE supports slot based dynamic PUCCH repetition.
+  bool slot_based_dyn_pucch_rep_r17_supported = false;
 
   /// Equality operator.
   bool operator==(const ue_capability_summary& other) const
@@ -122,7 +129,9 @@ struct ue_capability_summary {
         (ntn_supported != other.ntn_supported) ||
         (disabled_dl_harq_feedback_supported != other.disabled_dl_harq_feedback_supported) ||
         (ul_harq_mode_b_supported != other.ul_harq_mode_b_supported) ||
-        (supported_meas_gaps != other.supported_meas_gaps)) {
+        (supported_meas_gaps != other.supported_meas_gaps) ||
+        (pucch_repeat_f1_3_4_supported != other.pucch_repeat_f1_3_4_supported) ||
+        (slot_based_dyn_pucch_rep_r17_supported != other.slot_based_dyn_pucch_rep_r17_supported)) {
       return false;
     }
     return true;

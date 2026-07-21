@@ -40,6 +40,7 @@ struct formatter<ocudu::odu::ue_capability_summary::supported_band> {
     helper.format_always(ctx, "ue_specific_k_offset_supported={}", params.ue_specific_k_offset_supported);
     helper.format_always(ctx, "max_pdsch_tdra_rep_number={}", params.max_pdsch_tdra_rep_number);
     helper.format_always(ctx, "pusch_rep_type_a_avail_slot_supported={}", params.pusch_rep_type_a_avail_slot_supported);
+    helper.format_always(ctx, "pucch_repeat_f0_2_r17_supported={}", params.pucch_repeat_f0_2_r17_supported);
     return ctx.out();
   }
 };
@@ -77,6 +78,9 @@ struct formatter<ocudu::odu::ue_capability_summary> {
     helper.format_always(ctx, "disabled_dl_harq_feedback_supported={}", params.disabled_dl_harq_feedback_supported);
     helper.format_always(ctx, "ul_harq_mode_b_supported={}", params.ul_harq_mode_b_supported);
     helper.format_always(ctx, "supported_gap_patterns={}", params.supported_meas_gaps.bits());
+    helper.format_always(ctx, "pucch_repeat_f1_3_4_supported={}", params.pucch_repeat_f1_3_4_supported);
+    helper.format_always(
+        ctx, "slot_based_dyn_pucch_rep_r17_supported={}", params.slot_based_dyn_pucch_rep_r17_supported);
     return ctx.out();
   }
 };

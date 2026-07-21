@@ -251,12 +251,17 @@ expected<ue_capability_summary, std::string> odu::decode_ue_nr_cap_container(con
       ue_caps.pusch_rep_type_a_supported =
           ue_cap.phy_params.phy_params_common.pusch_repeat_type_a_r16->non_shared_spec_ch_access_r16_present;
     }
+    ue_caps.pucch_repeat_f1_3_4_supported = ue_cap.phy_params.phy_params_common.pucch_repeat_f1_3_4_present;
+    ue_caps.slot_based_dyn_pucch_rep_r17_supported =
+        ue_cap.phy_params.phy_params_common.slot_based_dyn_pucch_rep_r17_present;
   }
   for (const auto& band : ue_cap.rf_params.supported_band_list_nr) {
     // Create and convert band capability.
     ue_capability_summary::supported_band band_cap;
     band_cap.pusch_qam256_supported                = band.pusch_256_qam_present;
     band_cap.pusch_rep_type_a_avail_slot_supported = band.pusch_type_a_repeats_avail_slot_r17_present;
+    band_cap.pusch_qam256_supported                = band.pusch_256_qam_present;
+    band_cap.pucch_repeat_f0_2_r17_supported       = band.pucch_repeat_f0_2_r17_present;
 
     // Emplace the band capability in the map.
     ue_caps.bands.emplace(static_cast<nr_band>(band.band_nr), band_cap);
