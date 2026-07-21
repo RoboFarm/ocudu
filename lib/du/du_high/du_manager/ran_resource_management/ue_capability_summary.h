@@ -25,6 +25,8 @@ struct ue_capability_summary {
   static constexpr unsigned default_nof_srs_tx_ports = 1;
   /// Default max number of DL/UL HARQ processes.
   static constexpr unsigned default_max_harq_process_num = 16;
+  /// Default maximum PDSCH TDRA repetition number.
+  static constexpr unsigned default_max_pdsch_tdra_rep_number = 1;
   /// @}
 
   /// Contains band specific parameters.
@@ -51,6 +53,15 @@ struct ue_capability_summary {
     bool ul_ta_reporting_supported = false;
     /// Indicates whether the UE supports the reception of UE-specific K_offset.
     bool ue_specific_k_offset_supported = false;
+    /// \brief Maximum repetition number supported in PDSCH TDRA.
+    ///
+    /// It is given by field \e supportRepNumPDSCH-TDRA-r16 in Information Element \e MIMO-ParametersPerBand. Value 1
+    /// means that the UE does not support dynamic PDSCH repetitions.
+    uint8_t max_pdsch_tdra_rep_number = default_max_pdsch_tdra_rep_number;
+    /// \brief Indicates whether the UE supports counting PUSCH repetition Type A occasions on available slots.
+    ///
+    /// It is given by field \e puschTypeA-RepetitionsAvailSlot-r17 in Information Element \e BandNR.
+    bool pusch_rep_type_a_avail_slot_supported = false;
 
     /// Equality operator.
     bool operator==(const supported_band& other) const
@@ -61,7 +72,9 @@ struct ue_capability_summary {
           (max_ul_harq_process_num != other.max_ul_harq_process_num) ||
           (ul_pre_compensation_supported != other.ul_pre_compensation_supported) ||
           (ul_ta_reporting_supported != other.ul_ta_reporting_supported) ||
-          (ue_specific_k_offset_supported != other.ue_specific_k_offset_supported)) {
+          (ue_specific_k_offset_supported != other.ue_specific_k_offset_supported) ||
+          (max_pdsch_tdra_rep_number != other.max_pdsch_tdra_rep_number) ||
+          (pusch_rep_type_a_avail_slot_supported != other.pusch_rep_type_a_avail_slot_supported)) {
         return false;
       }
       return true;
@@ -74,6 +87,11 @@ struct ue_capability_summary {
   bool pdsch_qam64lowse_supported = false;
   /// Set to true if QAM-64 LowSe MCS table are supported for PUSCH transmissions.
   bool pusch_qam64lowse_supported = false;
+  /// \brief Set to true if dynamically scheduled PUSCH repetition Type A is supported.
+  ///
+  /// It is given by field \e non-sharedSpectrumChAccess-r16 of \e pusch-RepetitionTypeA-r16 in Information Element
+  /// \e Phy-ParametersCommon.
+  bool pusch_rep_type_a_supported = false;
   /// Contains specific bands capabilities.
   std::unordered_map<nr_band, supported_band> bands;
   /// Set to true if Long DRX cycle is supported.
@@ -96,7 +114,8 @@ struct ue_capability_summary {
   {
     if ((pdsch_qam256_supported != other.pdsch_qam256_supported) ||
         (pdsch_qam64lowse_supported != other.pdsch_qam64lowse_supported) ||
-        (pusch_qam64lowse_supported != other.pusch_qam64lowse_supported) || (bands != other.bands) ||
+        (pusch_qam64lowse_supported != other.pusch_qam64lowse_supported) ||
+        (pusch_rep_type_a_supported != other.pusch_rep_type_a_supported) || (bands != other.bands) ||
         (long_drx_cycle_supported != other.long_drx_cycle_supported) ||
         (short_drx_cycle_supported != other.short_drx_cycle_supported) ||
         (pdsch_interleaving_vrb_to_prb_supported != other.pdsch_interleaving_vrb_to_prb_supported) ||

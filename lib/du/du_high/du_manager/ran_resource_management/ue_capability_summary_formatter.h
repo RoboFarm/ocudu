@@ -38,6 +38,8 @@ struct formatter<ocudu::odu::ue_capability_summary::supported_band> {
     helper.format_always(ctx, "ul_pre_compensation_supported={}", params.ul_pre_compensation_supported);
     helper.format_always(ctx, "ul_ta_reporting_supported={}", params.ul_ta_reporting_supported);
     helper.format_always(ctx, "ue_specific_k_offset_supported={}", params.ue_specific_k_offset_supported);
+    helper.format_always(ctx, "max_pdsch_tdra_rep_number={}", params.max_pdsch_tdra_rep_number);
+    helper.format_always(ctx, "pusch_rep_type_a_avail_slot_supported={}", params.pusch_rep_type_a_avail_slot_supported);
     return ctx.out();
   }
 };
@@ -63,6 +65,7 @@ struct formatter<ocudu::odu::ue_capability_summary> {
     helper.format_always(ctx, "pdsch_qam256_supported={}", params.pdsch_qam256_supported);
     helper.format_always(ctx, "pdsch_qam64lowse_supported={}", params.pdsch_qam64lowse_supported);
     helper.format_always(ctx, "pusch_qam64lowse_supported={}", params.pusch_qam64lowse_supported);
+    helper.format_always(ctx, "pusch_rep_type_a_supported={}", params.pusch_rep_type_a_supported);
     for (const auto& band : params.bands) {
       helper.format_always(ctx, "n{}={{{}}}", fmt::underlying(band.first), band.second);
     }

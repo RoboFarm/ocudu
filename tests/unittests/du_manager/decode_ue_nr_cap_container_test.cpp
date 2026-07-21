@@ -5,6 +5,8 @@
 #include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_manager.h"
 #include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_summary_formatter.h"
 #include "ocudu/adt/to_array.h"
+#include "ocudu/asn1/rrc_nr/ue_cap.h"
+#include "ocudu/support/error_handling.h"
 #include <fmt/ostream.h>
 #include <gtest/gtest.h>
 
@@ -281,3 +283,102 @@ const auto test_cases = to_array<decode_ue_nr_cap_container_params>(
 INSTANTIATE_TEST_SUITE_P(parametrized_test_decode_ue_nr_cap_container_tester,
                          decode_ue_nr_cap_container_tester,
                          ::testing::ValuesIn(test_cases));
+
+/// Repetition-related capabilities used to build a UE-NR-Capability container for band n78.
+struct repetition_caps_builder_params {
+  /// Sets \e supportRepNumPDSCH-TDRA-r16 to \e n8 when true.
+  bool pdsch_tdra_rep = false;
+  /// Sets \e sharedSpectrumChAccess-r16 in \e pusch-RepetitionTypeA-r16.
+  bool pusch_rep_type_a_shared = false;
+  /// Sets \e non-sharedSpectrumChAccess-r16 in \e pusch-RepetitionTypeA-r16.
+  bool pusch_rep_type_a_non_shared = false;
+  /// Sets \e puschTypeA-RepetitionsAvailSlot-r17.
+  bool pusch_rep_avail_slot = false;
+};
+
+/// Packs a UE-NR-Capability container advertising band n78 with the given repetition capabilities.
+static byte_buffer pack_ue_cap_with_repetition_caps(const repetition_caps_builder_params& params)
+{
+  using namespace asn1::rrc_nr;
+
+  ue_nr_cap_s ue_cap;
+  ue_cap.access_stratum_release.value                    = access_stratum_release_opts::rel17;
+  ue_cap.pdcp_params.max_num_rohc_context_sessions.value = pdcp_params_s::max_num_rohc_context_sessions_opts::cs2;
+
+  band_nr_s band;
+  band.band_nr = 78;
+  if (params.pdsch_tdra_rep) {
+    band.mimo_params_per_band_present = true;
+    band.mimo_params_per_band.ext     = true;
+    band.mimo_params_per_band.support_inter_slot_tdm_r16.set_present();
+    auto& inter_slot_tdm = *band.mimo_params_per_band.support_inter_slot_tdm_r16;
+    inter_slot_tdm.support_rep_num_pdsch_tdra_r16.value =
+        mimo_params_per_band_s::support_inter_slot_tdm_r16_s_::support_rep_num_pdsch_tdra_r16_opts::n8;
+    inter_slot_tdm.max_tbs_size_r16.value =
+        mimo_params_per_band_s::support_inter_slot_tdm_r16_s_::max_tbs_size_r16_opts::no_restrict;
+    inter_slot_tdm.max_num_tci_states_r16 = 1;
+  }
+  if (params.pusch_rep_avail_slot) {
+    band.ext                                         = true;
+    band.pusch_type_a_repeats_avail_slot_r17_present = true;
+  }
+  ue_cap.rf_params.supported_band_list_nr.push_back(band);
+
+  if (params.pusch_rep_type_a_shared or params.pusch_rep_type_a_non_shared) {
+    auto& phy_common                            = ue_cap.phy_params.phy_params_common;
+    ue_cap.phy_params.phy_params_common_present = true;
+    phy_common.ext                              = true;
+    phy_common.pusch_repeat_type_a_r16.set_present();
+    phy_common.pusch_repeat_type_a_r16->shared_spec_ch_access_r16_present     = params.pusch_rep_type_a_shared;
+    phy_common.pusch_repeat_type_a_r16->non_shared_spec_ch_access_r16_present = params.pusch_rep_type_a_non_shared;
+  }
+
+  byte_buffer   buf;
+  asn1::bit_ref bref{buf};
+  report_fatal_error_if_not(ue_cap.pack(bref) == asn1::OCUDUASN_SUCCESS, "Failed to pack UE NR capabilities");
+  return buf;
+}
+
+TEST(decode_ue_nr_cap_container_repetitions_test, all_repetition_caps_reported)
+{
+  byte_buffer container = pack_ue_cap_with_repetition_caps(
+      {.pdsch_tdra_rep = true, .pusch_rep_type_a_non_shared = true, .pusch_rep_avail_slot = true});
+
+  expected<ue_capability_summary, std::string> caps = decode_ue_nr_cap_container(container);
+  ASSERT_TRUE(caps.has_value()) << fmt::format("Failed to decode UE capabilities: {}", caps.error());
+
+  ue_capability_summary expected_caps;
+  expected_caps.pusch_rep_type_a_supported = true;
+  ue_capability_summary::supported_band band_caps;
+  band_caps.max_pdsch_tdra_rep_number             = 8;
+  band_caps.pusch_rep_type_a_avail_slot_supported = true;
+  expected_caps.bands.emplace(nr_band::n78, band_caps);
+
+  ASSERT_EQ(*caps, expected_caps);
+}
+
+TEST(decode_ue_nr_cap_container_repetitions_test, shared_spectrum_only_pusch_repetition_is_ignored)
+{
+  byte_buffer container = pack_ue_cap_with_repetition_caps({.pusch_rep_type_a_shared = true});
+
+  expected<ue_capability_summary, std::string> caps = decode_ue_nr_cap_container(container);
+  ASSERT_TRUE(caps.has_value()) << fmt::format("Failed to decode UE capabilities: {}", caps.error());
+
+  ue_capability_summary expected_caps;
+  expected_caps.bands.emplace(nr_band::n78, ue_capability_summary::supported_band{});
+
+  ASSERT_EQ(*caps, expected_caps);
+}
+
+TEST(decode_ue_nr_cap_container_repetitions_test, absent_repetition_caps_fall_back_to_defaults)
+{
+  byte_buffer container = pack_ue_cap_with_repetition_caps({});
+
+  expected<ue_capability_summary, std::string> caps = decode_ue_nr_cap_container(container);
+  ASSERT_TRUE(caps.has_value()) << fmt::format("Failed to decode UE capabilities: {}", caps.error());
+
+  ue_capability_summary expected_caps;
+  expected_caps.bands.emplace(nr_band::n78, ue_capability_summary::supported_band{});
+
+  ASSERT_EQ(*caps, expected_caps);
+}

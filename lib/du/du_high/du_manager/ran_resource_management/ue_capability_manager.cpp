@@ -54,6 +54,12 @@ decode_advanced_ue_nr_caps(odu::ue_capability_summary& ue_capability, const asn1
       }
     }
     band_cap.pusch_tx_coherence = pusch_tx_coherence;
+
+    // Convert PDSCH TDRA repetition capability.
+    if (band.mimo_params_per_band_present and band.mimo_params_per_band.support_inter_slot_tdm_r16.is_present()) {
+      band_cap.max_pdsch_tdra_rep_number =
+          band.mimo_params_per_band.support_inter_slot_tdm_r16->support_rep_num_pdsch_tdra_r16.to_number();
+    }
   }
 
   for (const auto& band_combination : ue_cap.rf_params.supported_band_combination_list) {
@@ -240,11 +246,16 @@ expected<ue_capability_summary, std::string> odu::decode_ue_nr_cap_container(con
   if (ue_cap.phy_params.phy_params_common_present) {
     ue_caps.pdsch_interleaving_vrb_to_prb_supported =
         ue_cap.phy_params.phy_params_common.interleaving_vrb_to_prb_pdsch_present;
+    if (ue_cap.phy_params.phy_params_common.pusch_repeat_type_a_r16.is_present()) {
+      ue_caps.pusch_rep_type_a_supported =
+          ue_cap.phy_params.phy_params_common.pusch_repeat_type_a_r16->non_shared_spec_ch_access_r16_present;
+    }
   }
   for (const auto& band : ue_cap.rf_params.supported_band_list_nr) {
     // Create and convert band capability.
     ue_capability_summary::supported_band band_cap;
-    band_cap.pusch_qam256_supported = band.pusch_256_qam_present;
+    band_cap.pusch_qam256_supported                = band.pusch_256_qam_present;
+    band_cap.pusch_rep_type_a_avail_slot_supported = band.pusch_type_a_repeats_avail_slot_r17_present;
 
     // Emplace the band capability in the map.
     ue_caps.bands.emplace(static_cast<nr_band>(band.band_nr), band_cap);
