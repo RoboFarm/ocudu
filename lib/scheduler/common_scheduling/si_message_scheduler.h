@@ -39,12 +39,13 @@ public:
                            std::optional<unsigned> nof_segments,
                            units::bytes            msg_len);
 
-  /// \brief Applies only the PDSCH grant sizing (msg_len) from a new SI scheduling config immediately, without
-  /// waiting for the SI change modification window and without touching window/active state or bumping version.
-  /// \remark si_scheduling_update_request/handle_si_message_update_indication defer taking effect
-  /// until a future SI change modification window (at least one full default paging cycle away, per TS 38.331, so
-  /// idle UEs get advance notice via the short-message before SIB1's valueTag actually changes). MAC's SI-message
-  /// content push has no such delay - it takes effect at the very next SI window.
+  /// \brief Applies the PDSCH grant sizing (msg_len) from a new SI scheduling config, immediately and without touching
+  /// window/active state or bumping version, but only for SI-messages whose content is exempt from the SI change
+  /// modification window (see si_message_scheduling_config::exempt_from_si_mod_window).
+  /// \remark si_scheduling_update_request/handle_si_message_update_indication defer taking effect until a future SI
+  /// change modification window (at least one full default paging cycle away, per TS 38.331, so idle UEs get advance
+  /// notice via the short-message before SIB1's valueTag actually changes). For exempt SI-messages (e.g. NTN SIB19)
+  /// MAC pushes the new content immediately at the next SI window, so their grant sizing must track it immediately too.
   void update_msg_lens(const si_scheduling_config& new_si_sched_cfg);
 
   /// Called when cell is deactivated.

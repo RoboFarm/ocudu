@@ -10,6 +10,7 @@
 #include "ocudu/ran/qos/five_qi_qos_mapping.h"
 #include "ocudu/scheduler/config/logical_channel_config_factory.h"
 #include "ocudu/scheduler/config/sched_cell_config_helpers.h"
+#include <algorithm>
 
 using namespace ocudu;
 using namespace odu;
@@ -36,6 +37,10 @@ si_scheduling_config ocudu::odu::make_si_scheduling_info_config(const du_cell_co
       sched_req.si_messages[i].si_window_position       = si_sched.si_window_position;
       sched_req.si_messages[i].requires_activation      = si_sched.requires_activation;
       sched_req.si_messages[i].test_mode_auto_broadcast = si_sched.auto_broadcast;
+      // SIB19 (NTN) content is pushed immediately, bypassing the SI change modification window.
+      sched_req.si_messages[i].exempt_from_si_mod_window =
+          std::find(si_sched.sib_mapping_info.begin(), si_sched.sib_mapping_info.end(), sib_type::sib19) !=
+          si_sched.sib_mapping_info.end();
     }
   }
 

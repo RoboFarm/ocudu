@@ -106,7 +106,11 @@ void si_message_scheduler::activate_si_message(unsigned                si_msg_id
 void si_message_scheduler::update_msg_lens(const si_scheduling_config& new_si_sched_cfg)
 {
   for (unsigned i = 0, e = std::min(pending_messages.size(), new_si_sched_cfg.si_messages.size()); i != e; ++i) {
-    pending_messages[i].msg_len = new_si_sched_cfg.si_messages[i].msg_len;
+    // Only resize immediately for messages with immediate content (e.g. NTN SIB19). Version-gated messages keep
+    // broadcasting their old content until the modification window, so resizing early would truncate it.
+    if (new_si_sched_cfg.si_messages[i].exempt_from_si_mod_window) {
+      pending_messages[i].msg_len = new_si_sched_cfg.si_messages[i].msg_len;
+    }
   }
 }
 

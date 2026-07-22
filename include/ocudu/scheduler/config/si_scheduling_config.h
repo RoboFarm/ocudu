@@ -29,6 +29,11 @@ struct si_message_scheduling_config {
   ///
   /// Only meaningful when \c requires_activation is true. Used for test_mode-configured ETWS/CMAS content.
   bool test_mode_auto_broadcast = false;
+  /// \brief Whether this SI-message's content is pushed to the PHY immediately, bypassing the SI change modification
+  /// window, rather than being version-gated. E.g. NTN SIB19 ephemeris/epoch/TA fields, which per TS 38.331 5.2.2.2.2
+  /// and the NTN-Config field descriptions are excluded from SI change determination. If so, \c msg_len is resized on
+  /// request; otherwise it stays deferred to the modification window.
+  bool exempt_from_si_mod_window = false;
 };
 
 /// \brief Configuration of the SI message scheduling.

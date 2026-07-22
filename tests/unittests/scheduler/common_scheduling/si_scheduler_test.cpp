@@ -156,6 +156,8 @@ TEST_F(si_scheduler_test, when_si_is_updated_then_new_msg_len_is_applied_right_a
 {
   si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
   new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
+  // Immediate content (e.g. NTN SIB19): grant sizing is expected to update right after the request.
+  new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window = true;
 
   {
     bool           found_before = false;
