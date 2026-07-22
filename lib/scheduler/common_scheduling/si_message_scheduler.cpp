@@ -12,6 +12,7 @@
 #include "../support/sch_pdu_builder.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/scheduler/support/rb_helper.h"
+#include <algorithm>
 
 using namespace ocudu;
 
@@ -100,6 +101,13 @@ void si_message_scheduler::activate_si_message(unsigned                si_msg_id
   const unsigned active_duration_rfs = default_paging_cycle_rfs + one_segment_cycle_rfs;
 
   ctxt.active_until = activation_slot + active_duration_rfs * activation_slot.nof_slots_per_frame();
+}
+
+void si_message_scheduler::update_msg_lens(const si_scheduling_config& new_si_sched_cfg)
+{
+  for (unsigned i = 0, e = std::min(pending_messages.size(), new_si_sched_cfg.si_messages.size()); i != e; ++i) {
+    pending_messages[i].msg_len = new_si_sched_cfg.si_messages[i].msg_len;
+  }
 }
 
 void si_message_scheduler::update_si_message_windows(slot_point_extended sl_tx_ext)

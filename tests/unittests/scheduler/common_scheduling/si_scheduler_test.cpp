@@ -152,6 +152,58 @@ TEST_F(si_scheduler_test, when_si_is_updated_then_new_version_is_applied_at_si_c
   ASSERT_EQ(last_version, 1);
 }
 
+TEST_F(si_scheduler_test, when_si_is_updated_then_new_msg_len_is_applied_right_after_the_request)
+{
+  si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
+  new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
+
+  {
+    bool           found_before = false;
+    const unsigned nof_baseline_test_slots =
+        DEFAULT_SI_SCHED_CFG.si_messages[0].period_radio_frames * next_slot.nof_slots_per_frame();
+    for (unsigned i = 0; i != nof_baseline_test_slots and not found_before; ++i) {
+      run_slot();
+      for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+        if (sib.si_indicator != sib_information::other_si) {
+          continue;
+        }
+        ASSERT_EQ(sib.version, 0);
+        ASSERT_LT(sib.pdsch_cfg.codewords[0].tb_size_bytes, new_si_sched_cfg.si_messages[0].msg_len)
+            << "Baseline transmission is already sized for the new length -- test setup is not exercising a real "
+               "before/after transition";
+        found_before = true;
+      }
+    }
+    ASSERT_TRUE(found_before) << "SI-message was not scheduled within the expected baseline window";
+  }
+
+  const unsigned si_ch_wind_len_rfs =
+      static_cast<unsigned>(cell_cfg.params.dl_cfg_common.bcch_cfg.mod_period_coeff) *
+      static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
+  const unsigned sfn_mod = (next_slot + res_grid.max_dl_slot_alloc_delay).sfn() % si_ch_wind_len_rfs;
+  const unsigned si_change_min_count =
+      (si_ch_wind_len_rfs - sfn_mod) * next_slot.nof_slots_per_frame() - next_slot.slot_index();
+
+  // Update SI scheduling.
+  si_sched.handle_si_update_request(si_scheduling_update_request{to_du_cell_index(0), 1, new_si_sched_cfg});
+
+  bool found = false;
+  for (unsigned i = 0; i != si_change_min_count; ++i) {
+    run_slot();
+    for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+      if (sib.si_indicator != sib_information::other_si) {
+        continue;
+      }
+      ASSERT_EQ(sib.version, 0) << "SI version must not have changed yet -- still before the modification window";
+      ASSERT_GE(sib.pdsch_cfg.codewords[0].tb_size_bytes, new_si_sched_cfg.si_messages[0].msg_len)
+          << "PDSCH grant was not resized for the new content length right after the request";
+      found = true;
+    }
+  }
+
+  ASSERT_TRUE(found) << "SI-message was not scheduled within the expected window";
+}
+
 TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_exactly_once)
 {
   const paging_slot_helper slot_helper(cell_cfg);

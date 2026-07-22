@@ -100,6 +100,11 @@ bool si_scheduler::try_handle_si_mod_request(slot_point_extended slot_sched)
       on_going_req = next;
       last_version = on_going_req->version;
 
+      // Apply the new PDSCH grant sizing immediately, rather than waiting for the SI change modification window
+      // below. MAC's SI-message content push (e.g. NTN SIB19 updates) has no such delay -- it takes effect at the
+      // very next SI window.
+      si_msg_sched.update_msg_lens(on_going_req->si_sched_cfg);
+
       // Determine the start of SI change modification window.
       const unsigned nof_sfns_until_mod_window = si_change_mod_period - (slot_sched.sfn() % si_change_mod_period);
       si_change_start_slot = slot_sched + nof_sfns_until_mod_window * slots_per_frame - slot_sched.slot_index();
