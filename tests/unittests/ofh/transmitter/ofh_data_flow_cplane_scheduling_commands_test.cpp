@@ -79,10 +79,11 @@ protected:
   ru_compression_params                             ul_compr_params       = {compression_type::BFP, 9};
   ru_compression_params                             prach_compr_params    = {compression_type::BFP, 8};
   cplane_fft_size                                   c_plane_prach_fft_len = cplane_fft_size::fft_4096;
+  static_vector<unsigned, MAX_NOF_SUPPORTED_EAXC>   eaxc_list             = {2};
   std::shared_ptr<uplink_cplane_context_repository> ul_cplane_context_repo =
-      std::make_shared<uplink_cplane_context_repository>(58);
+      std::make_shared<uplink_cplane_context_repository>(58, eaxc_list);
   std::shared_ptr<uplink_cplane_context_repository> prach_cplane_context_repo =
-      std::make_shared<uplink_cplane_context_repository>(58);
+      std::make_shared<uplink_cplane_context_repository>(58, eaxc_list);
   std::shared_ptr<ether::eth_frame_pool> frame_pool =
       std::make_shared<ether::eth_frame_pool>(ocudulog::fetch_basic_logger("TEST"),
                                               units::bytes(9000),

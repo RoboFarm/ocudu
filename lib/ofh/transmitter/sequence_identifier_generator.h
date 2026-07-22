@@ -14,6 +14,8 @@ namespace ofh {
 /// Sequence identifier generator.
 class sequence_identifier_generator
 {
+  /// Dense per-eAxC counters. At the full 16-bit eAxC range this is 64 KiB per instance, which is deliberately
+  /// accepted to keep the generation lock-free and index-based on the hot path.
   std::array<std::atomic<uint8_t>, MAX_SUPPORTED_EAXC_ID_VALUE> counters;
 
 public:

@@ -55,7 +55,7 @@ protected:
   std::shared_ptr<prach_context_repository>         repo = std::make_shared<prach_context_repository>(1);
   uplane_rx_symbol_notifier_spy*                    notifier;
   std::shared_ptr<uplink_cplane_context_repository> ul_cplane_context_repo_ptr =
-      std::make_shared<uplink_cplane_context_repository>(1);
+      std::make_shared<uplink_cplane_context_repository>(1, ul_eaxc);
   std::shared_ptr<prach_context_repository> prach_context_repo = std::make_shared<prach_context_repository>(1);
   uplane_message_decoder_spy*               uplane_decoder;
   data_flow_uplane_uplink_prach_impl        data_flow;

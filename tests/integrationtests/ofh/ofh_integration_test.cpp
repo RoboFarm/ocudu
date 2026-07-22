@@ -428,7 +428,9 @@ class test_ru_emulator
 
   /// Helper structure used internally to group OFH header parameters.
   struct header_parameters {
-    uint8_t  port;
+    /// eAxC ID carried in the eCPRI pc_id field. Per O-RAN.WG4.CUS-Spec section 3.1.3.1.6 it spans the full 16-bit
+    /// range, so it must not be stored in a narrower type.
+    uint16_t port;
     unsigned payload_size;
     unsigned start_prb;
     unsigned nof_prbs;
@@ -541,8 +543,9 @@ private:
     uint16_t payload_size = htons(params.payload_size);
     std::memcpy(&frame[16 + offset], &payload_size, sizeof(uint16_t));
 
-    // Set port ID.
-    frame[19 + offset] = params.port;
+    // Set port ID. The eCPRI pc_id is a 16-bit field in network byte order, so both bytes must be written.
+    frame[18 + offset] = uint8_t(params.port >> 8);
+    frame[19 + offset] = uint8_t(params.port);
 
     // Set start PRB and number of PRBs.
     frame[27 + offset] = uint8_t(params.start_prb >> 8u) & 0x3;
@@ -607,7 +610,8 @@ private:
         // Prepare header.
         span<uint8_t>     frame_header(frame.data(), headers_size);
         header_parameters params;
-        params.port         = port;
+        // The frame must carry the configured eAxC ID, not the antenna position.
+        params.port         = ul_eaxc[port];
         params.payload_size = data_size + ofh_header_size.value() + ecpri::ECPRI_COMMON_HEADER_SIZE.value();
         params.start_prb    = start_prb;
         params.nof_prbs     = nof_frame_prbs[j];
@@ -630,8 +634,10 @@ private:
   units::bytes                prb_size;
   /// Stores byte arrays for each antenna.
   std::vector<std::vector<std::vector<uint8_t>>>                     test_data;
-  static_circular_map<uint8_t, uint8_t, MAX_SUPPORTED_EAXC_ID_VALUE> seq_counters;
-  static_vector<unsigned, ofh::MAX_NOF_SUPPORTED_EAXC>               ul_eaxc;
+  // The eAxC ID key spans the full 16-bit range per O-RAN.WG4.CUS-Spec section 3.1.3.1.6, so it must be uint16_t to
+  // avoid truncating IDs above 255.
+  static_circular_map<uint16_t, uint8_t, MAX_SUPPORTED_EAXC_ID_VALUE> seq_counters;
+  static_vector<unsigned, ofh::MAX_NOF_SUPPORTED_EAXC>                ul_eaxc;
 };
 
 /// DU emulator that pushes resource grids to the OFH RU implementation.
@@ -856,9 +862,11 @@ private:
 private:
   const subcarrier_spacing                                           scs;
   const unsigned                                                     nof_symbols;
-  static_circular_map<uint8_t, uint8_t, MAX_SUPPORTED_EAXC_ID_VALUE> seq_counters;
-  bounded_bitset<MAX_SUPPORTED_EAXC_ID_VALUE>                        seq_counter_initialized;
-  test_ru_emulator*                                                  ru_emulator;
+  // The eAxC ID key spans the full 16-bit range per O-RAN.WG4.CUS-Spec section 3.1.3.1.6, so it must be uint16_t to
+  // avoid truncating IDs above 255.
+  static_circular_map<uint16_t, uint8_t, MAX_SUPPORTED_EAXC_ID_VALUE> seq_counters;
+  bounded_bitset<MAX_SUPPORTED_EAXC_ID_VALUE>                         seq_counter_initialized;
+  test_ru_emulator*                                                   ru_emulator;
 };
 
 /// Manages the workers of the test application and OFH RU.
