@@ -148,8 +148,10 @@ private:
 
   ///////////////  Main private functions   //////////////
 
-  /// \brief Selects the d_pri to use for a given UE. based on the UCI bits to be sent and the PUCCH resources available
-  ///        in the given slot.
+  /// \brief Selects the d_pri to use for a given UE, based on the UCI bits to be sent and the PUCCH resources
+  ///        available in the given slot.
+  ///
+  /// \remark Whether Resource Set ID 0 or Resource Set ID 1 is used is derived from \c bits.
   std::optional<unsigned> select_pri(const cell_slot_resource_allocator& pucch_slot_alloc,
                                      const ue_cell_configuration&        ue_cell_cfg,
                                      const pucch_uci_bits&               bits,

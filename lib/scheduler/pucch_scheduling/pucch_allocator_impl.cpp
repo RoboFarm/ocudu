@@ -69,6 +69,13 @@ static std::optional<csi_report_configuration> get_csi_report_cfg(const ran_cell
       config_helpers::make_default_ue_cell_config(cell_cfg).serv_cell_cfg.csi_meas_cfg.value());
 }
 
+// As per Section 9.2.1, TS 38.213, Resource Set ID 1 is used once more than 2 UCI bits need to be carried on the
+// HARQ-ACK resource.
+static bool uci_bits_need_res_set_1(const pucch_uci_bits& bits)
+{
+  return bits.harq_ack_nof_bits + bits.csi_part1_nof_bits > 2U;
+}
+
 //////////////    Public functions       //////////////
 
 pucch_allocator_impl::pucch_allocator_impl(const cell_configuration& cell_cfg_,
@@ -264,34 +271,32 @@ std::optional<unsigned> pucch_allocator_impl::alloc_ded_harq_ack(cell_resource_a
     old_grants = *existing_grants;
   }
 
-  pucch_uci_bits new_bits = old_grants.uci_bits(pucch_slot_alloc.result.ul.pucchs);
+  const pucch_uci_bits old_bits = old_grants.uci_bits(pucch_slot_alloc.result.ul.pucchs);
+  pucch_uci_bits       new_bits = old_bits;
   ++new_bits.harq_ack_nof_bits;
 
   // From TS 38.213, Section 9.2.1:
   // > "If the UE transmits O_UCI UCI information bits, that include HARQ-ACK information bits, the UE determines a
   //    PUCCH resource set to be ..."
-  // We can infer that we only need to run the multiplexing algorithm in the following cases:
-  // - the first allocated HARQ-ACK bit (to multiplex the new HARQ-ACK resource with the existing grants)
-  // - the third allocated HARQ-ACK bit (to promote from Resource Set ID 0 to Resource Set ID 1)
-  // In all other cases, the multiplexing algorithm would yield the same result as in the previous allocation of this
-  // UE, so we skip it.
-  if (existing_grants != nullptr and new_bits.harq_ack_nof_bits != 1U and new_bits.harq_ack_nof_bits != 3U) {
+  // We only need to (re-)run the multiplexing algorithm, including PRI selection, if this is the UE's first
+  // HARQ-ACK grant in this slot, or if the additional bit changes which Resource Set applies (e.g. 3rd bit promoting
+  // from Resource Set ID 0 to 1; note this promotion may have already happened on an earlier bit, if CSI bits were
+  // already present). In all other cases, the multiplexing algorithm would yield the same result as in the previous
+  // allocation of this UE, so we skip it.
+  const bool res_set_unchanged = existing_grants != nullptr and existing_grants->harq_ack.has_value() and
+                                 uci_bits_need_res_set_1(old_bits) == uci_bits_need_res_set_1(new_bits);
+  if (res_set_unchanged) {
     return update_harq_ack_bits(pucch_slot_alloc, old_grants, new_bits.harq_ack_nof_bits, alloc_ctx);
   }
 
-  std::optional<unsigned> d_pri;
-  if (new_bits.harq_ack_nof_bits == 1U) {
-    // First HARQ-ACK allocation for this UE in this slot, find an available PRI to use for the HARQ-ACK bits.
-    d_pri = select_pri(pucch_slot_alloc, ue_cell_cfg, new_bits, nullptr);
-
-    if (not d_pri.has_value()) {
-      alloc_ctx.log_skipped_alloc(logger.debug, "no resource indicator available for dedicated PUCCH resource");
-      return std::nullopt;
-    }
+  const std::optional<unsigned> d_pri = select_pri(pucch_slot_alloc, ue_cell_cfg, new_bits, nullptr);
+  if (not d_pri.has_value()) {
+    alloc_ctx.log_skipped_alloc(logger.debug, "no resource indicator available for dedicated PUCCH resource");
+    return std::nullopt;
   }
 
-  auto new_grants = multiplex_and_allocate_pucch(
-      pucch_slot_alloc, new_bits, old_grants, ue_cell_cfg, d_pri.has_value() ? *d_pri : old_grants.d_pri, alloc_ctx);
+  auto new_grants =
+      multiplex_and_allocate_pucch(pucch_slot_alloc, new_bits, old_grants, ue_cell_cfg, *d_pri, alloc_ctx);
 
   if (not new_grants.has_value()) {
     return std::nullopt;
@@ -502,6 +507,11 @@ std::optional<unsigned> pucch_allocator_impl::select_pri(const cell_slot_resourc
                                                          const pucch_uci_bits&               bits,
                                                          const dci_context_information*      dci_info)
 {
+  const bool use_res_set_1 = uci_bits_need_res_set_1(bits);
+
+  // Returns the HARQ-ACK resource of the resource set being reserved.
+  auto get_res = use_res_set_1 ? pucch_helper::get_harq_resource<1> : pucch_helper::get_harq_resource<0>;
+
   if (cell_cfg.is_pucch_f0_and_f2() and (bits.csi_part1_nof_bits != 0U or bits.sr_bits != sr_nof_bits::no_sr)) {
     // In the F0+F2 case, the PRI used for the HARQ-ACK is restricted if CSI or SR is multiplexed with it.
     unsigned d_pri =
@@ -512,12 +522,7 @@ std::optional<unsigned> pucch_allocator_impl::select_pri(const cell_slot_resourc
         return std::nullopt;
       }
     }
-    const auto& res0 = pucch_helper::get_harq_resource<0>(ue_cell_cfg, d_pri);
-    if (not col_manager.can_alloc(pucch_slot_alloc, res0, ue_cell_cfg.crnti)) {
-      return std::nullopt;
-    }
-    const auto& res1 = pucch_helper::get_harq_resource<1>(ue_cell_cfg, d_pri);
-    if (not col_manager.can_alloc(pucch_slot_alloc, res1, ue_cell_cfg.crnti)) {
+    if (not col_manager.can_alloc(pucch_slot_alloc, get_res(ue_cell_cfg, d_pri), ue_cell_cfg.crnti)) {
       return std::nullopt;
     }
     return d_pri;
@@ -530,12 +535,7 @@ std::optional<unsigned> pucch_allocator_impl::select_pri(const cell_slot_resourc
         continue;
       }
     }
-    const auto& res0 = pucch_helper::get_harq_resource<0>(ue_cell_cfg, d_pri);
-    if (not col_manager.can_alloc(pucch_slot_alloc, res0, ue_cell_cfg.crnti)) {
-      continue;
-    }
-    const auto& res1 = pucch_helper::get_harq_resource<1>(ue_cell_cfg, d_pri);
-    if (not col_manager.can_alloc(pucch_slot_alloc, res1, ue_cell_cfg.crnti)) {
+    if (not col_manager.can_alloc(pucch_slot_alloc, get_res(ue_cell_cfg, d_pri), ue_cell_cfg.crnti)) {
       continue;
     }
     return d_pri;
