@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
+#include "ocudu/adt/detail/concurrent_queue_params.h"
 #include "ocudu/phy/upper/log_likelihood_ratio.h"
+#include "ocudu/phy/upper/rx_buffer_decoder_callback.h"
 #include "ocudu/phy/upper/rx_buffer_pool.h"
 #include "ocudu/phy/upper/unique_rx_buffer.h"
 #include "ocudu/support/executors/task_worker_pool.h"
+#include "ocudu/support/synchronization/sync_event.h"
 #include <gtest/gtest.h>
+#include <limits>
 
 using namespace ocudu;
 
@@ -59,6 +63,40 @@ inline unique_rx_buffer reserve_buffer_trial(rx_buffer_pool&       pool,
 }
 
 } // namespace ocudu
+
+namespace {
+
+/// Test decoder callback class.
+class test_decoder_callback : private rx_buffer_decoder_callback
+{
+public:
+  /// Gets the reference of the callback interface.
+  rx_buffer_decoder_callback& get_callback()
+  {
+    sync_token = sync.get_token();
+    return *this;
+  }
+
+  /// Waits for the callback to be called.
+  void wait_callback() { sync.wait(); }
+
+  /// Gets the last codeblock identifier.
+  unsigned get_last_codeblock_id() const { return last_codeblock_id; }
+
+private:
+  // See the rx_buffer_decoder_callback interface for documentation.
+  void codeblock_decode(unsigned codeblock_id) override
+  {
+    sync_token.reset();
+    last_codeblock_id = codeblock_id;
+  }
+
+  sync_event        sync;
+  scoped_sync_token sync_token;
+  unsigned          last_codeblock_id = std::numeric_limits<unsigned>::max();
+};
+
+} // namespace
 
 // Tests that the pool returns nullptr when the limit of buffers is reached.
 TEST(rx_buffer_pool, buffer_limit)
@@ -527,7 +565,7 @@ TEST(rx_buffer_pool, wait_to_stop)
       pool->get_pool().reserve(slot, trx_buffer_identifier(to_rnti(0), 0), pool_config.nof_codeblocks, true);
 
   // Create asynchronous task for unlocking the buffer.
-  std::thread async_unlock([&buffer]() {
+  std::thread async_unlock([&buffer] {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     buffer.unlock();
   });
@@ -596,6 +634,190 @@ TEST(rx_buffer_pool, concurrent)
 
   // Stop workers before destroying them.
   release_worker_pool.stop();
+}
+
+// Tests decode_cb_in_sequence() in order.
+TEST(rx_buffer_pool, decode_cb_in_sequence_ordered)
+{
+  static constexpr trx_buffer_identifier buffer_id(to_rnti(0x1234), 0);
+  static constexpr unsigned              nof_repetitions = 4;
+  static constexpr unsigned              nof_codeblocks  = 2;
+  static constexpr unsigned              codeblock_id    = nof_codeblocks - 1;
+
+  rx_buffer_pool_config pool_config;
+  pool_config.max_codeblock_size   = 16;
+  pool_config.nof_buffers          = 1;
+  pool_config.nof_codeblocks       = nof_codeblocks + 1;
+  pool_config.expire_timeout_slots = 10;
+  pool_config.external_soft_bits   = false;
+
+  slot_point slot(0, 0);
+
+  std::unique_ptr<rx_buffer_pool_controller> pool = create_rx_buffer_pool(pool_config);
+  ASSERT_TRUE(pool);
+
+  // Reserve a buffer for each repetition.
+  for (unsigned i_rep = 0; i_rep != nof_repetitions; ++i_rep) {
+    // Reserve buffer from the main thread. Only the first reservation shall reset CRCs.
+    unique_rx_buffer buffer = pool->get_pool().reserve(slot, buffer_id, nof_codeblocks, i_rep == 0);
+
+    // Decoder callback.
+    test_decoder_callback callback;
+
+    // Request decode in sequence.
+    buffer.decode_cb_in_sequence(codeblock_id, callback.get_callback());
+
+    // Wait for the callback.
+    callback.wait_callback();
+
+    // Assert the codeblock identifier matches with the expected.
+    ASSERT_EQ(codeblock_id, callback.get_last_codeblock_id());
+
+    // Unlock buffer, it shall execute the next repetition.
+    buffer.unlock();
+  }
+}
+
+// Tests decode_cb_in_sequence() with unordered concurrent access.
+TEST(rx_buffer_pool, decode_cb_in_sequence_concurrent)
+{
+  static constexpr trx_buffer_identifier buffer_id(to_rnti(0x1234), 0);
+  static constexpr unsigned              nof_repetitions = 8;
+  static constexpr unsigned              nof_codeblocks  = 2;
+  static constexpr unsigned              codeblock_id    = nof_codeblocks - 1;
+
+  rx_buffer_pool_config pool_config;
+  pool_config.max_codeblock_size   = 16;
+  pool_config.nof_buffers          = 1;
+  pool_config.nof_codeblocks       = nof_codeblocks + 1;
+  pool_config.expire_timeout_slots = 10;
+  pool_config.external_soft_bits   = false;
+
+  slot_point slot(0, 0);
+
+  std::unique_ptr<rx_buffer_pool_controller> pool = create_rx_buffer_pool(pool_config);
+  ASSERT_TRUE(pool);
+
+  std::vector<unsigned> decode_sequence;
+  decode_sequence.reserve(nof_repetitions);
+
+  // Thread signaling for ensuring a deterministic unordered decode.
+  std::vector<sync_event>        thread_order_sync(nof_repetitions);
+  std::vector<scoped_sync_token> thread_order_token;
+  thread_order_token.reserve(nof_repetitions);
+  std::transform(thread_order_sync.begin(),
+                 thread_order_sync.end(),
+                 std::back_inserter(thread_order_token),
+                 [](sync_event& sync) { return sync.get_token(); });
+
+  // Reserve a buffer for each repetition and execute the decoding asynchronously.
+  std::vector<std::thread> threads;
+  threads.reserve(nof_repetitions);
+  for (unsigned i_rep = 0; i_rep != nof_repetitions; ++i_rep) {
+    // Reserve buffer from the main thread. Only the first reservation shall reset CRCs.
+    unique_rx_buffer buffer = pool->get_pool().reserve(slot, buffer_id, nof_codeblocks, i_rep == 0);
+
+    unique_task task =
+        [&decode_sequence, &thread_order_sync, &thread_order_token, i_rep, local_buffer = std::move(buffer)]() mutable {
+          // Wait for this thread turn to request execution.
+          thread_order_sync[i_rep].wait();
+
+          // Decoder callback.
+          test_decoder_callback callback;
+
+          // Request decode in sequence.
+          local_buffer.decode_cb_in_sequence(codeblock_id, callback.get_callback());
+
+          // Trigger another thread to decode in sequence.
+          thread_order_token[((i_rep + 3) * 5) % nof_repetitions].reset();
+
+          // Wait for the callback.
+          callback.wait_callback();
+
+          // Write the current repetition identifier in the list.
+          decode_sequence.push_back(i_rep);
+
+          // Unlock buffer, it shall execute the next repetition.
+          local_buffer.unlock();
+        };
+
+    // Create asynchronous thread.
+    threads.emplace_back([local_task = std::move(task)] { local_task(); });
+  }
+
+  // Trigger first thread to start.
+  thread_order_token.front().reset();
+
+  // Join threads.
+  std::for_each(threads.rbegin(), threads.rend(), [](std::thread& thread) { thread.join(); });
+
+  // Generate expected sequence.
+  std::vector<unsigned> expected_sequence(nof_repetitions);
+  std::iota(expected_sequence.begin(), expected_sequence.end(), 0);
+
+  // Make sure the decode sequence matches the expected.
+  ASSERT_EQ(decode_sequence, expected_sequence);
+}
+
+// Test that covers the external_soft_bits=true constructor path.
+TEST(rx_buffer_pool, external_soft_bits)
+{
+  static constexpr unsigned nof_codeblocks = 2;
+
+  rx_buffer_pool_config pool_config;
+  pool_config.max_codeblock_size   = 16;
+  pool_config.nof_buffers          = 1;
+  pool_config.nof_codeblocks       = nof_codeblocks + 1;
+  pool_config.expire_timeout_slots = 10;
+  pool_config.external_soft_bits   = true;
+
+  slot_point slot(0, 0);
+
+  std::unique_ptr<rx_buffer_pool_controller> pool = create_rx_buffer_pool(pool_config);
+  ASSERT_TRUE(pool);
+
+  trx_buffer_identifier buffer_id(to_rnti(0x1234), 0);
+  unique_rx_buffer      buffer = pool->get_pool().reserve(slot, buffer_id, nof_codeblocks, true);
+  ASSERT_TRUE(buffer);
+
+  ASSERT_EQ(buffer->get_nof_codeblocks(), nof_codeblocks);
+}
+
+// Test that exercises the on_release().
+TEST(rx_buffer_pool, multi_scope_release)
+{
+  static constexpr unsigned nof_codeblocks = 2;
+
+  rx_buffer_pool_config pool_config;
+  pool_config.max_codeblock_size   = 16;
+  pool_config.nof_buffers          = 1;
+  pool_config.nof_codeblocks       = nof_codeblocks + 1;
+  pool_config.expire_timeout_slots = 10;
+  pool_config.external_soft_bits   = false;
+
+  slot_point slot(0, 0);
+
+  std::unique_ptr<rx_buffer_pool_controller> pool = create_rx_buffer_pool(pool_config);
+  ASSERT_TRUE(pool);
+
+  trx_buffer_identifier buffer_id(to_rnti(0x1234), 0);
+
+  // First reservation.
+  unique_rx_buffer buffer1 = pool->get_pool().reserve(slot, buffer_id, nof_codeblocks, true);
+  ASSERT_TRUE(buffer1);
+
+  // Second reservation. The codeblock count must match for retransmissions.
+  unique_rx_buffer buffer2 = pool->get_pool().reserve(slot, buffer_id, nof_codeblocks, false);
+  ASSERT_TRUE(buffer2);
+
+  // Release buffer1.
+  buffer1.release();
+
+  // Release buffer2.
+  buffer2.release();
+
+  // Run slot to process the release and free codeblocks.
+  pool->get_pool().run_slot(slot);
 }
 
 int main(int argc, char** argv)

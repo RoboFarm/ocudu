@@ -54,7 +54,7 @@ rx_buffer_pool_impl::reserve(slot_point slot, trx_buffer_identifier id, unsigned
   rx_buffer_impl& buffer = buffers[i_buffer];
 
   // Make sure that the number codeblocks do not change for retransmissions.
-  if (!new_data && nof_codeblocks != buffer.get_nof_codeblocks()) {
+  if (!new_data && (nof_codeblocks != buffer.get_nof_codeblocks())) {
     logger.warning(slot.sfn(),
                    slot.slot_index(),
                    "UL HARQ {}: failed to reserve buffer, number of codeblocks for retransmission do not match.",
@@ -80,12 +80,12 @@ rx_buffer_pool_impl::reserve(slot_point slot, trx_buffer_identifier id, unsigned
   expirations[i_buffer] = slot + expire_timeout_slots;
 
   // Create buffer.
-  return unique_rx_buffer(buffer);
+  return unique_rx_buffer(buffer, buffer.fetch_and_increment_repetition_id());
 }
 
 void rx_buffer_pool_impl::run_slot(slot_point slot)
 {
-  // Predicate for finding available buffers.
+  // Predicate for finding reserved buffers.
   auto pred = [](trx_buffer_identifier id) { return id != trx_buffer_identifier::invalid(); };
 
   // Iterate over all the buffers that are currently reserved.

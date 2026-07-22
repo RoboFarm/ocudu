@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ocudu/phy/upper/rx_buffer.h"
+#include "ocudu/phy/upper/rx_buffer_decoder_callback.h"
 #include "ocudu/support/ocudu_assert.h"
 
 namespace ocudu {
@@ -16,17 +17,24 @@ namespace ocudu {
 class unique_rx_buffer
 {
 public:
-  /// \brief Public interface required for locking and unlocking the internal buffer.
+  /// \brief Buffer management interface.
   ///
-  /// The implementation must be thread safe. In other words, lock(), unlock() and release() might be called from
-  /// different threads.
-  class callback : public rx_buffer
+  /// Public interface to access the buffer pool for sequenced decoding, locking, and unlocking the underlying buffer.
+  ///
+  /// The implementation must be thread safe. In other words, unlock() and release() might be called from different
+  /// threads.
+  class buffer_management : public rx_buffer
   {
   public:
-    /// \brief Try to lock the buffer.
+    /// \brief Execute a codeblock decode in sequence.
     ///
-    /// \return \c true if the lock is successful, otherwise \c false.
-    virtual bool try_lock() = 0;
+    /// \param[in] retransmission    Retransmission identifier.
+    /// \param[in] codeblock_id      Codeblock identifier within the transport block to decode.
+    /// \param[in] decoder_callback  Decoder callback object. The implementing \c codeblock_decode method is invoked
+    ///                              when the codeblock is ready to be decoded.
+    virtual void decode_cb_in_sequence(unsigned                    retransmission,
+                                       unsigned                    codeblock_id,
+                                       rx_buffer_decoder_callback& decoder_callback) = 0;
 
     /// Unlocks the buffer.
     virtual void unlock() = 0;
@@ -39,15 +47,11 @@ public:
   explicit unique_rx_buffer() = default;
 
   /// \brief Builds a unique buffer from a buffer reference.
-  ///
-  /// It tries to lock the underlying instance. If the locking fails, the buffer will be invalid.
-  explicit unique_rx_buffer(callback& instance_) : ptr(&instance_)
+  /// \param[in] instance_        Reference to the actual receive buffer.
+  /// \param[in] retransmission_  Retransmission identifier.
+  unique_rx_buffer(buffer_management& instance_, unsigned retransmission_ = 0) :
+    ptr(&instance_), retransmission(retransmission_)
   {
-    if (ptr != nullptr) {
-      if (!ptr->try_lock()) {
-        ptr = nullptr;
-      }
-    }
   }
 
   /// Destructor - it unlocks the buffer.
@@ -65,8 +69,9 @@ public:
   /// Move constructor is the only way to move the buffer to a different scope.
   unique_rx_buffer(unique_rx_buffer&& other) noexcept
   {
-    ptr       = other.ptr;
-    other.ptr = nullptr;
+    ptr            = other.ptr;
+    retransmission = other.retransmission;
+    other.ptr      = nullptr;
   }
 
   /// Move assignment operator.
@@ -78,8 +83,9 @@ public:
     }
 
     // Move the other soft buffer ownership to the current soft buffer.
-    ptr       = other.ptr;
-    other.ptr = nullptr;
+    ptr            = other.ptr;
+    retransmission = other.retransmission;
+    other.ptr      = nullptr;
 
     return *this;
   }
@@ -125,9 +131,29 @@ public:
     ptr = nullptr;
   }
 
+  /// \brief Execute a codeblock decode in sequence.
+  ///
+  /// Enqueues the given decoder callback for the specified codeblock and either executes it immediately or queues it
+  /// for deferred sequential execution.
+  ///
+  /// This function is thread-safe but not suitable for real-time operation because it locks a mutex for protecting the
+  /// concurrent access.
+  ///
+  /// \param[in] codeblock_id      Codeblock identifier within the transport block to decode.
+  /// \param[in] decoder_callback  Decoder callback object. The implementing \c codeblock_decode method is invoked when
+  ///                              the codeblock is ready to be decoded.
+  void decode_cb_in_sequence(unsigned codeblock_id, rx_buffer_decoder_callback& decoder_callback)
+  {
+    ptr->decode_cb_in_sequence(retransmission, codeblock_id, decoder_callback);
+  }
+
 private:
   /// Underlying pointer to the buffer. Set to nullptr for an invalid buffer.
-  callback* ptr = nullptr;
+  buffer_management* ptr = nullptr;
+  /// \brief Current retransmission index (0...31) configured in the buffer.
+  ///
+  /// The retransmission index is used for the sequential decode.
+  unsigned retransmission = std::numeric_limits<unsigned>::max();
 };
 
 } // namespace ocudu

@@ -356,7 +356,7 @@ TEST_P(PuschProcessorFixture, PuschProcessorUnittest)
 
   // Create receive buffer.
   rx_buffer_spy    rm_buffer_spy;
-  unique_rx_buffer rm_buffer(rm_buffer_spy);
+  unique_rx_buffer rm_buffer(rm_buffer_spy, 0);
 
   // Resource grid spy.
   resource_grid_reader_spy rg_spy;
@@ -512,7 +512,7 @@ TEST_P(PuschProcessorFixture, HealthTestFormatterInfo)
 
   // Create receive buffer.
   rx_buffer_spy    rm_buffer_spy;
-  unique_rx_buffer rm_buffer(rm_buffer_spy);
+  unique_rx_buffer rm_buffer(rm_buffer_spy, 0);
 
   // Resource grid spy.
   resource_grid_reader_spy rg_spy;
@@ -533,7 +533,7 @@ TEST_P(PuschProcessorFixture, HealthTestFormatterDebug)
 
   // Create receive buffer.
   rx_buffer_spy    rm_buffer_spy;
-  unique_rx_buffer rm_buffer(rm_buffer_spy);
+  unique_rx_buffer rm_buffer(rm_buffer_spy, 0);
 
   // Resource grid spy.
   resource_grid_reader_spy rg_spy;
