@@ -45,7 +45,7 @@ protected:
   shared_resource_grid_spy                              shared_grid;
   uplane_rx_symbol_notifier_spy*                        notifier;
   std::shared_ptr<uplink_cplane_context_repository>     ul_cplane_context_repo_ptr =
-      std::make_shared<uplink_cplane_context_repository>(1);
+      std::make_shared<uplink_cplane_context_repository>(1, ul_eaxc);
   std::shared_ptr<uplink_context_repository> ul_context_repo = std::make_shared<uplink_context_repository>(1);
   uplane_message_decoder_spy*                uplane_decoder;
   data_flow_uplane_uplink_data_impl          data_flow;

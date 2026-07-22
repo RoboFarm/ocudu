@@ -14,6 +14,7 @@
 #include "ocudu/ofh/ethernet/ethernet_frame_builder.h"
 #include "ocudu/ofh/serdes/ofh_uplane_message_builder.h"
 #include "ocudu/ran/cyclic_prefix.h"
+#include <algorithm>
 
 namespace ocudu {
 struct resource_grid_context;
@@ -58,17 +59,27 @@ struct data_flow_uplane_downlink_data_impl_dependencies {
 template <bool Enabled = true>
 class ofh_uplane_trace_names
 {
-  std::array<std::string, MAX_SUPPORTED_EAXC_ID_VALUE> trace_names;
+  /// eAxC IDs span the full 16-bit range per O-RAN.WG4.CUS-Spec section 3.1.3.1.6, so names are stored per configured
+  /// eAxC instead of in an array densely indexed by eAxC value.
+  static_vector<std::pair<unsigned, std::string>, MAX_NOF_SUPPORTED_EAXC> trace_names;
 
 public:
   explicit ofh_uplane_trace_names(span<const unsigned> dl_eaxc)
   {
     for (unsigned eaxc : dl_eaxc) {
-      trace_names[eaxc] = fmt::format("ofh_uplane_eaxc_{}", eaxc);
+      trace_names.emplace_back(eaxc, fmt::format("ofh_uplane_eaxc_{}", eaxc));
     }
   }
 
-  const std::string& operator[](std::size_t eaxc) const { return trace_names[eaxc]; }
+  const std::string& operator[](std::size_t eaxc) const
+  {
+    auto it = std::find_if(trace_names.begin(), trace_names.end(), [eaxc](const auto& entry) { return entry.first == eaxc; });
+    if (it != trace_names.end()) {
+      return it->second;
+    }
+    static const std::string unknown_eaxc = "ofh_uplane_eaxc_unknown";
+    return unknown_eaxc;
+  }
 };
 
 /// Specialization of ofh_uplane_trace_names used when OFH event tracing is disabled.

@@ -171,8 +171,8 @@ std::unique_ptr<sector> ocudu::ofh::create_ofh_sector(const sector_configuration
 {
   unsigned repository_size = calculate_repository_size(sector_cfg.scs, sector_cfg.max_processing_delay_slots * 4);
 
-  auto cp_repo                      = std::make_shared<uplink_cplane_context_repository>(repository_size);
-  auto prach_cp_repo                = std::make_shared<uplink_cplane_context_repository>(repository_size);
+  auto cp_repo       = std::make_shared<uplink_cplane_context_repository>(repository_size, sector_cfg.ul_eaxc);
+  auto prach_cp_repo = std::make_shared<uplink_cplane_context_repository>(repository_size, sector_cfg.prach_eaxc);
   auto ul_prach_repo                = std::make_shared<prach_context_repository>(repository_size);
   auto ul_data_repo                 = std::make_shared<uplink_context_repository>(repository_size);
   auto ul_grid_symbol_notified_repo = std::make_shared<uplink_notified_grid_symbol_repository>(repository_size);
