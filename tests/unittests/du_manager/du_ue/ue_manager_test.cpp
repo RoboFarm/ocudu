@@ -354,9 +354,9 @@ public:
     if (is_mac_rlf_cause(cause)) {
       mac_rlf_notifier.on_rlf_detected(to_mac_rlf_cause(cause));
     } else if (cause == rlf_cause::max_rlc_retxs_reached) {
-      rlc_rlf_notifier.on_max_retx();
+      rlc_rlf_notifier.on_max_retx(drb_id_t::drb1);
     } else {
-      rlc_rlf_notifier.on_protocol_failure();
+      rlc_rlf_notifier.on_protocol_failure(drb_id_t::drb1);
     }
   }
 

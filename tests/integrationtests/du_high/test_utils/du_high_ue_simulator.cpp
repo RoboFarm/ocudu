@@ -83,8 +83,8 @@ class du_high_ue_simulator::rlc_bearer_adapter : public rlc_tx_lower_layer_notif
 public:
   void on_buffer_state_update(const rlc_buffer_state& bsr) override { last_reported_bo = bsr; }
 
-  void on_protocol_failure() override {}
-  void on_max_retx() override {}
+  void on_protocol_failure(rb_id_t rb_id) override {}
+  void on_max_retx(rb_id_t rb_id) override {}
 
   void on_transmitted_sdu(uint32_t max_tx_pdcp_sn, uint32_t desired_buf_size) override {}
   void on_delivered_sdu(uint32_t max_deliv_pdcp_sn) override {}

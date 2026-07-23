@@ -19,9 +19,9 @@ namespace {
 class dummy_rlc_rlf_notifier : public rlc_tx_upper_layer_control_notifier
 {
 public:
-  void on_protocol_failure() override {}
+  void on_protocol_failure(rb_id_t rb_id) override {}
 
-  void on_max_retx() override {}
+  void on_max_retx(rb_id_t rb_id) override {}
 };
 
 } // namespace

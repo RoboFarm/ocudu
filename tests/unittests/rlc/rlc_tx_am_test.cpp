@@ -67,8 +67,8 @@ public:
   }
 
   // rlc_tx_upper_layer_control_notifier interface
-  void on_protocol_failure() override { proto_err_count++; }
-  void on_max_retx() override { max_retx_count++; }
+  void on_protocol_failure(rb_id_t rb_id) override { proto_err_count++; }
+  void on_max_retx(rb_id_t rb_id) override { max_retx_count++; }
 
   // rlc_tx_buffer_state_update_notifier interface
   void on_buffer_state_update(const rlc_buffer_state& bs) override
