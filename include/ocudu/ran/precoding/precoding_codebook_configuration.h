@@ -32,6 +32,22 @@ struct pmi_codebook_typeI_single_panel {
   pmi_codebook_typeI_mode mode;
 };
 
+/// \brief Precoding Matrix Indicator (PMI) codebook configuration for Type II.
+///
+/// The configuration is given by higher layer parameters <em>n1-n2</em>, \e numberOfBeams, \e phaseAlphabetSize and
+/// \e subbandAmplitude in the Information Element \e CodebookConfig in TS38.331 Section 6.3.2. The Type II codebook is
+/// described in TS38.214 Section 5.2.2.2.3.
+struct pmi_codebook_typeII {
+  /// Spatial-beam panel configuration \f$(N_1, N_2)\f$, same as the single-panel table.
+  pmi_codebook_single_panel_config n1_n2;
+  /// Number of combined beams \f$L\f$. Valid values are {2, 3, 4}.
+  bounded_integer<unsigned, 2, 4> nof_beams;
+  /// Phase-alphabet size \f$N_{PSK}\f$.
+  pmi_codebook_typeII_phase_size phase_alphabet_size;
+  /// Subband-amplitude reporting flag.
+  bool subband_amplitude;
+};
+
 /// Defines the PMI codebook configuration types.
 using pmi_codebook_config =
     std::variant<std::monostate, pmi_codebook_one_port, pmi_codebook_two_port, pmi_codebook_typeI_single_panel>;

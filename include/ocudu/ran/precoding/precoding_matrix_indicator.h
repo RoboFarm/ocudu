@@ -4,7 +4,10 @@
 
 #pragma once
 
+#include "precoding_codebook_helpers.h"
+#include "ocudu/adt/static_vector.h"
 #include "ocudu/ran/precoding/precoding_codebook_configuration.h"
+#include <cstdint>
 #include <optional>
 #include <variant>
 
@@ -39,7 +42,41 @@ struct pmi_typeI_single_panel {
   unsigned i_2;
 };
 
+/// \brief Precoding Matrix Indicator (PMI) field for the Type II codebook.
+///
+/// This PMI codebook is described in TS38.214 Section 5.2.2.2.3. The wideband parameters (beam selection \f$i_{1,1}\f$,
+/// group selection \f$i_{1,2}\f$, strongest beam \f$i_{1,3,l}\f$ and wideband amplitudes \f$i_{1,4,l}\f$) apply
+/// to the whole band, whereas the phase \f$i_{2,1,l}\f$ and optional subband amplitude \f$i_{2,2,l}\f$ coefficients
+/// apply to a single subband.
+struct pmi_typeII {
+  /// \brief Per-layer Type II combining coefficients.
+  ///
+  /// Each coefficient vector holds one entry per beam and polarization, i.e. 2*L entries.
+  struct layer_coefficients {
+    /// PMI parameter \f$i_{1,3,l}\f$. Strongest-coefficient index, {0, ..., 2L-1}.
+    unsigned i_1_3;
+    /// PMI parameter \f$i_{1,4,l}\f$. Wideband amplitude indices, one per beam and polarization.
+    static_vector<uint8_t, max_nof_typeII_beams * 2> i_1_4;
+    /// PMI parameter \f$i_{2,1,l}\f$. Phase coefficient indices, one per beam and polarization.
+    static_vector<uint8_t, max_nof_typeII_beams * 2> i_2_1;
+    /// PMI parameter \f$i_{2,2,l}\f$. Subband amplitude indices, one per beam and polarization. Empty when subband
+    /// amplitude reporting is disabled.
+    static_vector<uint8_t, max_nof_typeII_beams * 2> i_2_2;
+  };
+
+  /// Type II codebook configuration.
+  pmi_codebook_typeII config;
+  /// PMI parameter \f$i_{1,1}\f$, encoding the beam selection parameters \f$(q_1, q_2)\f$ inside a group.
+  unsigned i_1_1;
+  /// PMI parameter \f$i_{1,2}\f$, the combinatorial \f$L\f$-beam group selection index, as per TS38.214
+  /// Table 5.2.2.2.3-1.
+  unsigned i_1_2;
+  /// Per-layer combining coefficients, one entry per layer. The Type II codebook supports rank 1 or 2.
+  static_vector<layer_coefficients, 2> layers;
+};
+
 /// Unified Precoding Matrix Indicator (PMI) type.
-using precoding_matrix_indicator = std::variant<std::monostate, pmi_two_antenna_port, pmi_typeI_single_panel>;
+using precoding_matrix_indicator =
+    std::variant<std::monostate, pmi_two_antenna_port, pmi_typeI_single_panel, pmi_typeII>;
 
 } // namespace ocudu
