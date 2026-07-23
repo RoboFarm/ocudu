@@ -375,7 +375,7 @@ io_broker::subscriber io_broker_epoll::register_fd(unique_fd        fd,
 
   if (std::this_thread::get_id() == thread.get_id()) {
     // Registration from within the epoll thread.
-    if (handle_fd_registration(std::move(fd), handler, err_handler, nullptr, nullptr)) {
+    if (handle_fd_registration(std::move(fd), handler, err_handler, &executor, nullptr)) {
       return subscriber{*this, raw_fd};
     }
     return subscriber{};

@@ -487,26 +487,25 @@ void sctp_network_server_impl::handle_sctp_comm_up(const struct sctp_assoc_chang
     return;
   }
 
-  /// Register peeled-off socket in IO broker.
-  if (not subscribe_association_to_broker(std::move(assoc_fd), assoc_ctxt)) {
-    logger.error("Connection loss due to IO broker subscription failure");
-    handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
-    remove_association(assoc_ctxt.assoc_id);
-    return;
-  }
-
   logger.info("{} assoc={}: New client SCTP association (client_addr={})", node_cfg.if_name, assoc_id, assoc_ctxt.addr);
 
   // If this was a pending outgoing connection, defer to enqueue the success signal so that any tasks enqueued by the
   // assoc_factory.create() callback can run before the awaiting coroutine resumes.
   // Signaling inline here would resume the coroutine within this task, before the enqueued tasks that connect the
   // notifiers have a chance to finish.
-  while (not app_exec.defer([this, addr = assoc_ctxt.addr]() {
+  while (not app_exec.defer([this, addr = assoc_ctxt.addr, assoc_fd = std::move(assoc_fd), &assoc_ctxt]() mutable {
     auto pending_it = std::find_if(pending_connects.begin(),
                                    pending_connects.end(),
                                    [&addr](const pending_connect& pending) { return pending.contains(addr); });
     if (pending_it != pending_connects.end()) {
       pending_it->event.set(true);
+    }
+    /// Register peeled-off socket in IO broker.
+    if (not subscribe_association_to_broker(std::move(assoc_fd), assoc_ctxt)) {
+      logger.error("Connection loss due to IO broker subscription failure");
+      handle_association_shutdown(assoc_ctxt.assoc_id, "IO broker error");
+      remove_association(assoc_ctxt.assoc_id);
+      return;
     }
   })) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
