@@ -12,8 +12,12 @@
 
 namespace ocudu::ocucp {
 
-/// \brief Generate a dummy Handover Request message.
-xnap_message generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id);
+/// \brief Generate a dummy Handover Request message. \c include_drb_to_qos_flow_mapping controls whether the
+/// source's DRB-to-QoS-flow mapping (DRB1 <-> QFI1, matching the admitted PDU session) is included via the Data
+/// Forwarding and Offloading Info from source NG-RAN node IE, letting the target confirm and prefer DRB1's
+/// numbering (TS 38.423 Section 9.2.1.17). Pass false to simulate a source that didn't signal it.
+xnap_message generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id,
+                                       bool               include_drb_to_qos_flow_mapping = true);
 
 /// \brief Generate a dummy Handover Preparation Failure message.
 xnap_message generate_handover_preparation_failure(peer_xnap_ue_id_t peer_xnap_ue_id);

@@ -201,6 +201,49 @@ TEST_F(xnap_handover_preparation_procedure_test, when_handover_request_ack_recei
   ASSERT_TRUE(t.get().success);
 }
 
+/// Test that the Handover Request reports this source's own DRB-to-QoS-flow mapping via the Data Forwarding and
+/// Offloading Info from source NG-RAN node IE (TS 38.423 Section 9.2.1.17), so the target can prefer the same DRB
+/// numbering during admission instead of allocating DRB IDs blind to the source's own configuration.
+TEST_F(xnap_handover_preparation_procedure_test, when_handover_request_sent_then_drb_to_qos_flow_mapping_is_reported)
+{
+  // Run XN setup.
+  run_xn_setup(xnap_peer_cfg);
+
+  // Create UE context.
+  cu_cp_ue_index_t ue_index = create_ue();
+
+  // Generate Security context for the UE.
+  security::security_context sec_ctxt = generate_security_context(ue_mng.find_ue(ue_index)->get_security_manager());
+  xnap_handover_request      request  = generate_handover_request(ue_index, sec_ctxt);
+
+  // Report this source's DRB1 <-> QFI0 mapping, matching the PDU session set up by generate_handover_request().
+  ngap_pdu_session_res_info_item pdu_session_res_info_item;
+  pdu_session_res_info_item.pdu_session_id = pdu_session_id_t::min;
+  ngap_drbs_to_qos_flows_map_item drb_item;
+  drb_item.drb_id = drb_id_t::drb1;
+  drb_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qos_flow_id_t::min, std::nullopt});
+  pdu_session_res_info_item.drbs_to_qos_flows_map_list.push_back(drb_item);
+  request.ue_context_info_ho_request.pdu_session_res_info_list.push_back(pdu_session_res_info_item);
+
+  // Action: Launch HO preparation procedure.
+  async_task<xnap_handover_preparation_response>         t = xnap->handle_handover_request_required(request);
+  lazy_task_launcher<xnap_handover_preparation_response> t_launcher(t);
+
+  xnap_message sent_msg = get_last_message();
+  ASSERT_EQ(sent_msg.pdu.init_msg().value.type().value,
+            asn1::xnap::xnap_elem_procs_o::init_msg_c::types_opts::ho_request);
+  const auto& ho_request = sent_msg.pdu.init_msg().value.ho_request();
+
+  ASSERT_EQ(ho_request->ue_context_info_ho_request.pdu_session_res_to_be_setup_list.size(), 1U);
+  const auto& asn1_pdu_session_item = ho_request->ue_context_info_ho_request.pdu_session_res_to_be_setup_list[0];
+  ASSERT_TRUE(asn1_pdu_session_item.dataforwardinginfofrom_source_present);
+  ASSERT_EQ(asn1_pdu_session_item.dataforwardinginfofrom_source.source_drb_to_qos_flow_map.size(), 1U);
+  const auto& asn1_drb_item = asn1_pdu_session_item.dataforwardinginfofrom_source.source_drb_to_qos_flow_map[0];
+  EXPECT_EQ(asn1_drb_item.drb_id, 1U);
+  ASSERT_EQ(asn1_drb_item.qos_flows_list.size(), 1U);
+  EXPECT_EQ(asn1_drb_item.qos_flows_list[0].qfi, 0U);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //                             Target CU-CP
 ///////////////////////////////////////////////////////////////////////////////

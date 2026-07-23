@@ -73,7 +73,9 @@ public:
     return ue_ctx != nullptr;
   }
 
-  [[nodiscard]] bool send_handover_request_and_await_bearer_context_setup_request(local_xnap_ue_id_t local_xnap_ue_id)
+  [[nodiscard]] bool
+  send_handover_request_and_await_bearer_context_setup_request(local_xnap_ue_id_t local_xnap_ue_id,
+                                                               bool include_drb_to_qos_flow_mapping = true)
   {
     report_fatal_error_if_not(not this->get_amf().try_pop_rx_pdu(ngap_pdu),
                               "there are still NGAP messages to pop from AMF");
@@ -85,7 +87,8 @@ public:
                               "there are still XNAP messages to pop from XN-C peer CU-CP");
 
     // Inject Handover Request and wait for Bearer Context Setup Request.
-    get_xnc_cu_cp(xnc_peer_idx).push_tx_pdu(generate_handover_request(local_xnap_ue_id));
+    get_xnc_cu_cp(xnc_peer_idx)
+        .push_tx_pdu(generate_handover_request(local_xnap_ue_id, include_drb_to_qos_flow_mapping));
     report_fatal_error_if_not(this->wait_for_e1ap_tx_pdu(cu_up_idx, e1ap_pdu),
                               "Failed to receive Bearer Context Setup Request");
     report_fatal_error_if_not(test_helpers::is_valid_bearer_context_setup_request(e1ap_pdu),
@@ -547,6 +550,44 @@ TEST_F(cu_cp_inter_cu_xn_handover_test, when_sn_status_transfer_contains_drb_not
   const auto& drbs_to_modify = pdu_sessions[0].drb_to_modify_list_ng_ran;
   ASSERT_EQ(drbs_to_modify.size(), 1U);
   EXPECT_EQ(drbs_to_modify[0].drb_id, 1);
+
+  // The handover must still complete normally afterwards.
+  ASSERT_TRUE(send_bearer_context_modification_response());
+  ASSERT_TRUE(send_rrc_reconfiguration_complete_and_await_path_switch_request());
+  ASSERT_TRUE(send_path_switch_request_ack_and_await_ue_context_modification_request());
+  ASSERT_TRUE(send_ue_context_modification_response_empty(cu_ue_id, du_ue_id));
+}
+
+// DRB IDs are allocated independently by each RAN node (TS 38.300 Section 9.2.3.2.3). A numeric ID match is
+// therefore only trustworthy when the source's DRB-to-QoS-flow mapping was actually signalled and confirmed during
+// admission (TS 38.423 Section 9.2.1.17); an unconfirmed match, even for a DRB that legitimately exists at the
+// target, must not be trusted with the source's PDCP state.
+TEST_F(cu_cp_inter_cu_xn_handover_test, when_sn_status_transfer_reports_an_unconfirmed_drb_id_then_it_is_ignored)
+{
+  // Inject Handover Request (without the source's DRB-to-QoS-flow mapping) and await Bearer Context Setup Request.
+  ASSERT_TRUE(send_handover_request_and_await_bearer_context_setup_request(source_local_xnap_ue_id,
+                                                                           /*include_drb_to_qos_flow_mapping=*/false));
+
+  // Inject Bearer Context Setup Response and await UE Context Setup Request.
+  ASSERT_TRUE(send_bearer_context_setup_response_and_await_ue_context_setup_request());
+
+  // Inject UE Context Setup Response and await Bearer Context Modification Request.
+  ASSERT_TRUE(send_ue_context_setup_response_and_await_bearer_context_modification_request());
+
+  // Inject Bearer Context Modification Response and await Handover Request Ack.
+  ASSERT_TRUE(send_bearer_context_modification_response_and_await_handover_request_ack());
+
+  // Inject XNAP SN Status Transfer reporting DRB1, which was admitted at this target (matching by pure numeric
+  // coincidence), but the source never confirmed that mapping during admission.
+  ASSERT_TRUE(send_sn_status_transfer_and_await_bearer_context_modification_request(source_local_xnap_ue_id,
+                                                                                    source_peer_xnap_ue_id));
+
+  // DRB1 must still be skipped: existing here is not enough, it must be confirmed. Nothing is left to modify.
+  const auto& bearer_ctxt_mod_req = e1ap_pdu.pdu.init_msg().value.bearer_context_mod_request();
+  ASSERT_TRUE(bearer_ctxt_mod_req->sys_bearer_context_mod_request_present);
+  const auto& pdu_sessions = bearer_ctxt_mod_req->sys_bearer_context_mod_request.ng_ran_bearer_context_mod_request()
+                                 .pdu_session_res_to_modify_list;
+  ASSERT_EQ(pdu_sessions.size(), 0U);
 
   // The handover must still complete normally afterwards.
   ASSERT_TRUE(send_bearer_context_modification_response());

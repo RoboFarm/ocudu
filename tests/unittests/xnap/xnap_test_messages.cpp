@@ -16,7 +16,8 @@ using namespace ocudu;
 using namespace ocucp;
 using namespace asn1::xnap;
 
-xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id)
+xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id,
+                                                     bool               include_drb_to_qos_flow_mapping)
 {
   xnap_message xnap_msg;
 
@@ -65,6 +66,18 @@ xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xn
       asn1::xnap::allocand_retention_prio_s::pre_emption_vulnerability_opts::options::not_preemptable;
 
   pdu_session_item.qos_flows_to_be_setup_list.push_back(qos_flow_item);
+
+  if (include_drb_to_qos_flow_mapping) {
+    // Report this source's own DRB-to-QoS-flow mapping (DRB1 <-> QFI1, matching the admitted PDU session).
+    pdu_session_item.dataforwardinginfofrom_source_present = true;
+    drb_to_qos_flow_map_item_s drb_to_qos_flow_map_item;
+    drb_to_qos_flow_map_item.drb_id = 1;
+    qos_flow_item_s assoc_qos_flow;
+    assoc_qos_flow.qfi = 1;
+    drb_to_qos_flow_map_item.qos_flows_list.push_back(assoc_qos_flow);
+    pdu_session_item.dataforwardinginfofrom_source.source_drb_to_qos_flow_map.push_back(drb_to_qos_flow_map_item);
+  }
+
   ho_request->ue_context_info_ho_request.pdu_session_res_to_be_setup_list.push_back(pdu_session_item);
 
   ho_request->ue_context_info_ho_request.rrc_context =
