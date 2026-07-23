@@ -1137,7 +1137,9 @@ ngap_handover_preparation_request ocudu::ocucp::generate_handover_preparation_re
   return request;
 }
 
-ngap_message ocudu::ocucp::generate_valid_dl_ran_status_transfer(amf_ue_id_t amf_ue_id, ran_ue_id_t ran_ue_id)
+ngap_message ocudu::ocucp::generate_valid_dl_ran_status_transfer(amf_ue_id_t                  amf_ue_id,
+                                                                 ran_ue_id_t                  ran_ue_id,
+                                                                 const std::vector<drb_id_t>& drb_ids)
 {
   ngap_message ngap_msg;
 
@@ -1148,6 +1150,16 @@ ngap_message ocudu::ocucp::generate_valid_dl_ran_status_transfer(amf_ue_id_t amf
 
   dl_status->amf_ue_ngap_id = amf_ue_id_to_uint(amf_ue_id);
   dl_status->ran_ue_ngap_id = ran_ue_id_to_uint(ran_ue_id);
+
+  for (drb_id_t drb_id : drb_ids) {
+    asn1::ngap::drbs_subject_to_status_transfer_item_s drb_item;
+    drb_item.drb_id = static_cast<uint8_t>(drb_id);
+    drb_item.drb_status_ul.set_drb_status_ul12();
+    drb_item.drb_status_dl.set_drb_status_dl12();
+
+    dl_status->ran_status_transfer_transparent_container.drbs_subject_to_status_transfer_list.push_back(drb_item);
+  }
+
   return ngap_msg;
 }
 

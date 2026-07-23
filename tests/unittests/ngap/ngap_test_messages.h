@@ -245,8 +245,12 @@ ngap_message generate_handover_preparation_failure(amf_ue_id_t amf_ue_id, ran_ue
 /// \brief Generate a valid dummy Handover Command message.
 ngap_message generate_valid_handover_command(amf_ue_id_t amf_ue_id, ran_ue_id_t ran_ue_id);
 
-/// \brief Generate a valid dummy DL RAN Status Transfer.
-ngap_message generate_valid_dl_ran_status_transfer(amf_ue_id_t amf_ue_id, ran_ue_id_t ran_ue_id);
+/// \brief Generate a valid dummy DL RAN Status Transfer. \c drb_ids adds one DRBs Subject to Status Transfer List
+/// entry per DRB, e.g. to simulate a source DRB ID that was not admitted at (or not allocated the same way by) the
+/// target.
+ngap_message generate_valid_dl_ran_status_transfer(amf_ue_id_t                  amf_ue_id,
+                                                   ran_ue_id_t                  ran_ue_id,
+                                                   const std::vector<drb_id_t>& drb_ids = {});
 
 /// \brief Generate a handover preparation request.
 ngap_handover_preparation_request

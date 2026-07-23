@@ -136,9 +136,10 @@ public:
   }
 
   [[nodiscard]]
-  bool send_dl_ran_status_transfer_and_await_bearer_context_modification_request()
+  bool
+  send_dl_ran_status_transfer_and_await_bearer_context_modification_request(const std::vector<drb_id_t>& drb_ids = {})
   {
-    get_amf().push_tx_pdu(generate_valid_dl_ran_status_transfer(amf_ue_id, {}));
+    get_amf().push_tx_pdu(generate_valid_dl_ran_status_transfer(amf_ue_id, {}, drb_ids));
     report_fatal_error_if_not(this->wait_for_e1ap_tx_pdu(cu_up_idx, e1ap_pdu),
                               "Failed to receive Bearer Context Modification Request");
     report_fatal_error_if_not(test_helpers::is_valid_bearer_context_modification_request(e1ap_pdu),
@@ -619,6 +620,44 @@ TEST_F(cu_cp_inter_cu_ng_handover_test, when_handover_request_received_then_hand
   get_du(du_idx).push_ul_pdu(ul_rrc_msg_transfer);
   ASSERT_TRUE(this->wait_for_ngap_tx_pdu(ngap_pdu));
   ASSERT_TRUE(test_helpers::is_valid_ul_nas_transport_message(ngap_pdu));
+}
+
+// Per TS 38.413 Section 8.4.6 (Uplink RAN Status Transfer), the source includes its own DRB ID in the DRBs Subject to
+// Status Transfer List IE, which the AMF then relays unchanged to the target via the Downlink RAN Status Transfer
+// procedure (Section 8.4.7). A fresh target always starts allocating from DRB1, but the source may report a higher DRB
+// ID for its (only) active DRB, e.g. because an earlier DRB was released on the source and its ID was never reused. The
+// target must ignore such DRBs.
+TEST_F(cu_cp_inter_cu_ng_handover_test,
+       when_dl_ran_status_transfer_contains_drb_not_admitted_at_target_then_it_is_ignored)
+{
+  // Inject Handover Request and await Bearer Context Setup Request.
+  ASSERT_TRUE(send_handover_request_and_await_bearer_context_setup_request());
+
+  // Inject Bearer Context Setup Response and await UE Context Setup Request.
+  ASSERT_TRUE(send_bearer_context_setup_response_and_await_ue_context_setup_request());
+
+  // Inject UE Context Setup Response and await Bearer Context Modification Request.
+  ASSERT_TRUE(send_ue_context_setup_response_and_await_bearer_context_modification_request());
+
+  // Inject Bearer Context Modification Response and await Handover Request Ack.
+  ASSERT_TRUE(send_bearer_context_modification_response_and_await_handover_request_ack());
+
+  // Inject NGAP DL RAN Status Transfer reporting only DRB2, which the source used for its (sole) active DRB
+  // but was never admitted at this target (the target only ever allocated DRB1 for this single-flow handover).
+  ASSERT_TRUE(send_dl_ran_status_transfer_and_await_bearer_context_modification_request({drb_id_t::drb2}));
+
+  // DRB2 must be skipped. Since it's the only DRB the source reported, the resulting Bearer
+  // Context Modification Request legitimately has nothing left to modify.
+  const auto& bearer_ctxt_mod_req = e1ap_pdu.pdu.init_msg().value.bearer_context_mod_request();
+  ASSERT_TRUE(bearer_ctxt_mod_req->sys_bearer_context_mod_request_present);
+  const auto& pdu_sessions = bearer_ctxt_mod_req->sys_bearer_context_mod_request.ng_ran_bearer_context_mod_request()
+                                 .pdu_session_res_to_modify_list;
+  ASSERT_EQ(pdu_sessions.size(), 0U);
+
+  // The handover must still complete normally afterwards.
+  ASSERT_TRUE(send_bearer_context_modification_response());
+  ASSERT_TRUE(send_rrc_reconfiguration_complete_and_await_handover_notify_and_ue_context_modification_request());
+  ASSERT_TRUE(send_ue_context_modification_response_empty(cu_ue_id, du_ue_id));
 }
 
 TEST_F(cu_cp_inter_cu_ng_handover_test,
