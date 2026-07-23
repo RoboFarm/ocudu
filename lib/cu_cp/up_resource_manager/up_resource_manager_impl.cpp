@@ -31,10 +31,11 @@ bool up_resource_manager::validate_request(const ngap_pdu_session_resource_relea
 }
 
 up_config_update up_resource_manager::calculate_update(
-    const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_items)
+    const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_items,
+    const up_old_drb_association&                                                old_drb_association)
 {
   ocudu_assert(is_valid(setup_items, context, cfg, logger), "Invalid PDU Session Resource Setup items.");
-  return ocudu::ocucp::calculate_update(setup_items, context, cfg, logger);
+  return ocudu::ocucp::calculate_update(setup_items, context, cfg, logger, old_drb_association);
 }
 
 up_config_update up_resource_manager::calculate_update(const ngap_pdu_session_resource_modify_request& pdu)

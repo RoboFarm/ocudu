@@ -35,6 +35,9 @@ struct up_drb_context {
   qos_flow_level_qos_parameters                qos_params; // DRB QoS params.
   std::map<qos_flow_id_t, up_qos_flow_context> qos_flows;  // QoS flow IDs of all QoS flows mapped to this DRB.
   std::vector<up_transport_layer_info>         ul_up_tnl_info_to_be_setup_list; // Allocated by CU-UP.
+  // True if, during inter-gNB handover admission, this DRB ID was confirmed-reused from the source's own
+  // DRB-to-QoS-flow mapping (rather than arbitrarily/sequentially assigned).
+  bool source_drb_id_confirmed = false;
 
   pdcp_config   pdcp_cfg;
   sdap_config_t sdap_cfg;

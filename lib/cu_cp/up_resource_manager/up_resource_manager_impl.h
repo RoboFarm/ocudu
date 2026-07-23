@@ -49,6 +49,12 @@ struct up_config_update {
   std::vector<drb_id_t>         drb_to_remove_list;                 // List of DRBs to be removed.
 };
 
+/// \brief Maps a QoS flow, scoped to its PDU session, to the DRB ID the source RAN node used for it. Derived from
+/// the (optional) DRBs to QoS Flows Mapping List conveyed in the source's Handover Preparation Information
+/// (TS 38.413 Section 9.3.1.29), and used to prefer the same DRB ID at the target during handover admission, since
+/// DRB IDs are otherwise allocated independently by each RAN node (TS 38.300 Section 9.2.3.2.3).
+using up_old_drb_association = std::map<pdu_session_id_t, std::map<qos_flow_id_t, drb_id_t>>;
+
 // Response given back to the UP resource manager containing the full context
 // that could be setup.
 struct up_config_update_result {
@@ -72,7 +78,8 @@ public:
   bool validate_request(const ngap_pdu_session_resource_release_command& pdu) const;
 
   up_config_update
-  calculate_update(const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_items);
+  calculate_update(const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_items,
+                   const up_old_drb_association& old_drb_association = {});
   up_config_update calculate_update(const ngap_pdu_session_resource_modify_request& pdu);
   up_config_update calculate_update(const ngap_pdu_session_resource_release_command& pdu);
 
