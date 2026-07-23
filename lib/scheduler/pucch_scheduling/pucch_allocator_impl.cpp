@@ -548,10 +548,10 @@ void pucch_allocator_impl::commit_dedicated_grant_diff(cell_slot_resource_alloca
                                                        const pucch_grant_list&       new_grants,
                                                        rnti_t                        rnti)
 {
-  // Note: a resource can move from one grant slot to another between old_grants and new_grants (e.g. a merged
-  // HARQ-ACK+SR grant may end up tracked as "harq_ack" even though the same physical resource was previously
-  // tracked as "sr"). The diff must therefore be computed at the resource level, not per matching slot, otherwise a
-  // resource that merely changed slot would be freed after being (re-)allocated, or vice-versa.
+  // Note: a resource can move from one grant type to another between old_grants and new_grants (e.g. F0+F2 case, a
+  // merged HARQ-ACK+SR grant will end up tracked as "harq_ack" even though the same physical resource was previously
+  // tracked as "sr"). The diff must therefore be computed at the resource level, not per matching type, otherwise a
+  // resource that merely changed type would be freed after being (re-)allocated, or vice-versa.
 
   static_vector<const pucch_resource*, ue_grants::max_nof_ue_grants> old_res;
   auto                                                               add_old_res = [&](std::optional<stable_id_t> id) {
@@ -640,12 +640,46 @@ pucch_allocator_impl::multiplex_and_allocate_pucch(cell_slot_resource_allocator&
     return std::nullopt;
   }
 
-  // Commit only the resources that actually changed with respect to old_grants, before allocate_grants overwrites
-  // the old PDU entries in place.
+  // Commit only the resources that actually changed with respect to old_grants, before we overwrite the old PDUs.
   commit_dedicated_grant_diff(pucch_slot_alloc, old_grants, new_grants, alloc_ctx.rnti);
 
-  // Allocate the grants.
-  return allocate_pdus(pucch_slot_alloc, ue_cell_cfg, old_grants, new_grants, alloc_ctx);
+  // Allocate the grant PDUs.
+  auto& pucch_pdus = pucch_slot_alloc.result.ul.pucchs;
+
+  // Note: we won't be touching the common HARQ-ACK PDU.
+  auto pdu_indices = old_grants.pdu_indices(false);
+  for (unsigned i = 0; i != nof_extra_grants; ++i) {
+    const stable_id_t pdu_idx = pucch_pdus.emplace();
+    pdu_indices.push_back(pdu_idx);
+  }
+
+  unsigned nof_used_pdus = 0;
+  auto     alloc_grant   = [&](const pucch_grant& grant) -> stable_id_t {
+    const stable_id_t pdu_idx = pdu_indices[nof_used_pdus++];
+    auto&             pdu     = pucch_pdus[pdu_idx];
+    pucch_helper::fill_ded_pdu(
+        pdu, cell_cfg, *grant.res, grant.bits, csi_report_cfg.has_value() ? &*csi_report_cfg : nullptr, alloc_ctx.rnti);
+    return pdu_idx;
+  };
+
+  ue_grants result{.common = old_grants.common, .d_pri = old_grants.d_pri};
+  if (new_grants.harq_ack.has_value()) {
+    result.harq_ack = alloc_grant(*new_grants.harq_ack);
+    result.d_pri    = new_grants.d_pri;
+  }
+  if (new_grants.sr.has_value()) {
+    result.sr = alloc_grant(*new_grants.sr);
+  }
+  if (new_grants.csi.has_value()) {
+    result.csi = alloc_grant(*new_grants.csi);
+  }
+
+  // Remove unused PUCCH PDU, if any.
+  for (unsigned i = nof_used_pdus; i != pdu_indices.size(); ++i) {
+    pucch_pdus.erase(pdu_indices[i]);
+  }
+
+  return result;
 }
 
 pucch_allocator_impl::pucch_grant_list
@@ -882,55 +916,6 @@ std::optional<unsigned> pucch_allocator_impl::update_harq_ack_bits(cell_slot_res
   }
 
   return grants.d_pri;
-}
-
-pucch_allocator_impl::ue_grants pucch_allocator_impl::allocate_pdus(cell_slot_resource_allocator& pucch_slot_alloc,
-                                                                    const ue_cell_configuration&  ue_cell_cfg,
-                                                                    const ue_grants&              old_grants,
-                                                                    const pucch_grant_list&       new_grants,
-                                                                    const alloc_context&          alloc_ctx)
-{
-  auto& pucch_pdus = pucch_slot_alloc.result.ul.pucchs;
-
-  // Note: space for the new PDUs was already verified by the caller.
-  const unsigned nof_extra_grants = new_grants.nof_grants() >= old_grants.nof_grants(false)
-                                        ? new_grants.nof_grants() - old_grants.nof_grants(false)
-                                        : 0U;
-
-  // Note: we won't be touching the common HARQ-ACK PDU.
-  auto pdu_indices = old_grants.pdu_indices(false);
-  for (unsigned i = 0; i != nof_extra_grants; ++i) {
-    const stable_id_t pdu_idx = pucch_pdus.emplace();
-    pdu_indices.push_back(pdu_idx);
-  }
-
-  unsigned nof_used_pdus = 0;
-  auto     alloc_grant   = [&](const pucch_grant& grant) -> stable_id_t {
-    const stable_id_t pdu_idx = pdu_indices[nof_used_pdus++];
-    auto&             pdu     = pucch_pdus[pdu_idx];
-    pucch_helper::fill_ded_pdu(
-        pdu, cell_cfg, *grant.res, grant.bits, csi_report_cfg.has_value() ? &*csi_report_cfg : nullptr, alloc_ctx.rnti);
-    return pdu_idx;
-  };
-
-  ue_grants result{.common = old_grants.common, .d_pri = old_grants.d_pri};
-  if (new_grants.harq_ack.has_value()) {
-    result.harq_ack = alloc_grant(*new_grants.harq_ack);
-    result.d_pri    = new_grants.d_pri;
-  }
-  if (new_grants.sr.has_value()) {
-    result.sr = alloc_grant(*new_grants.sr);
-  }
-  if (new_grants.csi.has_value()) {
-    result.csi = alloc_grant(*new_grants.csi);
-  }
-
-  // Remove unused PUCCH PDU, if any.
-  for (unsigned i = nof_used_pdus; i != pdu_indices.size(); ++i) {
-    pucch_pdus.erase(pdu_indices[i]);
-  }
-
-  return result;
 }
 
 ///////////////  Private helpers   ///////////////

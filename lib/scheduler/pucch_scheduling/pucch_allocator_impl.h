@@ -190,14 +190,6 @@ private:
                                                unsigned                      harq_ack_nof_bits,
                                                const alloc_context&          alloc_ctx);
 
-  // Allocate the PUCCH PDUs in the scheduler output, depending on the new PUCCH grants to be transmitted, and depending
-  // on the PUCCH PDUs currently allocated.
-  ue_grants allocate_pdus(cell_slot_resource_allocator& pucch_slot_alloc,
-                          const ue_cell_configuration&  ue_cell_cfg,
-                          const ue_grants&              old_grants,
-                          const pucch_grant_list&       new_grants,
-                          const alloc_context&          alloc_ctx);
-
   ///////////////  Private helpers   ///////////////
 
   /// Returns whether a given UE can be allocated PUCCH in a given slot.
