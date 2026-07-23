@@ -380,6 +380,38 @@ TYPED_TEST(bounded_bitset_tester, all_range)
   }
 }
 
+TYPED_TEST(bounded_bitset_tester, is_subset_of)
+{
+  std::vector<bool>                 vec1 = this->create_random_vector(this->get_random_size());
+  std::vector<bool>                 vec2 = this->create_random_vector(vec1.size());
+  typename TestFixture::bitset_type bitmap1(vec1.begin(), vec1.end());
+  typename TestFixture::bitset_type bitmap2(vec2.begin(), vec2.end());
+
+  for (unsigned l = 1; l < vec1.size(); ++l) {
+    for (unsigned i = 0; i < vec1.size() - l; ++i) {
+      bool expected_val = true;
+      for (unsigned j = 0; j != l; ++j) {
+        if (vec1[i + j] and not vec2[i + j]) {
+          expected_val = false;
+          break;
+        }
+      }
+      ASSERT_EQ(expected_val, bitmap1.is_subset_of(bitmap2, i, i + l)) << fmt::format(
+          "For bitmap1={:x} and bitmap2={:x} of size={} in [{}, {})", bitmap1, bitmap2, bitmap1.size(), i, i + l);
+    }
+  }
+
+  const auto zeros_bitmap = this->create_bitset_with_zeros(bitmap1.size());
+  const auto ones_bitmap  = this->create_bitset_with_ones(bitmap1.size());
+
+  ASSERT_TRUE(zeros_bitmap.is_subset_of(zeros_bitmap, 0, zeros_bitmap.size()));
+  ASSERT_TRUE(zeros_bitmap.is_subset_of(bitmap1, 0, bitmap1.size())) << "The empty set is a subset of any other set";
+  ASSERT_TRUE(bitmap1.is_subset_of(ones_bitmap, 0, bitmap1.size())) << "Any set is a subset of the universal set";
+  ASSERT_TRUE(bitmap1.is_subset_of(bitmap1, 0, bitmap1.size())) << "A set is always a subset of itself";
+  ASSERT_FALSE(ones_bitmap.is_subset_of(zeros_bitmap, 0, ones_bitmap.size()))
+      << "The universal set is not a subset of the empty set";
+}
+
 TYPED_TEST(bounded_bitset_tester, fill_ones)
 {
   unsigned   bitset_size  = this->get_random_size();
