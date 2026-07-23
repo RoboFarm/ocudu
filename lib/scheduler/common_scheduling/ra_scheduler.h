@@ -8,7 +8,7 @@
 #include "../cell/resource_grid.h"
 #include "../pdcch_scheduling/pdcch_resource_allocator.h"
 #include "../support/prbs_calculator.h"
-#include "ocudu/adt/circular_map.h"
+#include "ra_ue_repository.h"
 #include "ocudu/adt/mpmc_queue.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/resource_allocation/rb_bitmap.h"
@@ -30,6 +30,7 @@ public:
   explicit ra_scheduler(const cell_configuration& cfg_,
                         pdcch_resource_allocator& pdcch_sched_,
                         pucch_allocator&          pucch_alloc_,
+                        ra_ue_repository&         ra_ue_repo_,
                         scheduler_event_logger&   ev_logger_,
                         cell_metrics_handler&     metrics_handler_);
   ~ra_scheduler();
@@ -52,8 +53,6 @@ public:
   void stop();
 
 private:
-  class msg3_harq_timeout_notifier;
-  class msgb_harq_timeout_notifier;
   class cached_bwp_info;
 
   struct pending_rar_failed_attempts_t {
@@ -81,15 +80,6 @@ private:
     bool send_backoff_indicator = false;
   };
 
-  /// State of Msg3 grant pending to be scheduled and/or positive ACKed.
-  struct pending_msg3_alloc {
-    /// Detected PRACH Preamble associated to this Msg3 being scheduled.
-    rach_indication_message::preamble preamble{};
-    /// UL HARQ entity used to allocate an UL HARQ process for Msg3.
-    /// Note: [TS 38.321, 5.4.2.1] "For UL transmission with UL grant in RA Response, HARQ process identifier 0 is
-    /// used".
-    unique_ue_harq_entity harq_ent;
-  };
   struct msg3_alloc_candidate {
     uint8_t      pusch_td_res_index;
     rnti_t       rnti_to_alloc;
@@ -197,7 +187,7 @@ private:
                       bool                             send_backoff_indicator = false);
 
   /// Schedule retransmission of Msg3.
-  void schedule_msg3_retx(cell_resource_allocator& res_alloc, pending_msg3_alloc& msg3_ctx) const;
+  void schedule_msg3_retx(cell_resource_allocator& res_alloc, ra_ue_context& msg3_ctx) const;
 
   /// Schedule pending MsgB grants in the cell resource grid.
   void schedule_pending_msgbs(cell_resource_allocator& res_alloc);
@@ -227,6 +217,10 @@ private:
 
   /// Reserve space in the resource grid for the MsgA PUSCH so it is not taken by other UL grants.
   void reserve_msga_pusch_rbs(cell_resource_allocator& res_alloc);
+
+  /// \brief Promotes tc_rnti_repo entries whose successRAR PDSCH transmission slot has passed to \c msgb_success,
+  /// so the UE-dedicated scheduler can tell contention was resolved without a MAC ConRes CE.
+  void update_msgb_conres_gate(slot_point current_slot);
 
   // Set the max number of slots the scheduler can look ahead in the resource grid (with respect to the current slot) to
   // find PDSCH space for RAR.
@@ -284,9 +278,6 @@ private:
 
   // -- State.
 
-  // Currently managed HARQ processes for Random Access in this cell (Msg3 UL retx + MsgB DL retx).
-  cell_harq_manager ra_harqs;
-
   // RACH indications pending to be processed.
   rach_indication_queue pending_rachs;
 
@@ -296,9 +287,10 @@ private:
   // List of pending RARs to be scheduled.
   std::vector<pending_rar_alloc> pending_rars;
 
-  // Map of pending Msg3 grants to be scheduled or waiting for a positive HARQ-ACK.
-  // Keyed by ring_idx = to_value(tc_rnti) % SIZE.
-  circular_map<uint16_t, pending_msg3_alloc> pending_msg3s;
+  // Shared repository of in-flight RA attempts (Msg3 grants pending to be scheduled or waiting for a positive
+  // HARQ-ACK, plus 2-step RACH contention-resolution outcome), keyed by TC-RNTI. Owned by the cell scheduler,
+  // read by the UE-dedicated scheduler.
+  ra_ue_repository& ra_ue_repo;
 
   // List of pending MsgBs (2-step RACH responses) to be scheduled.
   std::vector<pending_msgb_alloc> pending_msgbs;

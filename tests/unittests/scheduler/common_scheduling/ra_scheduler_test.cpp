@@ -161,7 +161,8 @@ public:
     }
   }
 
-  ra_scheduler                      ra_sch{cell_cfg, *pdcch_alloc, pucch_alloc, ev_logger, metrics_hdlr};
+  ra_ue_repository                  ra_ue_repo{cell_cfg, mac_logger};
+  ra_scheduler                      ra_sch{cell_cfg, *pdcch_alloc, pucch_alloc, ra_ue_repo, ev_logger, metrics_hdlr};
   std::optional<csi_rs_scheduler>   csi_rs_sch;
   std::optional<sib1_scheduler>     sib1_sch;
   test_helper::ra_scheduler_tracker tracker{cell_cfg};

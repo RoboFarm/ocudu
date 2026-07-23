@@ -27,7 +27,8 @@ ue_cell_scheduler* ue_scheduler_impl::do_add_cell(const ue_cell_scheduler_creati
                                                        cell.uci_selector,
                                                        *params.cell_metrics,
                                                        *params.ev_logger,
-                                                       *params.cell_tracer});
+                                                       *params.cell_tracer,
+                                                       *params.ra_ue_repo});
 
   return &cell;
 }
@@ -181,6 +182,7 @@ ue_scheduler_impl::cell_context::cell_context(ue_scheduler_impl&                
                  *params.pucch_alloc,
                  *params.uci_alloc,
                  parent.ue_db,
+                 *params.ra_ue_repo,
                  *params.cell_metrics),
   slice_sched(params.cell_res_alloc->cfg, parent.ue_db),
   intra_slice_sched(parent.expert_cfg,

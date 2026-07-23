@@ -14,6 +14,7 @@ class pdcch_resource_allocator;
 class pucch_allocator;
 class uci_allocator;
 class cell_metrics_handler;
+class ra_ue_repository;
 struct cell_resource_allocator;
 struct pdcch_dl_information;
 struct pdcch_ul_information;
@@ -31,6 +32,7 @@ public:
                                  pucch_allocator&      pucch_alloc_,
                                  uci_allocator&        uci_alloc_,
                                  ue_repository&        ues_,
+                                 ra_ue_repository&     ra_ue_repo_,
                                  cell_metrics_handler& metrics_);
 
   /// Handles DL buffer state reported by upper layers.
@@ -206,6 +208,7 @@ private:
   pucch_allocator&          pucch_alloc;
   uci_allocator&            uci_alloc;
   ue_repository&            ues;
+  ra_ue_repository&         ra_ue_repo;
   cell_metrics_handler&     metrics;
 
   bwp_configuration initial_active_dl_bwp;

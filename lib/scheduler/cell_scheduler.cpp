@@ -22,7 +22,8 @@ cell_scheduler::cell_scheduler(const scheduler_expert_config&                  s
   si_sch(cell_cfg, pdcch_sch, msg),
   csi_sch(cell_cfg),
   pucch_alloc(cell_cfg, sched_cfg.ue.max_pucchs_per_slot, sched_cfg.ue.max_ul_grants_per_slot),
-  ra_sch(cell_cfg, pdcch_sch, pucch_alloc, event_logger, metrics),
+  ra_ue_repo(cell_cfg, logger),
+  ra_sch(cell_cfg, pdcch_sch, pucch_alloc, ra_ue_repo, event_logger, metrics),
   prach_sch(cell_cfg),
   uci_alloc(cell_cfg, pucch_alloc),
   // The SRS allocator is only used if srs_prohibit_time is set.
@@ -38,7 +39,8 @@ cell_scheduler::cell_scheduler(const scheduler_expert_config&                  s
                                                                    &res_grid,
                                                                    &metrics,
                                                                    &event_logger,
-                                                                   cell_tracer.get()});
+                                                                   cell_tracer.get(),
+                                                                   &ra_ue_repo});
 }
 
 void cell_scheduler::handle_si_update_request(const si_scheduling_update_request& msg)

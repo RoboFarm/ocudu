@@ -20,6 +20,7 @@ struct cell_resource_allocator;
 class sched_ue_configuration_handler;
 class scheduler_event_logger;
 class cell_metrics_handler;
+class ra_ue_repository;
 
 /// Request to create a new cell handler in the UE scheduler.
 struct ue_cell_scheduler_creation_request {
@@ -40,6 +41,8 @@ struct ue_cell_scheduler_creation_request {
   scheduler_event_logger* ev_logger;
   /// Tracer of events for the cell.
   schedtrace::cell_event_tracer* cell_tracer;
+  /// Shared repository of in-flight RA attempts, keyed by TC-RNTI.
+  ra_ue_repository* ra_ue_repo;
 };
 
 /// Handler of UE grant scheduling for a given cell.

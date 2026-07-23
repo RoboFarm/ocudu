@@ -22,6 +22,7 @@ class cell_harq_manager;
 class srs_scheduler;
 class pdu_indication_pool;
 class uci_indication_selector;
+class ra_ue_repository;
 struct uci_action;
 
 struct cell_creation_event {
@@ -35,6 +36,7 @@ struct cell_creation_event {
   cell_metrics_handler&          metrics;
   scheduler_event_logger&        ev_logger;
   schedtrace::cell_event_tracer& cell_tracer;
+  ra_ue_repository&              ra_ue_repo;
 };
 
 class ue_event_manager;
@@ -162,6 +164,7 @@ private:
   cell_metrics_handler&          metrics;
   scheduler_event_logger&        ev_logger;
   schedtrace::cell_event_tracer& ev_tracer;
+  ra_ue_repository&              ra_ue_repo;
 
   std::unique_ptr<pdu_indication_pool> ind_pdu_pool;
 

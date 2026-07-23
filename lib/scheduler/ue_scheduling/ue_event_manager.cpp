@@ -4,6 +4,7 @@
 
 #include "ue_event_manager.h"
 #include "../cell/resource_grid.h"
+#include "../common_scheduling/ra_ue_repository.h"
 #include "../logging/cell_metrics_handler.h"
 #include "../logging/scheduler_event_logger.h"
 #include "../srs/srs_scheduler.h"
@@ -231,6 +232,7 @@ ue_cell_event_manager::ue_cell_event_manager(ue_event_manager&          parent_,
   metrics(cell_ev.metrics),
   ev_logger(cell_ev.ev_logger),
   ev_tracer(cell_ev.cell_tracer),
+  ra_ue_repo(cell_ev.ra_ue_repo),
   ind_pdu_pool(std::make_unique<pdu_indication_pool>(logger)),
   dl_bo_mng(std::make_unique<ue_dl_buffer_occupancy_manager>(*this)),
   pending_events(CELL_EVENT_LIST_SIZE)
@@ -312,10 +314,15 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
     slice_sched.add_ue(ue_index);
 
     if (ue_cc.get_pcell_state().conres_st == ue_conres_state::pending_conres_ce) {
-      // Note: In case of RACH-created UE, auto-inject MAC ConRes CE.
-
-      // Forward CE to ue instance.
-      u.handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
+      // Note: In case of RACH-created UE, auto-inject MAC ConRes CE, unless this UE was created via 2-step RACH
+      // (MsgA) and its successRAR outcome isn't known/safe yet — in that case, injecting now (or scheduling
+      // SRB0/SRB1 before the successRAR PDSCH has actually been transmitted) would race ahead of the UE, which
+      // does not yet monitor C-RNTI-addressed PDCCH. ue_fallback_scheduler's per-slot loop re-checks this and
+      // performs the injection once the RA scheduler confirms an outcome (see schedule_dl_new_tx).
+      if (ra_ue_repo.find(crnti) == ra_ue_repo.end()) {
+        // Forward CE to ue instance.
+        u.handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
+      }
 
       // Notify fallback scheduler of a pending ConRes CE.
       fallback_sched.handle_conres_indication(ue_index);
