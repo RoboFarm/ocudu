@@ -128,8 +128,9 @@ xnap_message ocudu::ocucp::generate_handover_request_ack(local_xnap_ue_id_t loca
   return xnap_msg;
 }
 
-xnap_message ocudu::ocucp::generate_sn_status_transfer(local_xnap_ue_id_t local_xnap_ue_id,
-                                                       peer_xnap_ue_id_t  peer_xnap_ue_id)
+xnap_message ocudu::ocucp::generate_sn_status_transfer(local_xnap_ue_id_t           local_xnap_ue_id,
+                                                       peer_xnap_ue_id_t            peer_xnap_ue_id,
+                                                       const std::vector<drb_id_t>& extra_drb_ids)
 {
   xnap_message xnap_msg;
 
@@ -147,6 +148,15 @@ xnap_message ocudu::ocucp::generate_sn_status_transfer(local_xnap_ue_id_t local_
   drb_item.pdcp_status_transfer_dl.set_pdcp_sn_12bits();
 
   sn_status_transfer->drbs_subject_to_status_transfer_list.push_back(drb_item);
+
+  for (drb_id_t extra_drb_id : extra_drb_ids) {
+    drbs_subject_to_status_transfer_item_s extra_drb_item;
+    extra_drb_item.drb_id = static_cast<uint8_t>(extra_drb_id);
+    extra_drb_item.pdcp_status_transfer_ul.set_pdcp_sn_12bits();
+    extra_drb_item.pdcp_status_transfer_dl.set_pdcp_sn_12bits();
+
+    sn_status_transfer->drbs_subject_to_status_transfer_list.push_back(extra_drb_item);
+  }
 
   return xnap_msg;
 }

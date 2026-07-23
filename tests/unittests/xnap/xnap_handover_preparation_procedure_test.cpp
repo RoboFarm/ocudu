@@ -138,7 +138,7 @@ TEST_F(xnap_handover_preparation_procedure_test, when_handover_preparation_times
 }
 
 /// If XNAP is stopped while a handover preparation procedure is awaiting the peer's response, the procedure must
-/// fail gracefully rather than crash (transaction_sink.response() must not be called on a cancelled transaction).
+/// fail gracefully (transaction_sink.response() must not be called on a cancelled transaction).
 TEST_F(xnap_handover_preparation_procedure_test, when_xnap_stopped_then_pending_handover_preparation_fails)
 {
   // Run XN setup.

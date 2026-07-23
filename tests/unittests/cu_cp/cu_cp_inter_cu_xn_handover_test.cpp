@@ -157,10 +157,12 @@ public:
   }
 
   [[nodiscard]] bool
-  send_sn_status_transfer_and_await_bearer_context_modification_request(local_xnap_ue_id_t local_xnap_ue_id,
-                                                                        peer_xnap_ue_id_t  peer_xnap_ue_id)
+  send_sn_status_transfer_and_await_bearer_context_modification_request(local_xnap_ue_id_t           local_xnap_ue_id,
+                                                                        peer_xnap_ue_id_t            peer_xnap_ue_id,
+                                                                        const std::vector<drb_id_t>& extra_drb_ids = {})
   {
-    get_xnc_cu_cp(xnc_peer_idx).push_tx_pdu(generate_sn_status_transfer(local_xnap_ue_id, peer_xnap_ue_id));
+    get_xnc_cu_cp(xnc_peer_idx)
+        .push_tx_pdu(generate_sn_status_transfer(local_xnap_ue_id, peer_xnap_ue_id, extra_drb_ids));
     report_fatal_error_if_not(this->wait_for_e1ap_tx_pdu(cu_up_idx, e1ap_pdu),
                               "Failed to receive Bearer Context Modification Request");
     report_fatal_error_if_not(test_helpers::is_valid_bearer_context_modification_request(e1ap_pdu),
@@ -511,6 +513,45 @@ TEST_F(cu_cp_inter_cu_xn_handover_test, when_handover_request_received_then_path
   ASSERT_TRUE(send_path_switch_request_ack_and_await_ue_context_modification_request());
 
   // Inject UE Context Modification Response to ACK the RRC reconfiguration complete indicator.
+  ASSERT_TRUE(send_ue_context_modification_response_empty(cu_ue_id, du_ue_id));
+}
+
+// Per TS 38.423 Section 8.2.2.1, the DRBs Subject to Status Transfer List IE reflects the source's DRB
+// configuration and is not guaranteed to be a subset of the DRBs admitted at this target (e.g. if a DRB's
+// QoS flows were not admitted). The target must ignore such DRBs.
+TEST_F(cu_cp_inter_cu_xn_handover_test, when_sn_status_transfer_contains_drb_not_admitted_at_target_then_it_is_ignored)
+{
+  // Inject Handover Request and await Bearer Context Setup Request.
+  ASSERT_TRUE(send_handover_request_and_await_bearer_context_setup_request(source_local_xnap_ue_id));
+
+  // Inject Bearer Context Setup Response and await UE Context Setup Request.
+  ASSERT_TRUE(send_bearer_context_setup_response_and_await_ue_context_setup_request());
+
+  // Inject UE Context Setup Response and await Bearer Context Modification Request.
+  ASSERT_TRUE(send_ue_context_setup_response_and_await_bearer_context_modification_request());
+
+  // Inject Bearer Context Modification Response and await Handover Request Ack.
+  ASSERT_TRUE(send_bearer_context_modification_response_and_await_handover_request_ack());
+
+  // Inject XNAP SN Status Transfer that additionally reports DRB2, which was never admitted at this target
+  // (the UE was only set up with DRB1).
+  ASSERT_TRUE(send_sn_status_transfer_and_await_bearer_context_modification_request(
+      source_local_xnap_ue_id, source_peer_xnap_ue_id, {drb_id_t::drb2}));
+
+  // The Bearer Context Modification Request must only cover the admitted DRB1; DRB2 must be skipped.
+  const auto& bearer_ctxt_mod_req = e1ap_pdu.pdu.init_msg().value.bearer_context_mod_request();
+  ASSERT_TRUE(bearer_ctxt_mod_req->sys_bearer_context_mod_request_present);
+  const auto& pdu_sessions = bearer_ctxt_mod_req->sys_bearer_context_mod_request.ng_ran_bearer_context_mod_request()
+                                 .pdu_session_res_to_modify_list;
+  ASSERT_EQ(pdu_sessions.size(), 1U);
+  const auto& drbs_to_modify = pdu_sessions[0].drb_to_modify_list_ng_ran;
+  ASSERT_EQ(drbs_to_modify.size(), 1U);
+  EXPECT_EQ(drbs_to_modify[0].drb_id, 1);
+
+  // The handover must still complete normally afterwards.
+  ASSERT_TRUE(send_bearer_context_modification_response());
+  ASSERT_TRUE(send_rrc_reconfiguration_complete_and_await_path_switch_request());
+  ASSERT_TRUE(send_path_switch_request_ack_and_await_ue_context_modification_request());
   ASSERT_TRUE(send_ue_context_modification_response_empty(cu_ue_id, du_ue_id));
 }
 
