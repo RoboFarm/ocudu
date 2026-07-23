@@ -4,14 +4,14 @@
 
 #pragma once
 
-#include "ocudu/ngap/ngap_pdu_session.h"
+#include "ocudu/ran/aggregate_maximum_bit_rate.h"
 #include "ocudu/ran/cu_cp_inactive.h"
 #include "ocudu/ran/cu_cp_location_reporting_types.h"
 #include "ocudu/ran/cu_cp_pdu_session.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/guami.h"
+#include "ocudu/ran/inter_cu_handover_messages.h"
 #include "ocudu/ran/plmn_identity.h"
-#include "ocudu/ran/rb_id.h"
 #include "ocudu/ran/tac.h"
 #include "ocudu/security/security.h"
 #include <map>
@@ -43,22 +43,6 @@ struct ngap_handover_preparation_response {
 };
 
 enum class ngap_handov_type { intra5gs = 0, fivegs_to_eps, eps_to_5gs, fivegs_to_utran };
-
-struct ngap_qos_flow_info_item {
-  qos_flow_id_t       qos_flow_id = qos_flow_id_t::invalid;
-  std::optional<bool> dl_forwarding;
-};
-
-struct ngap_drbs_to_qos_flows_map_item {
-  drb_id_t                              drb_id = drb_id_t::invalid;
-  std::vector<ngap_associated_qos_flow> associated_qos_flow_list;
-};
-
-struct ngap_pdu_session_res_info_item {
-  pdu_session_id_t                             pdu_session_id = pdu_session_id_t::invalid;
-  std::vector<ngap_qos_flow_info_item>         qos_flow_info_list;
-  std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map_list;
-};
 
 struct ngap_erab_info_item {
   uint8_t             erab_id;

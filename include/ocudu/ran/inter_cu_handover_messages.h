@@ -8,6 +8,7 @@
 #include "ocudu/ran/cause/ngap_cause.h"
 #include "ocudu/ran/cause/xnap_cause.h"
 #include "ocudu/ran/cu_cp_inactive.h"
+#include "ocudu/ran/cu_cp_pdu_session.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/cu_types.h"
 #include "ocudu/ran/pdcp/pdcp_count_info.h"
@@ -22,6 +23,22 @@ struct cu_cp_data_forwarding_resp_drb_item {
   drb_id_t                               drb_id = drb_id_t::drb1;
   std::optional<up_transport_layer_info> dl_forwarding_up_tnl;
   std::optional<up_transport_layer_info> ul_forwarding_up_tnl;
+};
+
+struct ngap_qos_flow_info_item {
+  qos_flow_id_t       qos_flow_id = qos_flow_id_t::invalid;
+  std::optional<bool> dl_forwarding;
+};
+
+struct ngap_drbs_to_qos_flows_map_item {
+  drb_id_t                              drb_id = drb_id_t::invalid;
+  std::vector<ngap_associated_qos_flow> associated_qos_flow_list;
+};
+
+struct ngap_pdu_session_res_info_item {
+  pdu_session_id_t                             pdu_session_id = pdu_session_id_t::invalid;
+  std::vector<ngap_qos_flow_info_item>         qos_flow_info_list;
+  std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map_list;
 };
 
 struct cu_cp_qos_flow_with_data_forwarding_item {

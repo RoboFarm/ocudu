@@ -22,13 +22,6 @@ struct ngap_pdu_session_resource_setup_request {
   byte_buffer                                                           nas_pdu; ///< optional NAS PDU
 };
 
-enum class ngap_qos_flow_map_ind { ul = 0, dl };
-
-struct ngap_associated_qos_flow {
-  qos_flow_id_t                        qos_flow_id = qos_flow_id_t::invalid;
-  std::optional<ngap_qos_flow_map_ind> qos_flow_map_ind;
-};
-
 struct ngap_qos_flow_failed_to_setup_item {
   qos_flow_id_t qos_flow_id = qos_flow_id_t::invalid;
   ngap_cause_t  cause;

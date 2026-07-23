@@ -7,6 +7,7 @@
 #include "ngap_asn1_utils.h"
 #include "ocudu/asn1/ngap/ngap_ies.h"
 #include "ocudu/ngap/ngap_handover.h"
+#include "ocudu/ngap/ngap_pdu_session.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/cause/ngap_cause.h"
 #include "ocudu/ran/cu_cp_location_reporting_types.h"
