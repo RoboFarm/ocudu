@@ -28,6 +28,23 @@ static bool handle_ue_context_setup_response(e1ap_bearer_context_modification_re
                                              const up_config_update&                   next_config,
                                              const ocudulog::basic_logger&             logger);
 
+// Builds the source's DRB-to-QoS-flow mapping, when known, so DRB allocation at this target can prefer reusing the
+// same DRB ID for the same QoS flow, keeping DRB numbering consistent with the source where possible (DRB IDs are
+// otherwise allocated independently by each RAN node; see TS 38.300 Section 9.2.3.2.3).
+static up_old_drb_association
+build_old_drb_association(const std::vector<ngap_pdu_session_res_info_item>& pdu_session_res_info_list)
+{
+  up_old_drb_association old_drb_association;
+  for (const auto& pdu_session : pdu_session_res_info_list) {
+    for (const auto& drb_item : pdu_session.drbs_to_qos_flows_map_list) {
+      for (const auto& assoc_flow : drb_item.associated_qos_flow_list) {
+        old_drb_association[pdu_session.pdu_session_id][assoc_flow.qos_flow_id] = drb_item.drb_id;
+      }
+    }
+  }
+  return old_drb_association;
+}
+
 inter_cu_handover_target_routine::inter_cu_handover_target_routine(
     const cu_cp_inter_cu_handover_request& request_,
     e1ap_bearer_context_manager&           e1ap_bearer_ctxt_mng_,
@@ -72,7 +89,8 @@ void inter_cu_handover_target_routine::operator()(
 
   {
     // Calculate next user-plane configuration based on incoming setup message.
-    next_config = ue->get_up_resource_manager().calculate_update(request.pdu_session_res_setup_list);
+    next_config = ue->get_up_resource_manager().calculate_update(
+        request.pdu_session_res_setup_list, build_old_drb_association(request.pdu_session_res_info_list));
   }
 
   // Prepare E1AP Bearer Context Setup Request and call E1AP notifier.
