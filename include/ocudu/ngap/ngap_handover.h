@@ -19,7 +19,9 @@
 namespace ocudu::ocucp {
 
 struct ngap_ue_source_handover_context {
-  std::map<pdu_session_id_t, std::vector<qos_flow_id_t>> pdu_sessions;
+  /// This source's own DRB-to-QoS-flow mapping per PDU session, so it can be signalled to the target via the DRBs
+  /// to QoS Flows Mapping List IE (TS 38.413 Section 9.3.1.29), letting the target prefer the same DRB numbering.
+  std::map<pdu_session_id_t, std::vector<ngap_drbs_to_qos_flows_map_item>> pdu_sessions;
   /// Storage for the RRCContainer required in SourceNGRANNode-ToTargetNGRANNode-TransparentContainer (see TS 38.413)
   byte_buffer rrc_container;
 };
@@ -31,10 +33,10 @@ struct target_ran_node_id_t {
 };
 
 struct ngap_handover_preparation_request {
-  cu_cp_ue_index_t                                       ue_index = cu_cp_ue_index_t::invalid;
-  target_ran_node_id_t                                   target_id;
-  nr_cell_identity                                       nci;
-  std::map<pdu_session_id_t, std::vector<qos_flow_id_t>> pdu_sessions;
+  cu_cp_ue_index_t                                                         ue_index = cu_cp_ue_index_t::invalid;
+  target_ran_node_id_t                                                     target_id;
+  nr_cell_identity                                                         nci;
+  std::map<pdu_session_id_t, std::vector<ngap_drbs_to_qos_flows_map_item>> pdu_sessions;
 };
 
 struct ngap_handover_preparation_response {

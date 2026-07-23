@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ngap_handover_preparation_procedure.h"
+#include "../ngap_asn1_converters.h"
 #include "ocudu/asn1/ngap/common.h"
 #include "ocudu/ngap/ngap_message.h"
 
@@ -205,11 +206,19 @@ byte_buffer ngap_handover_preparation_procedure::fill_asn1_source_to_target_tran
   for (const auto& pdu_session : ho_ue_context.pdu_sessions) {
     pdu_session_res_info_item_s pdu_session_res_info_item;
     pdu_session_res_info_item.pdu_session_id = pdu_session_id_to_uint(pdu_session.first);
-    for (const auto& qos_flow : pdu_session.second) {
-      qos_flow_info_item_s qos_flow_info_item = {};
-      // Set qfi.
-      qos_flow_info_item.qos_flow_id = qos_flow_id_to_uint(qos_flow);
-      pdu_session_res_info_item.qos_flow_info_list.push_back(qos_flow_info_item);
+    for (const auto& drb_item : pdu_session.second) {
+      drbs_to_qos_flows_map_item_s asn1_drb_item;
+      asn1_drb_item.drb_id = drb_id_to_uint(drb_item.drb_id);
+      for (const auto& assoc_qos_flow : drb_item.associated_qos_flow_list) {
+        asn1_drb_item.associated_qos_flow_list.push_back(
+            cu_cp_assoc_qos_flow_to_ngap_assoc_qos_flow_item(assoc_qos_flow));
+
+        // Every QoS flow reported in the DRB-to-QoS-flow mapping must also appear in the QoS Flow Information List.
+        qos_flow_info_item_s qos_flow_info_item = {};
+        qos_flow_info_item.qos_flow_id          = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
+        pdu_session_res_info_item.qos_flow_info_list.push_back(qos_flow_info_item);
+      }
+      pdu_session_res_info_item.drbs_to_qos_flows_map_list.push_back(asn1_drb_item);
     }
     transparent_container.pdu_session_res_info_list.push_back(pdu_session_res_info_item);
   }

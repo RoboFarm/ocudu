@@ -1123,15 +1123,18 @@ ngap_handover_preparation_request ocudu::ocucp::generate_handover_preparation_re
   request.target_id.gnb_id                  = nci.gnb_id(gnb_id_bit_length);
   request.target_id.plmn = target_plmn, request.target_id.tac = 7;
   request.nci = nci;
-  // Fill create a map of all PDU sessions and their associated QoS flows.
+  // Fill create a map of all PDU sessions and their associated QoS flows, grouped by DRB.
   for (const auto& pdu_session : pdu_sessions) {
-    std::vector<qos_flow_id_t> qos_flows;
+    std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map;
     for (const auto& drb : pdu_session.second.drbs) {
+      ngap_drbs_to_qos_flows_map_item drb_item;
+      drb_item.drb_id = drb.first;
       for (const auto& qos_flow : drb.second.qos_flows) {
-        qos_flows.push_back(qos_flow.first);
+        drb_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qos_flow.first, std::nullopt});
       }
+      drbs_to_qos_flows_map.push_back(drb_item);
     }
-    request.pdu_sessions.insert({pdu_session.first, qos_flows});
+    request.pdu_sessions.insert({pdu_session.first, drbs_to_qos_flows_map});
   }
 
   return request;
