@@ -236,8 +236,11 @@ ngap_message generate_error_indication_message(amf_ue_id_t  amf_ue_id,
                                                ran_ue_id_t  ran_ue_id,
                                                ngap_cause_t cause = ngap_cause_radio_network_t::unknown_pdu_session_id);
 
-/// \brief Generate a valid dummy Handover Request message.
-ngap_message generate_valid_handover_request(amf_ue_id_t amf_ue_id);
+/// \brief Generate a valid dummy Handover Request message. \c include_drb_to_qos_flow_mapping controls whether the
+/// source's DRB-to-QoS-flow mapping (DRB1 <-> QFI0, matching the admitted PDU session) is included in the Source
+/// to Target Transparent Container, letting the target confirm and prefer DRB1's numbering (TS 38.413 Section
+/// 9.3.1.29). Pass false to simulate a source that didn't signal it.
+ngap_message generate_valid_handover_request(amf_ue_id_t amf_ue_id, bool include_drb_to_qos_flow_mapping = true);
 
 /// \brief Generate a valid dummy Handover Preparation Failure message.
 ngap_message generate_handover_preparation_failure(amf_ue_id_t amf_ue_id, ran_ue_id_t ran_ue_id);

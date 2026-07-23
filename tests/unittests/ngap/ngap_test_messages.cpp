@@ -963,7 +963,7 @@ ocudu::ocucp::generate_error_indication_message(amf_ue_id_t amf_ue_id, ran_ue_id
   return ngap_msg;
 }
 
-ngap_message ocudu::ocucp::generate_valid_handover_request(amf_ue_id_t amf_ue_id)
+ngap_message ocudu::ocucp::generate_valid_handover_request(amf_ue_id_t amf_ue_id, bool include_drb_to_qos_flow_mapping)
 {
   ngap_message ngap_msg;
 
@@ -1021,6 +1021,15 @@ ngap_message ocudu::ocucp::generate_valid_handover_request(amf_ue_id_t amf_ue_id
   asn1::ngap::qos_flow_info_item_s flow_item;
   flow_item.qos_flow_id = 0;
   session_item.qos_flow_info_list.push_back(flow_item);
+  if (include_drb_to_qos_flow_mapping) {
+    // Report this source's own DRB-to-QoS-flow mapping (DRB1 <-> QFI0, matching the admitted PDU session).
+    asn1::ngap::drbs_to_qos_flows_map_item_s drb_to_qos_flow_map_item;
+    drb_to_qos_flow_map_item.drb_id = 1;
+    asn1::ngap::associated_qos_flow_item_s assoc_qos_flow;
+    assoc_qos_flow.qos_flow_id = 0;
+    drb_to_qos_flow_map_item.associated_qos_flow_list.push_back(assoc_qos_flow);
+    session_item.drbs_to_qos_flows_map_list.push_back(drb_to_qos_flow_map_item);
+  }
   transparent_container.pdu_session_res_info_list.push_back(session_item);
   // Fill NR CGI.
   auto& cgi = transparent_container.target_cell_id.set_nr_cgi();
