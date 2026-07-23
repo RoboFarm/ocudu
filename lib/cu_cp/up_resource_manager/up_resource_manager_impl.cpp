@@ -145,6 +145,11 @@ bool up_resource_manager::has_pdu_session(pdu_session_id_t pdu_session_id) const
   return context.pdu_sessions.find(pdu_session_id) != context.pdu_sessions.end();
 }
 
+bool up_resource_manager::has_drb(drb_id_t drb_id) const
+{
+  return context.drb_map.find(drb_id) != context.drb_map.end();
+}
+
 const up_drb_context& up_resource_manager::get_drb_context(drb_id_t drb_id) const
 {
   ocudu_assert(context.drb_map.find(drb_id) != context.drb_map.end(), "{} not allocated", drb_id);

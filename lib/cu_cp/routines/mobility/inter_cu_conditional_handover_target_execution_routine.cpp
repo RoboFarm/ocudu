@@ -166,6 +166,16 @@ bool inter_cu_conditional_handover_target_execution_routine::fill_e1ap_bearer_co
   slotted_id_vector<pdu_session_id_t, e1ap_pdu_session_res_to_modify_item>& pdu_sessions =
       ng_request->pdu_session_res_to_modify_list;
   for (const cu_cp_drbs_subject_to_status_transfer_item& ngap_drb : sn_status->drbs_subject_to_status_transfer_list) {
+    // TS 38.423 Section 8.2.2.1: the list reflects the source's DRB configuration and is not guaranteed to be a
+    // subset of the DRBs admitted at this target. DRB IDs are allocated independently by each RAN node (a fresh
+    // target always starts from DRB1), so the source may report an ID that was never allocated here, e.g. because
+    // the source previously released a lower-numbered DRB and never reused its ID.
+    if (!ue->get_up_resource_manager().has_drb(ngap_drb.drb_id)) {
+      logger.warning("ue={}: Ignoring SN Status Transfer for {}. Cause: DRB not admitted at this target",
+                     ue->get_ue_index(),
+                     ngap_drb.drb_id);
+      continue;
+    }
     const up_drb_context& drb_ctx = ue->get_up_resource_manager().get_drb_context(ngap_drb.drb_id);
     pdu_session_id_t      psi     = drb_ctx.pdu_session_id;
 
