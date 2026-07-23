@@ -206,6 +206,50 @@ TEST_F(si_scheduler_test, when_si_is_updated_then_new_msg_len_is_applied_right_a
   ASSERT_TRUE(found) << "SI-message was not scheduled within the expected window";
 }
 
+TEST_F(si_scheduler_test, when_non_exempt_si_message_is_updated_then_new_msg_len_only_applies_at_si_change_window)
+{
+  si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
+  new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
+  ASSERT_FALSE(new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window) << "This SI-message must be non-exempt";
+
+  const unsigned si_ch_wind_len_rfs =
+      static_cast<unsigned>(cell_cfg.params.dl_cfg_common.bcch_cfg.mod_period_coeff) *
+      static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
+  const unsigned sfn_mod = (next_slot + res_grid.max_dl_slot_alloc_delay).sfn() % si_ch_wind_len_rfs;
+  const unsigned si_change_min_count =
+      (si_ch_wind_len_rfs - sfn_mod) * next_slot.nof_slots_per_frame() - next_slot.slot_index();
+
+  // Update SI scheduling.
+  si_sched.handle_si_update_request(si_scheduling_update_request{to_du_cell_index(0), 1, new_si_sched_cfg});
+
+  // The new length should not get updated before the SI change modification window.
+  for (unsigned i = 0; i != si_change_min_count; ++i) {
+    run_slot();
+    for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+      if (sib.si_indicator != sib_information::other_si) {
+        continue;
+      }
+      ASSERT_EQ(sib.version, 0) << "SI version must not have changed yet -- still before the modification window";
+      ASSERT_LT(sib.pdsch_cfg.codewords[0].tb_size_bytes, new_si_sched_cfg.si_messages[0].msg_len)
+          << "Grant was updated before the SI change window for a non-exempt SI-message";
+    }
+  }
+
+  // The new length will only take effect once the SI version itself bumps, at the SI change modification window.
+  const unsigned nof_post_window_test_slots = si_ch_wind_len_rfs * next_slot.nof_slots_per_frame();
+  for (unsigned i = 0; i != nof_post_window_test_slots; ++i) {
+    run_slot();
+    for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+      if (sib.si_indicator != sib_information::other_si or sib.version != 1) {
+        continue;
+      }
+      ASSERT_EQ(sib.version, 1) << "SI version have changed yet, within the modification window";
+      ASSERT_GE(sib.pdsch_cfg.codewords[0].tb_size_bytes, new_si_sched_cfg.si_messages[0].msg_len)
+          << "Grant was not updated to the new msg_len at the SI change window";
+    }
+  }
+}
+
 TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_exactly_once)
 {
   const paging_slot_helper slot_helper(cell_cfg);
