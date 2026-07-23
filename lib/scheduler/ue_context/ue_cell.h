@@ -43,7 +43,7 @@ struct ue_pcell_state {
   /// \c prach_slot_rx precedes \c msg3_rx_slot and is therefore the more accurate reference, but it is only known
   /// if the RA scheduler still had a live entry for this UE by the time it was created; \c msg3_rx_slot is used as
   /// a fallback otherwise.
-  slot_point conres_timer_ref_slot() const { return prach_slot_rx.valid() ? prach_slot_rx : msg3_rx_slot; }
+  slot_point conres_win_start() const { return prach_slot_rx.valid() ? prach_slot_rx : msg3_rx_slot; }
 };
 
 struct ue_cell_components {

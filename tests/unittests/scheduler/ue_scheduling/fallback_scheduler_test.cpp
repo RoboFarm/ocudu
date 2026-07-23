@@ -3,7 +3,6 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "lib/scheduler/common_scheduling/csi_rs_scheduler.h"
-#include "lib/scheduler/common_scheduling/ra_ue_repository.h"
 #include "lib/scheduler/config/sched_config_manager.h"
 #include "lib/scheduler/logging/cell_metrics_handler.h"
 #include "lib/scheduler/logging/scheduler_result_logger.h"
@@ -49,7 +48,6 @@ struct test_bench {
   ue_repository                 ue_db;
   ue_cell_repository&           ue_cell_db;
   cell_metrics_handler          metrics_hdlr{cell_cfg, std::nullopt};
-  ra_ue_repository              ra_ue_repo{cell_cfg, ocudulog::fetch_basic_logger("SCHED")};
   ue_fallback_scheduler         fallback_sched;
   csi_rs_scheduler              csi_rs_sched;
 
@@ -61,7 +59,7 @@ struct test_bench {
     cell_cfg{*[&]() { return cfg_mng.add_cell(cell_req); }()},
     ue_db(cell_cfg.expert_cfg.ue),
     ue_cell_db(ue_db.add_cell(cell_cfg, nullptr)),
-    fallback_sched(expert_cfg, cell_cfg, pdcch_sch, pucch_alloc, uci_alloc, ue_db, ra_ue_repo, metrics_hdlr),
+    fallback_sched(expert_cfg, cell_cfg, pdcch_sch, pucch_alloc, uci_alloc, ue_db, metrics_hdlr),
     csi_rs_sched(cell_cfg)
   {
     ocudulog::fetch_basic_logger("SCHED", true).set_level(ocudulog::basic_levels::debug);

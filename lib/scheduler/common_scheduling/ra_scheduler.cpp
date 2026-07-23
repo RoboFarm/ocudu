@@ -844,20 +844,6 @@ void ra_scheduler::run_slot(cell_resource_allocator& res_alloc)
 
   // Schedule pending MsgBs.
   schedule_pending_msgbs(res_alloc);
-
-  // Promote successRAR completions whose PDSCH transmission slot has now passed.
-  update_msgb_conres_gate(res_alloc.slot_tx());
-}
-
-void ra_scheduler::update_msgb_conres_gate(slot_point current_slot)
-{
-  for (auto& entry : ra_ue_repo) {
-    ra_ue_context& ra_ctx = entry.second;
-    if (not ra_ctx.msgb_success and ra_ctx.msgb_success_safe_slot.valid() and
-        current_slot > ra_ctx.msgb_success_safe_slot) {
-      ra_ctx.msgb_success = true;
-    }
-  }
 }
 
 void ra_scheduler::stop()
@@ -1841,19 +1827,6 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         g.tpc           = 0;
         g.csi_req       = false;
         g.type          = *msgb_harq_ack;
-
-        // Record the successRAR transmission slot, so the UE-dedicated scheduler can tell (once this slot has
-        // passed) that contention was resolved without needing a MAC ConRes CE. Not raised as "safe" immediately:
-        // this grant can be decided several slots before its PDSCH is actually transmitted (see
-        // max_dl_slots_ahead_sched), so msgb_success is only set by the per-slot pass in run_slot().
-        if (ra_ue_context* ra_ctx = ra_ue_repo.add_msgb_success_rar(pctx.info, msgb.prach_slot_rx); ra_ctx != nullptr) {
-          ra_ctx->msgb_success_safe_slot = pdsch_alloc.slot;
-        } else {
-          logger.warning("pci={} tc-rnti={}: Could not track successRAR completion. Cause: TC-RNTI ring slot "
-                         "already in use",
-                         cell_cfg.params.pci,
-                         pctx.info.tc_rnti);
-        }
 
         pctx.msgb_scheduled = true;
         ++success_count;

@@ -3,7 +3,6 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_fallback_scheduler.h"
-#include "../common_scheduling/ra_ue_repository.h"
 #include "../logging/cell_metrics_handler.h"
 #include "../pdcch_scheduling/pdcch_resource_allocator.h"
 #include "../pucch_scheduling/pucch_allocator.h"
@@ -33,7 +32,6 @@ ue_fallback_scheduler::ue_fallback_scheduler(const scheduler_ue_expert_config& e
                                              pucch_allocator&                  pucch_alloc_,
                                              uci_allocator&                    uci_alloc_,
                                              ue_repository&                    ues_,
-                                             ra_ue_repository&                 ra_ue_repo_,
                                              cell_metrics_handler&             metrics_) :
   expert_cfg(expert_cfg_),
   cell_cfg(cell_cfg_),
@@ -41,7 +39,6 @@ ue_fallback_scheduler::ue_fallback_scheduler(const scheduler_ue_expert_config& e
   pucch_alloc(pucch_alloc_),
   uci_alloc(uci_alloc_),
   ues(ues_),
-  ra_ue_repo(ra_ue_repo_),
   metrics(metrics_),
   initial_active_dl_bwp(cell_cfg.params.dl_cfg_common.init_dl_bwp.generic_params),
   ss_cfg(cell_cfg.params.dl_cfg_common.init_dl_bwp.pdcch_common
@@ -276,30 +273,6 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
     // Determine if we should schedule ConRes, SRB0, SRB1 for the given UE.
     auto& u = ues[next_ue->ue_index];
 
-    // 2-step RACH gating: a UE created via MsgA never gets a ConRes CE injected (see handle_ue_creation) — the
-    // Contention Resolution Identity is already embedded in (and resolved by) the successRAR itself, and the
-    // fallback-to-Msg3 path resolves the same way a CFRA Msg3 does (TC-RNTI already uniquely identifies the UE,
-    // so a successful Msg3 decode alone is sufficient — no separate CE is needed there either). Such a UE may
-    // have neither pending SRB0/SRB1 bytes nor a pending ConRes CE, which get_dl_new_tx_alloc_type would
-    // otherwise treat as an inconsistent (error) state. Resolve or defer here, before computing alloc_type.
-    // Reaching this block at all already implies a 2-step-RACH-created UE: handle_ue_creation injects the CE
-    // immediately (making is_con_res_id_pending() true) for every other RACH-created UE.
-    if (u.get_pcell().get_pcell_state().conres_st == ue_conres_state::pending_conres_ce and
-        not u.logical_channels().is_con_res_id_pending()) {
-      auto ra_it = ra_ue_repo.find(u.crnti);
-      if (ra_it != ra_ue_repo.end() and not ra_it->second.msgb_success) {
-        // Still pending (successRAR not yet safe, or Msg3/fallback still in flight) — leave this UE alone.
-        ++next_ue;
-        continue;
-      }
-      // Either the successRAR was confirmed (entry found, msgb_success), or the fallback Msg3 HARQ completed
-      // (entry no longer found, erased by the RA scheduler) — contention is resolved either way, without a CE.
-      ues.handle_conres_ce_outcome(next_ue->ue_index, /*success=*/true);
-      if (ra_it != ra_ue_repo.end()) {
-        ra_ue_repo.erase(u.crnti);
-      }
-    }
-
     const auto alloc_type = get_dl_new_tx_alloc_type(u);
     if (alloc_type == dl_new_tx_alloc_type::error) {
       // The UE is not in a state for scheduling
@@ -421,7 +394,7 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
           static_cast<uint32_t>(
               u.get_pcell().cfg().init_bwp().ul.common().rach_cfg_common.value().ra_con_res_timer.count()) +
           ntn_cs_koffset_subframes;
-      const int conres_prach_slot_diff = pdsch_alloc.slot - u.get_pcell().get_pcell_state().conres_timer_ref_slot();
+      const int conres_prach_slot_diff = pdsch_alloc.slot - u.get_pcell().get_pcell_state().conres_win_start();
       if (conres_prach_slot_diff < 0 or
           divide_ceil<uint32_t, uint32_t>(static_cast<uint32_t>(conres_prach_slot_diff),
                                           pdsch_alloc.slot.nof_slots_per_subframe()) > ra_conres_timer_subframes) {
@@ -1407,12 +1380,13 @@ bool ue_fallback_scheduler::handle_conres_expiry(ue& u, slot_point sl_tx)
     return false;
   }
 
-  const slot_point conres_ref_slot = ue_pcell.get_pcell_state().conres_timer_ref_slot();
+  const slot_point conres_ref_slot = ue_pcell.get_pcell_state().conres_win_start();
   if (not conres_ref_slot.valid()) {
     logger.warning("ue={} rnti={}: attempting to compute ra-ContentionResolutionTimer with non-valid prach/msg3 rx "
                    "slot",
                    u.ue_index,
                    u.crnti);
+    return false;
   }
 
   const auto conres_timer       = ue_pcell.cfg().init_bwp().ul.common().rach_cfg_common->ra_con_res_timer.count();

@@ -218,10 +218,6 @@ private:
   /// Reserve space in the resource grid for the MsgA PUSCH so it is not taken by other UL grants.
   void reserve_msga_pusch_rbs(cell_resource_allocator& res_alloc);
 
-  /// \brief Promotes tc_rnti_repo entries whose successRAR PDSCH transmission slot has passed to \c msgb_success,
-  /// so the UE-dedicated scheduler can tell contention was resolved without a MAC ConRes CE.
-  void update_msgb_conres_gate(slot_point current_slot);
-
   // Set the max number of slots the scheduler can look ahead in the resource grid (with respect to the current slot) to
   // find PDSCH space for RAR.
   static constexpr unsigned max_dl_slots_ahead_sched = 8U;

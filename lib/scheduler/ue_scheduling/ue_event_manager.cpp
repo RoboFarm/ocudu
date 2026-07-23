@@ -320,15 +320,10 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
     slice_sched.add_ue(ue_index);
 
     if (ue_cc.get_pcell_state().conres_st == ue_conres_state::pending_conres_ce) {
-      // Note: In case of RACH-created UE, auto-inject MAC ConRes CE, unless this UE was created via 2-step RACH
-      // (MsgA) and its successRAR outcome isn't known/safe yet — in that case, injecting now (or scheduling
-      // SRB0/SRB1 before the successRAR PDSCH has actually been transmitted) would race ahead of the UE, which
-      // does not yet monitor C-RNTI-addressed PDCCH. ue_fallback_scheduler's per-slot loop re-checks this and
-      // performs the injection once the RA scheduler confirms an outcome (see schedule_dl_new_tx).
-      if (ra_it == ra_ue_repo.end()) {
-        // Forward CE to ue instance.
-        u.handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
-      }
+      // Note: In case of RACH-created UE, auto-inject MAC ConRes CE.
+
+      // Forward CE to ue instance.
+      u.handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
 
       // Notify fallback scheduler of a pending ConRes CE.
       fallback_sched.handle_conres_indication(ue_index);

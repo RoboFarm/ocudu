@@ -24,15 +24,6 @@ struct ra_ue_context {
   /// \note [TS 38.321, 5.4.2.1] "For UL transmission with UL grant in RA Response, HARQ process identifier 0 is
   /// used".
   unique_ue_harq_entity harq_ent;
-  /// \brief Set once this TC-RNTI's contention is resolvable without a MAC ConRes CE: a 2-step RACH successRAR
-  /// was scheduled and its PDSCH transmission slot has already passed. Starts false, which uniformly covers
-  /// native 4-step Msg3 (a ConRes CE is always needed, immediately) and 2-step-fallback Msg3 (a ConRes CE is
-  /// needed once Msg3 HARQ completes) — both cases genuinely require sending a real ConRes CE.
-  bool msgb_success = false;
-  /// Slot of the successRAR PDSCH transmission. Only meaningful once set by a successRAR grant commit; \c
-  /// msgb_success is not raised until this slot has passed, since the grant can be decided several slots before
-  /// its PDSCH is actually transmitted.
-  slot_point msgb_success_safe_slot;
 
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
@@ -95,14 +86,6 @@ public:
     }
     ctx->harq_ent = ra_harqs.add_ue(to_du_ue_index(ring_key(preamble.tc_rnti)), preamble.tc_rnti, 1, 1);
     return ctx;
-  }
-
-  /// \brief Adds a new entry tracking a 2-step RACH successRAR completion. No Msg3 UL HARQ entity is allocated,
-  /// since contention is already resolved once the successRAR's PDSCH transmission slot has passed.
-  /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected.
-  ra_ue_context* add_msgb_success_rar(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
-  {
-    return add_entry(preamble, prach_slot_rx);
   }
 
   /// \brief Erase a RA UE entry from the repository.
