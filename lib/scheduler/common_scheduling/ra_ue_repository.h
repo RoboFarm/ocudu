@@ -18,6 +18,8 @@ class cell_configuration;
 struct ra_ue_context {
   /// Detected PRACH Preamble which will be associated to the Msg3/MsgA PUSCH to be scheduled.
   rach_indication_message::preamble preamble{};
+  /// Slot at which the PRACH preamble was received.
+  slot_point prach_slot_rx;
   /// HARQ entity used to allocate the UL HARQ process for Msg3 (native 4-step or 2-step fallback).
   /// \note [TS 38.321, 5.4.2.1] "For UL transmission with UL grant in RA Response, HARQ process identifier 0 is
   /// used".
@@ -85,9 +87,9 @@ public:
   /// its Msg3 retransmissions (native 4-step or 2-step fallback).
   /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected (an unrelated,
   /// still-live entry already occupies this TC-RNTI's ring slot).
-  ra_ue_context* add(const rach_indication_message::preamble& preamble)
+  ra_ue_context* add(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
   {
-    ra_ue_context* ctx = add_entry(preamble);
+    ra_ue_context* ctx = add_entry(preamble, prach_slot_rx);
     if (ctx == nullptr) {
       return nullptr;
     }
@@ -98,7 +100,10 @@ public:
   /// \brief Adds a new entry tracking a 2-step RACH successRAR completion. No Msg3 UL HARQ entity is allocated,
   /// since contention is already resolved once the successRAR's PDSCH transmission slot has passed.
   /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected.
-  ra_ue_context* add_msgb_success_rar(const rach_indication_message::preamble& preamble) { return add_entry(preamble); }
+  ra_ue_context* add_msgb_success_rar(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
+  {
+    return add_entry(preamble, prach_slot_rx);
+  }
 
   /// \brief Erase a RA UE entry from the repository.
   iterator erase(rnti_t tc_rnti) { return table.erase(find(tc_rnti)); }
@@ -125,7 +130,7 @@ private:
   /// \brief Inserts a new entry for the detected preamble's TC-RNTI, saving the preamble directly.
   /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected (an unrelated,
   /// still-live entry already occupies this TC-RNTI's ring slot).
-  ra_ue_context* add_entry(const rach_indication_message::preamble& preamble)
+  ra_ue_context* add_entry(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
   {
     const uint16_t key = ring_key(preamble.tc_rnti);
     if (not table.emplace(key)) {
@@ -133,6 +138,7 @@ private:
     }
     ra_ue_context& ctx = table[key];
     ctx.preamble       = preamble;
+    ctx.prach_slot_rx  = prach_slot_rx;
     return &ctx;
   }
 

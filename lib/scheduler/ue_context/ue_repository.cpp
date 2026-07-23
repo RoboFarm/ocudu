@@ -114,10 +114,7 @@ void ue_repository::rem_cell(du_cell_index_t cell_index)
   cell_ues.erase(cell_index);
 }
 
-void ue_repository::add_ue(const ue_configuration&   ue_cfg,
-                           bool                      starts_in_fallback,
-                           std::optional<slot_point> ul_ccch_slot_rx,
-                           bool                      cfra_enabled)
+void ue_repository::add_ue(const ue_configuration& ue_cfg, const ue_creation_context& creation_ctx)
 {
   ocudu_assert(not ues.contains(ue_cfg.ue_index), "UE with duplicate index being added to the repository");
 
@@ -125,13 +122,14 @@ void ue_repository::add_ue(const ue_configuration&   ue_cfg,
   const du_ue_index_t ue_index = ue_cfg.ue_index;
 
   ue_pcell_state st;
-  st.msg3_rx_slot = ul_ccch_slot_rx.value_or(slot_point{});
-  if (starts_in_fallback) {
+  st.msg3_rx_slot  = creation_ctx.ul_ccch_slot_rx.value_or(slot_point{});
+  st.prach_slot_rx = creation_ctx.prach_slot_rx.value_or(slot_point{});
+  if (creation_ctx.starts_in_fallback) {
     if (st.msg3_rx_slot.valid()) {
       // RACH-created UE: ConRes CE pending + RRC Setup/Reestablishment/Resume pending.
       st.config_st = ue_config_state::pending_initial_conf;
       st.conres_st = ue_conres_state::pending_conres_ce;
-    } else if (cfra_enabled) {
+    } else if (creation_ctx.cfra_enabled) {
       // F1AP-created UE that is expecting a CFRA. Defer UCI/SRS scheduling until Msg3 is ACKed.
       st.conres_st = ue_conres_state::pending_cfra;
     } else {
@@ -144,13 +142,13 @@ void ue_repository::add_ue(const ue_configuration&   ue_cfg,
   const rnti_t             rnti      = ue_cfg.crnti;
   const auto&              pcell_cmn = ue_cfg.pcell_common_cfg();
   const subcarrier_spacing scs       = pcell_cmn.params.dl_cfg_common.init_dl_bwp.generic_params.scs;
-  auto ue_lc_mng = lc_ch_sys.create_ue(ue_index, scs, starts_in_fallback, ue_cfg.logical_channels());
+  auto ue_lc_mng = lc_ch_sys.create_ue(ue_index, scs, creation_ctx.starts_in_fallback, ue_cfg.logical_channels());
   ue_drx_controllers.emplace(ue_index,
                              pcell_cmn.params.ul_cfg_common.init_ul_bwp.generic_params.scs,
                              pcell_cmn.params.ul_cfg_common.init_ul_bwp.rach_cfg_common->ra_con_res_timer,
                              ue_cfg.drx_cfg(),
                              ue_lc_mng.view(),
-                             ul_ccch_slot_rx,
+                             creation_ctx.ul_ccch_slot_rx,
                              logger);
   auto ue_ta_mgr = ta_mgr_sys.add_ue(
       ue_cfg.pcell_cfg().tag_id(), pcell_cmn.params.ul_cfg_common.init_ul_bwp.generic_params.scs, ue_lc_mng.view());

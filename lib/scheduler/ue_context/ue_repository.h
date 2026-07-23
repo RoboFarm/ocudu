@@ -15,6 +15,19 @@
 
 namespace ocudu {
 
+/// \brief Context describing how a UE is being created, passed to \c ue_repository::add_ue.
+struct ue_creation_context {
+  /// Whether the UE starts in fallback mode, i.e. without using its dedicated configuration.
+  bool starts_in_fallback = false;
+  /// Slot at which UL-CCCH message was received, in case of RA-based UE creation. \c std::nullopt, otherwise.
+  std::optional<slot_point> ul_ccch_slot_rx;
+  /// Whether the UE is expecting a CFRA.
+  bool cfra_enabled = false;
+  /// Slot at which the PRACH preamble was received, if this UE was created following a RACH tracked by the RA
+  /// scheduler. \c std::nullopt, otherwise.
+  std::optional<slot_point> prach_slot_rx;
+};
+
 /// Container that stores all scheduler UEs.
 class ue_repository
 {
@@ -49,10 +62,7 @@ public:
   const ue* find_by_rnti(rnti_t rnti) const;
 
   /// \brief Add new UE in the UE repository.
-  void add_ue(const ue_configuration&   ue_cfg,
-              bool                      starts_in_fallback,
-              std::optional<slot_point> ul_ccch_slot_rx,
-              bool                      cfra_enabled);
+  void add_ue(const ue_configuration& ue_cfg, const ue_creation_context& creation_ctx);
 
   /// \brief Reconfigure existing UE.
   void reconfigure_ue(const ue_configuration& new_cfg, sched_ue_config_request::causes cause);

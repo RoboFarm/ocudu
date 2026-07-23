@@ -296,10 +296,16 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
       return event_result::processed;
     }
 
+    // Check if this UE was created via RACH and is still tracked by the RA scheduler, so its PRACH reception slot
+    // can be carried over into the UE's PCell context.
+    auto                      ra_it = ra_ue_repo.find(crnti);
+    std::optional<slot_point> prach_slot_rx =
+        ra_it != ra_ue_repo.end() ? std::optional<slot_point>(ra_it->second.prach_slot_rx) : std::nullopt;
+
     // Insert UE in UE repository.
     const du_cell_index_t pcell_index    = ev.next_config().pcell_common_cfg().cell_index;
     bool                  is_in_fallback = ev.get_fallback_command().has_value() and ev.get_fallback_command().value();
-    ue_db.add_ue(ev.next_config(), is_in_fallback, ev.get_ul_ccch_slot_rx(), ev.get_cfra_enabled());
+    ue_db.add_ue(ev.next_config(), {is_in_fallback, ev.get_ul_ccch_slot_rx(), ev.get_cfra_enabled(), prach_slot_rx});
 
     auto& u     = ue_db[ue_index];
     auto& ue_cc = u.get_pcell();
@@ -319,7 +325,7 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
       // SRB0/SRB1 before the successRAR PDSCH has actually been transmitted) would race ahead of the UE, which
       // does not yet monitor C-RNTI-addressed PDCCH. ue_fallback_scheduler's per-slot loop re-checks this and
       // performs the injection once the RA scheduler confirms an outcome (see schedule_dl_new_tx).
-      if (ra_ue_repo.find(crnti) == ra_ue_repo.end()) {
+      if (ra_it == ra_ue_repo.end()) {
         // Forward CE to ue instance.
         u.handle_dl_mac_ce_indication(dl_mac_ce_indication{ue_index, lcid_dl_sch_t::UE_CON_RES_ID});
       }

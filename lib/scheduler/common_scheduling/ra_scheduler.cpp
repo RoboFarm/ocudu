@@ -489,7 +489,7 @@ void ra_scheduler::handle_msg1_occasion(const rach_indication_message::occasion&
     }
 
     // Create a new UE RA context.
-    ra_ue_context* msg3_entry = ra_ue_repo.add(preamble);
+    ra_ue_context* msg3_entry = ra_ue_repo.add(preamble, prach_slot_rx);
     if (msg3_entry == nullptr) {
       logger.warning("pci={}: PRACH ignored, as the allocated TC-RNTI={} is already under use",
                      cell_cfg.params.pci,
@@ -1846,7 +1846,7 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         // passed) that contention was resolved without needing a MAC ConRes CE. Not raised as "safe" immediately:
         // this grant can be decided several slots before its PDSCH is actually transmitted (see
         // max_dl_slots_ahead_sched), so msgb_success is only set by the per-slot pass in run_slot().
-        if (ra_ue_context* ra_ctx = ra_ue_repo.add_msgb_success_rar(pctx.info); ra_ctx != nullptr) {
+        if (ra_ue_context* ra_ctx = ra_ue_repo.add_msgb_success_rar(pctx.info, msgb.prach_slot_rx); ra_ctx != nullptr) {
           ra_ctx->msgb_success_safe_slot = pdsch_alloc.slot;
         } else {
           logger.warning("pci={} tc-rnti={}: Could not track successRAR completion. Cause: TC-RNTI ring slot "
@@ -1875,7 +1875,7 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         const vrb_interval            vrbs       = ul_crb_to_vrb(cell_cfg, msg3_candidate.crbs);
 
         // Create pending Msg3 entry (HARQ entity + preamble info).
-        ra_ue_context* pending_msg3 = ra_ue_repo.add(pctx.info);
+        ra_ue_context* pending_msg3 = ra_ue_repo.add(pctx.info, msgb.prach_slot_rx);
         if (pending_msg3 == nullptr) {
           logger.warning("pci={} tc-rnti={}: Cannot create Msg3 entry for FallbackRAR. Cause: TC-RNTI already in use",
                          cell_cfg.params.pci,
