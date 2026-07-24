@@ -110,7 +110,7 @@ void benchmark_status_pdu_handling(rlc_am_status_pdu status, const bench_params&
   manual_task_worker pcell_worker{128};
   manual_task_worker ue_worker{128};
 
-  rlc_drb_tx_window_seg_pool drb_tx_pool{rlc_drb_tx_window_seg_pool_size};
+  rlc_drb_tx_window_seg_pool drb_tx_pool{rlc_drb_tx_window_seg_pool_size, rlc_drb_tx_window_seg_size};
 
   null_rlc_pcap pcap;
 

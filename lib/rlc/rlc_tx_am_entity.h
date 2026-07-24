@@ -108,7 +108,7 @@ private:
   const uint32_t am_window_size;
 
   /// TX window
-  segmented_sdu_window<rlc_tx_am_sdu_info, rlc_drb_tx_window_seg_size, rlc_bearer_logger> tx_window;
+  segmented_sdu_window<rlc_tx_am_sdu_info, rlc_bearer_logger> tx_window;
 
   /// Recycler for discarded PDUs (from tx_window) that shall be deleted by a different executor off the critical path
   rlc_pdu_recycler pdu_recycler;

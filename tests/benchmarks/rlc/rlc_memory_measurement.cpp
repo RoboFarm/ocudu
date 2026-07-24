@@ -339,8 +339,8 @@ void rlc_instances(const bench_params& params)
 
   null_rlc_pcap pcap;
 
-  rlc_drb_rx_window_seg_pool drb_rx_pool{rlc_drb_rx_window_seg_pool_size};
-  rlc_drb_tx_window_seg_pool drb_tx_pool{rlc_drb_tx_window_seg_pool_size};
+  rlc_drb_rx_window_seg_pool drb_rx_pool{rlc_drb_rx_window_seg_pool_size, rlc_drb_rx_window_seg_size};
+  rlc_drb_tx_window_seg_pool drb_tx_pool{rlc_drb_tx_window_seg_pool_size, rlc_drb_tx_window_seg_size};
 
   auto                                           rx_am_12_tester = std::make_unique<rlc_rx_am_test_frame>(ue_worker);
   std::vector<std::unique_ptr<rlc_rx_am_entity>> rx_am_12_instances;
