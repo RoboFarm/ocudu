@@ -8,6 +8,7 @@
 #include "ocudu/support/error_handling.h"
 #include "ocudu/support/math/math_utils.h"
 #include "ocudu/support/ocudu_assert.h"
+#include "ocudu/support/synchronization/sync_event.h"
 #include <chrono>
 #include <cstdint>
 #include <thread>
@@ -63,7 +64,17 @@ void ru_dummy_impl::start()
   }
 
   // Start the loop execution.
-  defer_loop();
+  sync_event start_event;
+  if (!executor.defer([this, start_token = start_event.get_token(), stop_token = stop_control.get_token()]() mutable {
+        // Unblock the start() caller thread as the start operation is now complete.
+        start_token.reset();
+
+        radio_loop(stop_token);
+      })) {
+    report_fatal_error("Unable to start the ru dummy loop");
+  }
+  // Block until the radio loop starts.
+  start_event.wait();
 }
 
 void ru_dummy_impl::stop()
@@ -73,24 +84,19 @@ void ru_dummy_impl::stop()
     sector->stop();
   }
 
-  // Signal stop to asynchronous thread.
-  // The timing loop must be stopped last as it will clean up all pending requests.
+  // Send stop signal to asynchronous thread.
+  // The radio timing loop must be stopped last as it will clean up all pending requests.
   stop_control.stop();
 }
 
-void ru_dummy_impl::defer_loop()
+void ru_dummy_impl::radio_loop(const rt_stop_event_token& tk)
 {
-  auto token = stop_control.get_token();
-  if (OCUDU_UNLIKELY(token.is_stop_requested())) {
-    return;
+  while (OCUDU_LIKELY(!tk.is_stop_requested())) {
+    run_slot();
   }
-
-  report_fatal_error_if_not(executor.defer(unique_function<void(), default_unique_task_buffer_size, true>(
-                                [this, defer_token = std::move(token)]() noexcept OCUDU_RTSAN_NONBLOCKING { loop(); })),
-                            "Failed to execute loop method.");
 }
 
-void ru_dummy_impl::loop()
+void ru_dummy_impl::run_slot()
 {
   // Get the current system slot from the system time.
   uint64_t slot_count = get_current_system_slot(slot_duration, current_slot.nof_slots_in_all_hyper_sfns());
@@ -123,7 +129,4 @@ void ru_dummy_impl::loop()
       sector->new_slot_boundary(slot);
     }
   }
-
-  // Feed back the execution of this task.
-  defer_loop();
 }

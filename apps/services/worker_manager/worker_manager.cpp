@@ -668,10 +668,9 @@ void worker_manager::create_ru_dummy_executors()
 {
   create_prio_worker("ru_dummy",
                      "ru_dummy_exec",
-                     task_worker_queue_size,
-                     concurrent_queue_policy::lockfree_spsc,
-                     // The RU dummy implementation already sleeps between calls.
-                     std::chrono::microseconds{0},
+                     4,
+                     concurrent_queue_policy::locking_mpsc,
+                     std::nullopt,
                      // Use the first cell of the affinity manager for the dummy RU.
                      affinity_mng.front().calcute_affinity_mask(sched_affinity_mask_types::ru),
                      os_thread_realtime_priority::max());
