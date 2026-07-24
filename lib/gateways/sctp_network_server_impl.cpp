@@ -79,17 +79,37 @@ private:
     }
 
     // Send EOF to SCTP client.
-    transport_layer_address::native_type dest_addr  = client_addr.native();
-    int                                  bytes_sent = ::sctp_sendmsg(fd,
-                                                                     nullptr,
-                                                                     0,
-                                                                     const_cast<struct sockaddr*>(dest_addr.addr),
-                                                                     dest_addr.addrlen,
-                                                                     htonl(ppid),
-                                                                     SCTP_EOF,
-                                                                     stream_no,
-                                                                     0,
-                                                                     0);
+    transport_layer_address::native_type dest_addr = client_addr.native();
+    struct sctp_sndinfo                  sndinfo{};
+    sndinfo.snd_sid   = stream_no;
+    sndinfo.snd_ppid  = htonl(ppid);
+    sndinfo.snd_flags = SCTP_EOF;
+
+    char control[CMSG_SPACE(sizeof(sndinfo))];
+
+    struct iovec iov{};
+    iov.iov_base = nullptr;
+    iov.iov_len  = 0;
+
+    struct msghdr msg{};
+    msg.msg_name    = dest_addr.addr;
+    msg.msg_namelen = dest_addr.addrlen;
+    msg.msg_iov     = &iov;
+    msg.msg_iovlen  = 1;
+
+    msg.msg_control    = control;
+    msg.msg_controllen = sizeof(control);
+
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level     = IPPROTO_SCTP;
+    cmsg->cmsg_type      = SCTP_SNDINFO;
+    cmsg->cmsg_len       = CMSG_LEN(sizeof(sndinfo));
+
+    memcpy(CMSG_DATA(cmsg), &sndinfo, sizeof(sndinfo));
+
+    msg.msg_controllen = cmsg->cmsg_len;
+
+    ssize_t bytes_sent = sendmsg(fd, &msg, MSG_NOSIGNAL);
 
     if (bytes_sent == -1) {
       // Failed to send EOF.

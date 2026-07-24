@@ -236,10 +236,8 @@ TEST_F(sctp_network_server_test, when_client_disconnects_then_server_deletes_ass
 {
   server = create_sctp_network_server(server_cfg);
   ASSERT_TRUE(server->listen());
-  int listen_fd = broker.get_last_registered_fd();
   ASSERT_TRUE(connect_client());
   int assoc_fd = broker.get_last_registered_fd();
-  fmt::println("listen_fd={} assoc_fd={}", listen_fd, assoc_fd);
   ASSERT_FALSE(assoc_factory.association_destroyed);
   ASSERT_TRUE(close_client(true, assoc_fd));
   ASSERT_TRUE(assoc_factory.association_destroyed);
@@ -267,7 +265,6 @@ TEST_F(sctp_network_server_test,
 {
   server = create_sctp_network_server(server_cfg);
   ASSERT_TRUE(server->listen());
-  // int listen_fd = broker.get_last_registered_fd();
   ASSERT_TRUE(connect_client());
   int assoc_fd = broker.get_last_registered_fd();
 
@@ -333,7 +330,6 @@ TEST_F(sctp_network_server_test, when_multiple_clients_connect_then_multiple_ass
   // Close Client 2.
   client2.close();
 
-  fmt::println(stderr, "assoc_fd1 {} assoc_fd2 {}", assoc_fd1, assoc_fd2);
   // SCTP shutdown client 1
   trigger_broker(assoc_fd1); // < Client 1: SCTP SHUTDOWN EVENT
   trigger_broker(assoc_fd1); // < Client 1: SCTP SHUTDOWN COMP
