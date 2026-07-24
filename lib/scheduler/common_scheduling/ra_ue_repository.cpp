@@ -90,7 +90,7 @@ ra_ue_repository::ra_ue_repository(const cell_configuration& cell_cfg,
                                    size_t                    capacity) :
   ra_con_res_timer_slots(get_harq_retx_timeout_slots(cell_cfg)),
   ring_capacity(static_cast<uint16_t>(capacity)),
-  ra_harqs(MAX_NOF_DU_UES_PER_CELL,
+  ra_harqs(ring_capacity,
            1,
            std::make_unique<msgb_harq_timeout_notifier>(cell_cfg.params.pci, logger),
            std::make_unique<msg3_harq_timeout_notifier>(*this, cell_cfg.params.pci, logger),
@@ -108,11 +108,17 @@ void ra_ue_repository::slot_indication(slot_point sl_tx)
 {
   ra_harqs.slot_indication(sl_tx);
 
-  // Erase any RA UE entry whose ra-ContentionResolutionTimer has expired, so its ring slot is never leaked.
+  // Erase any RA UE entry whose ra-ContentionResolutionTimer has expired, or that was marked pending removal, as
+  // long as its Msg3 HARQ is not still awaiting ACK/CRC feedback, so its ring slot is never leaked.
   for (auto it = table.begin(); it != table.end();) {
+    if (it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
+      // Msg3 HARQ is still awaiting ACK/CRC feedback.
+      ++it;
+      continue;
+    }
     const slot_point sl_conres = it->prach_slot_rx + ra_con_res_timer_slots;
-    if (sl_conres > sl_tx or it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
-      // ConRes window has not yet elapsed, or the Msg3 HARQ is still awaiting ACK/CRC feedback.
+    if (not it->pending_removal and sl_conres > sl_tx) {
+      // ConRes window has not yet elapsed, and removal wasn't otherwise requested.
       ++it;
       continue;
     }

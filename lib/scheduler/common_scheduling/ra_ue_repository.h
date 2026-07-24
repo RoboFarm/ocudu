@@ -24,6 +24,10 @@ struct ra_ue_context {
   /// \note [TS 38.321, 5.4.2.1] "For UL transmission with UL grant in RA Response, HARQ process identifier 0 is
   /// used".
   unique_ue_harq_entity harq_ent;
+  /// Set when \c erase was called on this entry while its Msg3 HARQ was still awaiting ACK/CRC feedback. The entry
+  /// is only removed from the table once that HARQ concludes, so its ring slot cannot be reused while the HARQ
+  /// manager still tracks it.
+  bool pending_removal = false;
 
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
@@ -87,8 +91,23 @@ public:
   }
 
   /// \brief Erase a RA UE entry from the repository.
-  iterator erase(rnti_t tc_rnti) { return table.erase(find(tc_rnti)); }
-  iterator erase(iterator it) { return table.erase(it); }
+  /// \note If the entry's Msg3 HARQ is still awaiting ACK/CRC feedback, the removal is deferred: retransmissions are
+  /// cancelled and the entry is only actually erased, by \c slot_indication, once that HARQ concludes.
+  iterator erase(rnti_t tc_rnti) { return erase(find(tc_rnti)); }
+  iterator erase(iterator it)
+  {
+    if (it == end()) {
+      return it;
+    }
+    if (it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
+      it->harq_ent.cancel_retxs();
+      it->pending_removal = true;
+      iterator next_it    = it;
+      ++next_it;
+      return next_it;
+    }
+    return table.erase(it);
+  }
 
   /// \brief Looks up the RA context for a TC-RNTI.
   /// \return The RA context, if an entry exists for this exact TC-RNTI. Returns \c nullptr otherwise.
