@@ -35,6 +35,16 @@ struct ra_ue_context {
 
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
+
+  /// \brief Checks whether this entry represents a still-pending 2-step RACH successRAR completion (see \c
+  /// ra_ue_repository::add_msgb_success) as of \c slot_tx, i.e. it has no Msg3 HARQ (only ever true for a
+  /// successRAR-tracking entry) and its MsgB PDSCH transmission slot is either not yet set or still in the future.
+  /// A Msg3-tracking entry (native 4-step or 2-step fallback) always has a real harq_ent, so this is always false
+  /// for those, regardless of \c slot_tx.
+  bool is_msgb_success_rar_pending(slot_point slot_tx) const
+  {
+    return harq_ent.empty() and (not msgb_slot_tx.has_value() or *msgb_slot_tx >= slot_tx);
+  }
 };
 
 /// \brief Repository of in-flight Random Access attempts, indexed by TC-RNTI in a circular hashing fashion (the

@@ -276,18 +276,12 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
     // Determine if we should schedule ConRes, SRB0, SRB1 for the given UE.
     auto& u = ues[next_ue->ue_index];
 
-    // 2-step RACH gating: a live ra_ue_repository entry for this TC-RNTI only exists for a successRAR UE (see
-    // ra_ue_repository::add_msgb_success), and only until its MsgB PDSCH transmission slot has passed. Until then,
-    // sending anything (ConRes CE, SRB0/SRB1) would race ahead of a UE that may not even be monitoring
-    // C-RNTI-addressed PDCCH yet. No entry found means either this is not a 2-step-RACH UE, or its Msg3
-    // fallback/native path already resolved contention some other way — nothing to gate on either way.
+    // 2-step RACH gating: sending anything (ConRes CE, SRB0/SRB1) for a UE with a still-pending successRAR would
+    // race ahead of a UE that may not even be monitoring C-RNTI-addressed PDCCH yet.
     auto ra_it = ra_ue_repo.find(u.crnti);
-    if (ra_it != ra_ue_repo.end()) {
-      if (not ra_it->msgb_slot_tx.has_value() or *ra_it->msgb_slot_tx >= res_alloc.slot_tx()) {
-        ++next_ue;
-        continue;
-      }
-      ra_ue_repo.erase(ra_it);
+    if (ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar_pending(res_alloc.slot_tx())) {
+      ++next_ue;
+      continue;
     }
 
     const auto alloc_type = get_dl_new_tx_alloc_type(u);
@@ -315,6 +309,8 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
       continue;
     }
 
+    const bool conres_ce_pending_before = u.logical_channels().is_con_res_id_pending();
+
     // Make the scheduling attempt.
     dl_sched_outcome outcome = schedule_dl_srb(res_alloc, u, std::nullopt);
     if (outcome == dl_sched_outcome::next_ue) {
@@ -326,6 +322,13 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
       // This is the case the DL fallback scheduler has reached the maximum number of scheduling attempts and the fnc
       // returns \ref stop_dl_scheduling.
       return false;
+    }
+
+    if (ra_it != ra_ue_repo.end() and conres_ce_pending_before and not u.logical_channels().is_con_res_id_pending()) {
+      // The RA entry is no longer needed once the ConRes CE has been scheduled for this UE -- free its ring slot now
+      // instead of waiting for slot_indication's ConRes-timer sweep. If its Msg3 HARQ (if any) is still awaiting
+      // ACK/CRC feedback, erase() defers the actual removal until that concludes.
+      ra_ue_repo.erase(ra_it);
     }
 
     // There was a successful allocation. This does not, however, mean that the pending data was completely flushed.

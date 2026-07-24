@@ -537,19 +537,25 @@ protected:
       test_logger.info("Transient UE pool exhausted: launched {}/{} UEs in this wave", to_launch, wave_size);
     }
     std::vector<du_ue_index_t> wave_ues;
+    std::vector<rnti_t>        wave_rntis;
     wave_ues.reserve(to_launch);
+    wave_rntis.reserve(to_launch);
     for (unsigned i = 0; i != to_launch; ++i) {
       wave_ues.push_back(transient_pool.back());
       transient_pool.pop_back();
+      // Mimic production C-RNTI allocation (rnti_manager): monotonically increasing, independent of the (recycled)
+      // ue_index just popped above.
+      wave_rntis.push_back(
+          to_rnti(to_value(base_rnti) + test_params.nof_background_ues + next_transient_rnti_offset++));
     }
 
     // Inject the RACH for the whole wave in one occasion, so its RAR + Msg3 load lands together (as when a burst of UEs
     // ramps up at once). Each transient UE's task then waits for its own Msg3 before entering fallback.
     if (test_params.rach_driven) {
-      push_wave_rach(wave_ues);
+      push_wave_rach(wave_ues, wave_rntis);
     }
-    for (du_ue_index_t idx : wave_ues) {
-      schedule_task(launch_transient_ue_task(idx));
+    for (unsigned i = 0; i != to_launch; ++i) {
+      schedule_task(launch_transient_ue_task(wave_ues[i], wave_rntis[i]));
     }
 
     // Just keep feeding the background UE buffers, so they don't deplete.
@@ -558,7 +564,7 @@ protected:
 
   // Push a single RACH indication carrying one distinct preamble (TC-RNTI) per transient UE in the wave. The scheduler
   // answers with a RAR and a Msg3 PUSCH per preamble, loading the DL common search space and the (single) UL slot.
-  void push_wave_rach(span<const du_ue_index_t> wave_ues)
+  void push_wave_rach(span<const du_ue_index_t> wave_ues, span<const rnti_t> wave_rntis)
   {
     ocudu_assert(wave_ues.size() <= MAX_PREAMBLES_PER_PRACH_OCCASION,
                  "Wave size {} exceeds the preambles available in one PRACH occasion",
@@ -566,7 +572,7 @@ protected:
     std::vector<rach_indication_message::preamble> preambles;
     preambles.reserve(wave_ues.size());
     for (unsigned i = 0, e = wave_ues.size(); i != e; ++i) {
-      preambles.push_back(test_helper::create_preamble(i, to_rnti(to_value(base_rnti) + to_value(wave_ues[i]))));
+      preambles.push_back(test_helper::create_preamble(i, wave_rntis[i]));
     }
     sched->handle_rach_indication(test_helper::create_rach_indication(next_slot_rx(), preambles));
   }
@@ -574,10 +580,9 @@ protected:
   // Async lifecycle of a transient UE: attach in fallback, complete contention resolution before the ConRes timer
   // expires, run the scenario-specific traffic, and detach; the index is returned to the pool only once the removal is
   // confirmed.
-  async_task<void> launch_transient_ue_task(du_ue_index_t idx)
+  async_task<void> launch_transient_ue_task(du_ue_index_t idx, rnti_t rnti)
   {
-    const rnti_t rnti      = to_rnti(to_value(base_rnti) + to_value(idx));
-    auto         req       = build_ue_request(idx, rnti, {});
+    auto req = build_ue_request(idx, rnti, {});
     req.starts_in_fallback = true;
 
     return launch_async([this, idx, rnti, req = std::move(req), ce_ok = false, msg3_ok = false](
@@ -699,6 +704,12 @@ protected:
 
   std::vector<du_ue_index_t>                transient_pool;
   std::vector<background_traffic_direction> background_ues;
+
+  // Next offset (from base_rnti + nof_background_ues) to hand out to a newly launched transient UE. Mimics
+  // production C-RNTI allocation (rnti_manager): monotonically increasing and never reused within the run, unlike
+  // the recycled du_ue_index_t pool, so a reused index never gets the same rnti as its previous occupant while the
+  // scheduler-side RA state for that rnti is still being cleaned up.
+  unsigned next_transient_rnti_offset = 0;
 };
 
 /// \brief Contention-resolution stress: transient UEs exchange Msg4 (DL) under a mixed DL/UL background load, and must

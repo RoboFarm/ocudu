@@ -775,8 +775,9 @@ void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& 
       // Handle CRC info.
       h_ul->ul_crc_info(crc.tb_crc_success);
       if (h_ul->empty()) {
-        // Deallocate Msg3 entry.
-        ra_ue_repo.erase(crc_it);
+        // Note: The ra_ue_repository entry is intentionally left in place here (its Msg3 HARQ is already empty, so
+        // slot_indication's ConRes-timer sweep will reclaim its ring slot in due course): the async UE-creation
+        // event still needs to read prach_slot_rx from it (see ue_cell_event_manager::handle_ue_creation).
         // In case of CFRA, update cfra mapping.
         if (crc.ue_index != INVALID_DU_UE_INDEX) {
           pending_cfra_ues[crc.ue_index].store(rnti_t::INVALID_RNTI, std::memory_order_release);
