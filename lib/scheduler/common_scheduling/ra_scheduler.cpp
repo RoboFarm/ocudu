@@ -71,31 +71,6 @@ static unsigned compute_prach_occasion_duration_slots(const cell_configuration& 
   return get_prach_duration_info(prach_cfg, cell_cfg.scs_common()).prach_length_slots;
 }
 
-/// Determine if a PRACH preamble detected in a shared RO is a 2-step RACH (MsgA) preamble.
-///
-/// With shared occasions, per SSB the preamble set is split as follows (see TS 38.321, 5.1.1 and TS 38.331):
-///   [0,              nof_cb_preambles_per_ssb)                              → 4-step CB preambles
-///   [nof_cb_preambles_per_ssb, ... + cb_preambles_per_ssb_per_shared_ro)   → 2-step CB (MsgA) preambles
-///   [... + cb_preambles_per_ssb_per_shared_ro, preambles_per_ssb)          → non-CB preambles
-static bool is_msga_preamble(const rach_config_common& rach_cfg, uint8_t preamble_id)
-{
-  if (not rach_cfg.two_step_rach_cfg.has_value()) {
-    return false;
-  }
-  // Number of SSBs per RO, as an integer. For fractional values (< 1 SSB per RO), one SSB covers
-  // multiple ROs and all preambles in the RO belong to that SSB (nof_ssbs_per_ro = 1).
-  const auto     ssb_per_ro_idx  = static_cast<unsigned>(rach_cfg.nof_ssb_per_ro);
-  const auto     one_idx         = static_cast<unsigned>(ssb_per_rach_occasions::one);
-  const unsigned nof_ssbs_per_ro = ssb_per_ro_idx >= one_idx ? (1U << (ssb_per_ro_idx - one_idx)) : 1U;
-  // Number of preambles assigned to each SSB within this RO.
-  const unsigned preambles_per_ssb = rach_cfg.total_nof_ra_preambles / nof_ssbs_per_ro;
-  // Preamble ID relative to the start of its SSB's preamble set.
-  const unsigned local_id = preamble_id % preambles_per_ssb;
-  return local_id >= rach_cfg.nof_cb_preambles_per_ssb and
-         local_id < static_cast<unsigned>(rach_cfg.nof_cb_preambles_per_ssb) +
-                        rach_cfg.two_step_rach_cfg->cb_preambles_per_ssb_per_shared_ro;
-}
-
 /// Helper to fetch list of PDSCH time-domain resources for RA.
 static span<const pdsch_time_domain_resource_allocation> get_ra_pdsch_td_list(const cell_configuration& cell_cfg)
 {
@@ -191,7 +166,6 @@ ra_scheduler::ra_scheduler(const cell_configuration& cellcfg_,
   ra_crb_lims(pdsch_helper::get_ra_crb_limits_common(
       cell_cfg.params.dl_cfg_common.init_dl_bwp,
       cell_cfg.params.dl_cfg_common.init_dl_bwp.pdcch_common.ra_search_space_id)),
-  cfra_preambles(ra_helper::get_cfra_preambles(*cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common)),
   prach_format_is_long(is_long_preamble(
       prach_configuration_get(
           band_helper::get_freq_range(cell_cfg.band()),
@@ -207,7 +181,10 @@ ra_scheduler::ra_scheduler(const cell_configuration& cellcfg_,
   pending_rachs(RACH_IND_QUEUE_SIZE),
   pending_crcs(CRC_IND_QUEUE_SIZE),
   ra_ue_repo(ra_ue_repo_),
-  pending_cfra_ues(cfra_preambles.empty() ? 0 : MAX_NOF_DU_UES)
+  pending_cfra_ues(
+      ra_helper::get_msg1_cf_preambles_per_ssb(*cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common) > 0
+          ? MAX_NOF_DU_UES
+          : 0)
 {
   // The maximum number of pending RARs is given by the maximum number of PRACH occasions that can accumulate from a
   // given UL slot (at which the PRACH is received) until the expiration of the RAR window. The worst case is when:
@@ -364,7 +341,7 @@ void ra_scheduler::handle_rach_indication_impl(const rach_indication_message& ms
       // preamble_id, so the two groups form contiguous ranges.
       const auto msga_begin = std::partition_point(
           prach_occ.preambles.begin(), prach_occ.preambles.end(), [&](const rach_indication_message::preamble& p) {
-            return not is_msga_preamble(rach_cfg, p.preamble_id);
+            return not ra_helper::is_msga_cb_preamble(rach_cfg, p.preamble_id);
           });
       msg1_preambles = {prach_occ.preambles.begin(), msga_begin};
       msga_preambles = {msga_begin, prach_occ.preambles.end()};
@@ -611,7 +588,7 @@ void ra_scheduler::handle_msga_occasion(const rach_indication_message::occasion&
   const unsigned preambles_per_po  = two_step_cfg.cb_preambles_per_ssb_per_shared_ro / msga_pusch_cfg.po_fdm;
 
   for (const auto& preamble : preambles) {
-    ocudu_sanity_check(is_msga_preamble(rach_cfg, preamble.preamble_id),
+    ocudu_sanity_check(ra_helper::is_msga_cb_preamble(rach_cfg, preamble.preamble_id),
                        "Handling preamble that is not for MsgA. Are preamble IDs sorted in the RACH indication?");
     ev_logger.enqueue(scheduler_event_logger::prach_event{
         prach_slot_rx,
@@ -732,7 +709,8 @@ bool ra_scheduler::can_allocate_rar_ul_grant(rnti_t crnti, const cell_slot_resou
   if (msg3_it == ra_ue_repo.end()) {
     return false;
   }
-  if (not cfra_preambles.contains(msg3_it->second.preamble.preamble_id)) {
+  const rach_config_common& rach_cfg = *cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common;
+  if (not ra_helper::is_msg1_cf_preamble(rach_cfg, msg3_it->second.preamble.preamble_id)) {
     // If it is a CBRA, RAR UL grant can be allocated.
     return true;
   }

@@ -1046,17 +1046,7 @@ void test_helper::ra_scheduler_tracker::on_new_result(slot_point sl_tx, const sc
 bool test_helper::ra_scheduler_tracker::is_msga_preamble(uint8_t preamble_id) const
 {
   const rach_config_common& rach_cfg = *cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common;
-  if (not rach_cfg.two_step_rach_cfg.has_value()) {
-    return false;
-  }
-  const auto     ssb_per_ro_idx    = static_cast<unsigned>(rach_cfg.nof_ssb_per_ro);
-  const auto     one_idx           = static_cast<unsigned>(ssb_per_rach_occasions::one);
-  const unsigned nof_ssbs_per_ro   = ssb_per_ro_idx >= one_idx ? (1U << (ssb_per_ro_idx - one_idx)) : 1U;
-  const unsigned preambles_per_ssb = rach_cfg.total_nof_ra_preambles / nof_ssbs_per_ro;
-  const unsigned local_id          = preamble_id % preambles_per_ssb;
-  return local_id >= rach_cfg.nof_cb_preambles_per_ssb and
-         local_id < static_cast<unsigned>(rach_cfg.nof_cb_preambles_per_ssb) +
-                        rach_cfg.two_step_rach_cfg->cb_preambles_per_ssb_per_shared_ro;
+  return ra_helper::is_msga_cb_preamble(rach_cfg, preamble_id);
 }
 
 bool test_helper::ra_scheduler_tracker::is_expired(const preamble_context& ctxt, slot_point sl_tx) const

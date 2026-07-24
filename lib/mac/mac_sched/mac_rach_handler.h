@@ -9,6 +9,7 @@
 #include "ocudu/mac/ue_con_res_id.h"
 #include "ocudu/ocudulog/logger.h"
 #include "ocudu/ran/du_types.h"
+#include "ocudu/ran/prach/rach_config_common.h"
 #include "ocudu/ran/rnti.h"
 #include "ocudu/ran/slot_point.h"
 #include <optional>
@@ -91,6 +92,7 @@ private:
 
   // Map of preamble ID to entry in \c preambles vector.
   unsigned get_cfra_index(unsigned ra_preamble_id) const;
+  unsigned get_msga_cb_index(unsigned ra_preamble_id) const;
 
   /// Registers the TC-RNTI allocated to a MsgA preamble, so it can later be resolved from its (RA-RNTI, RAPID).
   void add_msga_tc_rnti(rnti_t ra_rnti, uint8_t rapid, rnti_t tc_rnti, slot_point sl_rx);
@@ -100,18 +102,17 @@ private:
   /// TC-RNTI to detect collisions.
   unsigned get_con_res_id_index(rnti_t tc_rnti) const;
 
-  mac_rach_handler&        parent;
-  const du_cell_index_t    cell_index;
-  const interval<unsigned> cfra_preambles;
-  const interval<unsigned> msga_cb_preambles;
-  const bool               prach_format_is_long;
+  mac_rach_handler&     parent;
+  const du_cell_index_t cell_index;
+  rach_config_common    rach_cfg_common;
+  const bool            prach_format_is_long;
   /// Number of slots a MsgA TC-RNTI mapping entry remains valid for, before being treated as expired.
   const unsigned msga_tc_rnti_ttl_slots;
 
-  std::vector<std::atomic<rnti_t>> preambles;
+  std::vector<std::atomic<rnti_t>> msg1_cf_preambles;
 
   /// \brief Pending RAPID -> (RA-RNTI, TC-RNTI) mappings for ongoing 2-step RACH attempts, indexed by
-  /// rapid - msga_cb_preambles.start().
+  /// get_msga_cb_index(rapid).
   ///
   /// Written from the RACH indication executor and read from the UL PDU executor that decodes the MsgA PUSCH CCCH
   /// payload; each slot is a single atomic word, so no mutex is needed to synchronize the two.

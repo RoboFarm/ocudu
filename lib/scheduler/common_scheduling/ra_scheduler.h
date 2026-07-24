@@ -235,10 +235,9 @@ private:
   // -- Derived from args.
 
   /// RA window size in number of slots.
-  const unsigned           ra_win_nof_slots;
-  const crb_interval       ra_crb_lims;
-  const interval<unsigned> cfra_preambles;
-  const bool               prach_format_is_long;
+  const unsigned     ra_win_nof_slots;
+  const crb_interval ra_crb_lims;
+  const bool         prach_format_is_long;
   /// Duration of a single PRACH occasion in slots.
   const unsigned prach_occasion_duration_slots;
   /// Backoff Indicator value included in the RAR, as per TS38.321 Table 7.2-1, mapped from
