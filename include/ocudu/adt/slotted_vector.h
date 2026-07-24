@@ -173,6 +173,14 @@ public:
     return objects[index_mapper[idx]];
   }
 
+  /// \brief Finds the element with the provided index.
+  /// \return Iterator to the element, if present at that exact index. Otherwise, \c end().
+  iterator       find(size_t idx) noexcept { return contains(idx) ? iterator{objects, index_mapper, idx} : end(); }
+  const_iterator find(size_t idx) const noexcept
+  {
+    return contains(idx) ? const_iterator{objects, index_mapper, idx} : end();
+  }
+
   /// \brief Inserts a new element in the container if the corresponding position was unoccupied. Overwrites an
   /// existing element if the corresponding position was occupied. May allocate and cause pointer invalidation.
   template <typename... Args>

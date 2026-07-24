@@ -710,7 +710,7 @@ bool ra_scheduler::can_allocate_rar_ul_grant(rnti_t crnti, const cell_slot_resou
     return false;
   }
   const rach_config_common& rach_cfg = *cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common;
-  if (not ra_helper::is_msg1_cf_preamble(rach_cfg, msg3_it->second.preamble.preamble_id)) {
+  if (not ra_helper::is_msg1_cf_preamble(rach_cfg, msg3_it->preamble.preamble_id)) {
     // If it is a CBRA, RAR UL grant can be allocated.
     return true;
   }
@@ -759,7 +759,7 @@ void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& 
         continue;
       }
       // It is a 4-step RA.
-      auto& pending_msg3 = crc_it->second;
+      auto& pending_msg3 = *crc_it;
 
       // See TS 38.321, 5.4.2.1 - "For UL transmission with UL grant in RA Response, HARQ process identifier 0 is used."
       harq_id_t                             h_id = to_harq_id(0);
@@ -796,7 +796,7 @@ void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& 
     ++it;
     auto retx_it = ra_ue_repo.find(h_ul.rnti());
     ocudu_sanity_check(retx_it != ra_ue_repo.end(), "Msg3 retx HARQ has no matching pending_msg3 entry");
-    schedule_msg3_retx(res_alloc, retx_it->second);
+    schedule_msg3_retx(res_alloc, *retx_it);
   }
 }
 
@@ -805,8 +805,8 @@ void ra_scheduler::run_slot(cell_resource_allocator& res_alloc)
   // Reserve MsgA PUSCH space.
   reserve_msga_pusch_rbs(res_alloc);
 
-  // Update Msg3 HARQ state.
-  ra_ue_repo.harqs().slot_indication(res_alloc.slot_tx());
+  // Update Msg3 HARQ state and erase RA UE entries whose ra-ContentionResolutionTimer has expired.
+  ra_ue_repo.slot_indication(res_alloc.slot_tx());
 
   // Handle pending CRCs, which may lead to Msg3 reTxs.
   handle_pending_crc_indications_impl(res_alloc);
@@ -1308,7 +1308,7 @@ void ra_scheduler::fill_rar_grant(cell_resource_allocator&         res_alloc,
     auto msg3_it = ra_ue_repo.find(msg3_candidate.rnti_to_alloc);
     ocudu_sanity_check(msg3_it != ra_ue_repo.end(),
                        "Pending Msg3 entry should have been reserved when RACH was received");
-    auto& pending_msg3 = msg3_it->second;
+    auto& pending_msg3 = *msg3_it;
 
     // Allocate Msg3 UL HARQ.
     std::optional<ul_harq_process_handle> h_ul =

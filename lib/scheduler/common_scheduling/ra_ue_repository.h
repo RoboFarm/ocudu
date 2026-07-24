@@ -5,7 +5,7 @@
 #pragma once
 
 #include "../cell/cell_harq_manager.h"
-#include "ocudu/adt/circular_map.h"
+#include "ocudu/adt/slotted_vector.h"
 #include "ocudu/ran/du_types.h"
 #include "ocudu/scheduler/scheduler_rach_handler.h"
 
@@ -38,14 +38,14 @@ struct ra_ue_context {
 class ra_ue_repository
 {
   /// Container for RA UE contexts, indexed by TC-RNTI.
-  using map_type = circular_map<uint16_t, ra_ue_context>;
+  using storage_type = slotted_vector<ra_ue_context>;
 
   /// (Implementation-defined) limit for maximum number of concurrent Msg3s or MsgBs.
   static constexpr size_t MAX_CONCURRENT_MSG3_OR_MSGB = 512;
 
 public:
-  using iterator       = map_type::iterator;
-  using const_iterator = map_type::const_iterator;
+  using iterator       = storage_type::iterator;
+  using const_iterator = storage_type::const_iterator;
 
   explicit ra_ue_repository(const cell_configuration& cell_cfg,
                             ocudulog::basic_logger&   logger,
@@ -54,8 +54,9 @@ public:
   /// HARQ process pool backing the \c harq_ent field of the contexts held in this repository.
   cell_harq_manager& harqs() { return ra_harqs; }
 
-  /// Maps a TC-RNTI to its ring index in this repository.
-  static uint16_t ring_key(rnti_t tc_rnti) { return static_cast<uint16_t>(to_value(tc_rnti) % MAX_NOF_DU_UES); }
+  /// \brief Updates the HARQ process pool for the new slot, and erases any RA UE entry whose
+  /// ra-ContentionResolutionTimer has expired.
+  void slot_indication(slot_point sl_tx);
 
   /// \brief Clears all entries in the repository.
   void clear() { table.clear(); }
@@ -65,9 +66,6 @@ public:
 
   /// \brief Checks if the repository is empty.
   bool empty() const { return table.empty(); }
-
-  /// \brief Returns the capacity of the repository.
-  size_t capacity() const { return table.capacity(); }
 
   iterator       begin() { return table.begin(); }
   iterator       end() { return table.end(); }
@@ -84,7 +82,7 @@ public:
     if (ctx == nullptr) {
       return nullptr;
     }
-    ctx->harq_ent = ra_harqs.add_ue(to_du_ue_index(ring_key(preamble.tc_rnti)), preamble.tc_rnti, 1, 1);
+    ctx->harq_ent = ra_harqs.add_ue(get_temp_ue_index(preamble.tc_rnti), preamble.tc_rnti, 1, 1);
     return ctx;
   }
 
@@ -97,40 +95,52 @@ public:
   const_iterator find(rnti_t tc_rnti) const
   {
     auto it = table.find(ring_key(tc_rnti));
-    return it != end() and it->second.tc_rnti() == tc_rnti ? it : end();
+    return it != end() and it->tc_rnti() == tc_rnti ? it : end();
   }
   iterator find(rnti_t tc_rnti)
   {
     auto it = table.find(ring_key(tc_rnti));
-    return it != end() and it->second.tc_rnti() == tc_rnti ? it : end();
+    return it != end() and it->tc_rnti() == tc_rnti ? it : end();
   }
 
-  /// Retrieves UE based on its key without TC-RNTI disambiguation.
-  const_iterator find_by_key(uint16_t key) const { return table.find(key); }
-  iterator       find_by_key(uint16_t key) { return table.find(key); }
-
 private:
+  class msg3_harq_timeout_notifier;
+
+  /// Maps a TC-RNTI to its ring index in this repository.
+  uint16_t ring_key(rnti_t tc_rnti) const { return static_cast<uint16_t>(to_value(tc_rnti) % ring_capacity); }
+
+  /// Derive temporary UE index.
+  /// \note RA UEs don't have a UE index yet assigned, so we generate a temporary one. This index will be internal to
+  /// the repository.
+  du_ue_index_t get_temp_ue_index(rnti_t tc_rnti) const { return static_cast<du_ue_index_t>(ring_key(tc_rnti)); }
+
   /// \brief Inserts a new entry for the detected preamble's TC-RNTI, saving the preamble directly.
   /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected (an unrelated,
   /// still-live entry already occupies this TC-RNTI's ring slot).
   ra_ue_context* add_entry(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
   {
     const uint16_t key = ring_key(preamble.tc_rnti);
-    if (not table.emplace(key)) {
+    if (table.contains(key)) {
       return nullptr;
     }
-    ra_ue_context& ctx = table[key];
-    ctx.preamble       = preamble;
-    ctx.prach_slot_rx  = prach_slot_rx;
+    auto& ctx         = table.emplace(key);
+    ctx.preamble      = preamble;
+    ctx.prach_slot_rx = prach_slot_rx;
     return &ctx;
   }
+
+  // ra-ContentionResolutionTimer duration, in slots.
+  const unsigned ra_con_res_timer_slots;
+
+  // Hard bound on the number of concurrent RA UE entries, and the modulus used by \c ring_key.
+  const uint16_t ring_capacity;
 
   // Manager of UL HARQs for Msg3. Declared before \c table so it outlives every \c ra_ue_context::harq_ent it
   // backs: members are destroyed in reverse declaration order, so the contexts are torn down first.
   cell_harq_manager ra_harqs;
 
   /// Table of TC-RNTI -> RA UE contexts.
-  map_type table;
+  storage_type table;
 };
 
 } // namespace ocudu

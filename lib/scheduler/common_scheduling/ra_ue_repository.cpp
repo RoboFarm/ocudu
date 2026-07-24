@@ -8,7 +8,6 @@
 using namespace ocudu;
 
 namespace {
-
 /// Notifier of MsgB (DL) HARQ process timeouts.
 class msgb_harq_timeout_notifier final : public harq_timeout_notifier
 {
@@ -36,8 +35,18 @@ private:
   ocudulog::basic_logger& logger;
 };
 
+/// Compute max Msg3 reTx timeout period, based on the fact that it should not be longer than the ConRes timer.
+unsigned get_harq_retx_timeout_slots(const cell_configuration& cell_cfg)
+{
+  const auto conres_timer       = cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common->ra_con_res_timer;
+  const auto conres_timer_slots = conres_timer.count() * get_nof_slots_per_subframe(cell_cfg.scs_common());
+  return conres_timer_slots;
+}
+
+} // namespace
+
 /// Notifier of Msg3 (UL) HARQ process timeouts.
-class msg3_harq_timeout_notifier final : public harq_timeout_notifier
+class ra_ue_repository::msg3_harq_timeout_notifier final : public harq_timeout_notifier
 {
 public:
   msg3_harq_timeout_notifier(ra_ue_repository& ra_ue_repo_, pci_t pci_, ocudulog::basic_logger& logger_) :
@@ -57,12 +66,12 @@ private:
   void release(du_ue_index_t ue_idx, bool is_dl, bool is_feedback_timeout)
   {
     ocudu_sanity_check(not is_dl, "Only UL HARQs are managed in the RA scheduler");
-    auto it = ra_ue_repo.find_by_key(static_cast<uint16_t>(ue_idx));
+    auto it = ra_ue_repo.table.find(static_cast<size_t>(ue_idx));
     ocudu_sanity_check(it != ra_ue_repo.end(), "timeout called but HARQ entity does not exist");
 
     logger.warning("pci={} tc-rnti={}: {}",
                    pci,
-                   it->second.preamble.tc_rnti,
+                   it->preamble.tc_rnti,
                    is_feedback_timeout
                        ? "Discarding Msg3 HARQ process. Cause: HARQ-ACK/CRC feedback was not received in time."
                        : "Discarding Msg3 retransmission HARQ process. Cause: Retransmission period timed out.");
@@ -76,20 +85,12 @@ private:
   ocudulog::basic_logger& logger;
 };
 
-/// Compute max Msg3 reTx timeout period, based on the fact that it should not be longer than the ConRes timer.
-unsigned get_harq_retx_timeout_slots(const cell_configuration& cell_cfg)
-{
-  const auto conres_timer       = cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common->ra_con_res_timer;
-  const auto conres_timer_slots = conres_timer.count() * get_nof_slots_per_subframe(cell_cfg.scs_common());
-  return conres_timer_slots;
-}
-
-} // namespace
-
 ra_ue_repository::ra_ue_repository(const cell_configuration& cell_cfg,
                                    ocudulog::basic_logger&   logger,
                                    size_t                    capacity) :
-  ra_harqs(MAX_NOF_DU_UES,
+  ra_con_res_timer_slots(get_harq_retx_timeout_slots(cell_cfg)),
+  ring_capacity(static_cast<uint16_t>(capacity)),
+  ra_harqs(MAX_NOF_DU_UES_PER_CELL,
            1,
            std::make_unique<msgb_harq_timeout_notifier>(cell_cfg.params.pci, logger),
            std::make_unique<msg3_harq_timeout_notifier>(*this, cell_cfg.params.pci, logger),
@@ -97,7 +98,24 @@ ra_ue_repository::ra_ue_repository(const cell_configuration& cell_cfg,
            get_harq_retx_timeout_slots(cell_cfg),
            cell_harq_manager::DEFAULT_ACK_TIMEOUT_SLOTS,
            cell_cfg.ntn_cs_koffset,
-           cell_cfg.params.ntn_params.has_value() && cell_cfg.params.ntn_params->ul_harq_mode_b),
-  table(capacity)
+           cell_cfg.params.ntn_params.has_value() && cell_cfg.params.ntn_params->ul_harq_mode_b)
 {
+  report_fatal_error_if_not(capacity > 0, "ra_ue_repository capacity must be greater than 0");
+  table.reserve(capacity);
+}
+
+void ra_ue_repository::slot_indication(slot_point sl_tx)
+{
+  ra_harqs.slot_indication(sl_tx);
+
+  // Erase any RA UE entry whose ra-ContentionResolutionTimer has expired, so its ring slot is never leaked.
+  for (auto it = table.begin(); it != table.end();) {
+    const slot_point sl_conres = it->prach_slot_rx + ra_con_res_timer_slots;
+    if (sl_conres > sl_tx or it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
+      // ConRes window has not yet elapsed, or the Msg3 HARQ is still awaiting ACK/CRC feedback.
+      ++it;
+      continue;
+    }
+    it = table.erase(it);
+  }
 }

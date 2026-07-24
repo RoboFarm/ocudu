@@ -300,7 +300,7 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
     // can be carried over into the UE's PCell context.
     auto                      ra_it = ra_ue_repo.find(crnti);
     std::optional<slot_point> prach_slot_rx =
-        ra_it != ra_ue_repo.end() ? std::optional<slot_point>(ra_it->second.prach_slot_rx) : std::nullopt;
+        ra_it != ra_ue_repo.end() ? std::optional<slot_point>(ra_it->prach_slot_rx) : std::nullopt;
 
     // Insert UE in UE repository.
     const du_cell_index_t pcell_index    = ev.next_config().pcell_common_cfg().cell_index;
