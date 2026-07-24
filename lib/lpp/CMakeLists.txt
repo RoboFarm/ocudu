@@ -4,5 +4,3 @@
 
 add_library(ocudu_lpp_lib STATIC reference_location.cpp)
 target_link_libraries(ocudu_lpp_lib lpp_asn1)
-
-add_to_exported_libs(ocudu_lpp_lib)
