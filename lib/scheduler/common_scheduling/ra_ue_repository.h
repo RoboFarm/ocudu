@@ -28,6 +28,10 @@ struct ra_ue_context {
   /// is only removed from the table once that HARQ concludes, so its ring slot cannot be reused while the HARQ
   /// manager still tracks it.
   bool pending_removal = false;
+  /// \brief Slot at which the 2-step RACH successRAR MsgB was transmitted for this UE, if any. \c nullopt while the
+  /// MsgB hasn't been scheduled yet. Only ever set for a successRAR completion (see \c add_msgb_success); a Msg3
+  /// entry (native 4-step or 2-step fallback) never sends a MsgB, so this field stays \c nullopt for those.
+  std::optional<slot_point> msgb_slot_tx;
 
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
@@ -90,6 +94,21 @@ public:
     return ctx;
   }
 
+  /// \brief Adds a new RA UE entry recording a 2-step RACH successRAR MsgB transmission. No Msg3 UL HARQ entity is
+  /// allocated, since contention is already resolved by the successRAR itself.
+  /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected (an unrelated,
+  /// still-live entry already occupies this TC-RNTI's ring slot).
+  ra_ue_context*
+  add_msgb_success(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx, slot_point msgb_slot_tx)
+  {
+    ra_ue_context* ctx = add_entry(preamble, prach_slot_rx);
+    if (ctx == nullptr) {
+      return nullptr;
+    }
+    ctx->msgb_slot_tx = msgb_slot_tx;
+    return ctx;
+  }
+
   /// \brief Erase a RA UE entry from the repository.
   /// \note If the entry's Msg3 HARQ is still awaiting ACK/CRC feedback, the removal is deferred: retransmissions are
   /// cancelled and the entry is only actually erased, by \c slot_indication, once that HARQ concludes.
@@ -99,7 +118,7 @@ public:
     if (it == end()) {
       return it;
     }
-    if (it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
+    if (not it->harq_ent.empty() and it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
       it->harq_ent.cancel_retxs();
       it->pending_removal = true;
       iterator next_it    = it;

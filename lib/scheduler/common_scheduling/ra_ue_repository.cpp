@@ -111,7 +111,7 @@ void ra_ue_repository::slot_indication(slot_point sl_tx)
   // Erase any RA UE entry whose ra-ContentionResolutionTimer has expired, or that was marked pending removal, as
   // long as its Msg3 HARQ is not still awaiting ACK/CRC feedback, so its ring slot is never leaked.
   for (auto it = table.begin(); it != table.end();) {
-    if (it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
+    if (not it->harq_ent.empty() and it->harq_ent.find_ul_harq_waiting_ack().has_value()) {
       // Msg3 HARQ is still awaiting ACK/CRC feedback.
       ++it;
       continue;

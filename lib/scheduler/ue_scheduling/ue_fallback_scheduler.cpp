@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_fallback_scheduler.h"
+#include "../common_scheduling/ra_ue_repository.h"
 #include "../logging/cell_metrics_handler.h"
 #include "../pdcch_scheduling/pdcch_resource_allocator.h"
 #include "../pucch_scheduling/pucch_allocator.h"
@@ -32,6 +33,7 @@ ue_fallback_scheduler::ue_fallback_scheduler(const scheduler_ue_expert_config& e
                                              pucch_allocator&                  pucch_alloc_,
                                              uci_allocator&                    uci_alloc_,
                                              ue_repository&                    ues_,
+                                             ra_ue_repository&                 ra_ue_repo_,
                                              cell_metrics_handler&             metrics_) :
   expert_cfg(expert_cfg_),
   cell_cfg(cell_cfg_),
@@ -39,6 +41,7 @@ ue_fallback_scheduler::ue_fallback_scheduler(const scheduler_ue_expert_config& e
   pucch_alloc(pucch_alloc_),
   uci_alloc(uci_alloc_),
   ues(ues_),
+  ra_ue_repo(ra_ue_repo_),
   metrics(metrics_),
   initial_active_dl_bwp(cell_cfg.params.dl_cfg_common.init_dl_bwp.generic_params),
   ss_cfg(cell_cfg.params.dl_cfg_common.init_dl_bwp.pdcch_common
@@ -272,6 +275,20 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
   for (auto next_ue = pending_dl_ues_new_tx.begin(); next_ue != pending_dl_ues_new_tx.end();) {
     // Determine if we should schedule ConRes, SRB0, SRB1 for the given UE.
     auto& u = ues[next_ue->ue_index];
+
+    // 2-step RACH gating: a live ra_ue_repository entry for this TC-RNTI only exists for a successRAR UE (see
+    // ra_ue_repository::add_msgb_success), and only until its MsgB PDSCH transmission slot has passed. Until then,
+    // sending anything (ConRes CE, SRB0/SRB1) would race ahead of a UE that may not even be monitoring
+    // C-RNTI-addressed PDCCH yet. No entry found means either this is not a 2-step-RACH UE, or its Msg3
+    // fallback/native path already resolved contention some other way — nothing to gate on either way.
+    auto ra_it = ra_ue_repo.find(u.crnti);
+    if (ra_it != ra_ue_repo.end()) {
+      if (not ra_it->msgb_slot_tx.has_value() or *ra_it->msgb_slot_tx >= res_alloc.slot_tx()) {
+        ++next_ue;
+        continue;
+      }
+      ra_ue_repo.erase(ra_it);
+    }
 
     const auto alloc_type = get_dl_new_tx_alloc_type(u);
     if (alloc_type == dl_new_tx_alloc_type::error) {

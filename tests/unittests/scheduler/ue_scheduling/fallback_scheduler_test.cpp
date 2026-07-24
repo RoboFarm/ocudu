@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "lib/scheduler/common_scheduling/csi_rs_scheduler.h"
+#include "lib/scheduler/common_scheduling/ra_ue_repository.h"
 #include "lib/scheduler/config/sched_config_manager.h"
 #include "lib/scheduler/logging/cell_metrics_handler.h"
 #include "lib/scheduler/logging/scheduler_result_logger.h"
@@ -48,6 +49,7 @@ struct test_bench {
   ue_repository                 ue_db;
   ue_cell_repository&           ue_cell_db;
   cell_metrics_handler          metrics_hdlr{cell_cfg, std::nullopt};
+  ra_ue_repository              ra_ue_repo{cell_cfg, ocudulog::fetch_basic_logger("SCHED")};
   ue_fallback_scheduler         fallback_sched;
   csi_rs_scheduler              csi_rs_sched;
 
@@ -59,7 +61,7 @@ struct test_bench {
     cell_cfg{*[&]() { return cfg_mng.add_cell(cell_req); }()},
     ue_db(cell_cfg.expert_cfg.ue),
     ue_cell_db(ue_db.add_cell(cell_cfg, nullptr)),
-    fallback_sched(expert_cfg, cell_cfg, pdcch_sch, pucch_alloc, uci_alloc, ue_db, metrics_hdlr),
+    fallback_sched(expert_cfg, cell_cfg, pdcch_sch, pucch_alloc, uci_alloc, ue_db, ra_ue_repo, metrics_hdlr),
     csi_rs_sched(cell_cfg)
   {
     ocudulog::fetch_basic_logger("SCHED", true).set_level(ocudulog::basic_levels::debug);
@@ -684,6 +686,45 @@ TEST_P(fallback_scheduler_tester, when_ra_conres_timer_expires_ue_doesnt_get_all
   }
 
   ASSERT_FALSE(conres_pdcch.has_value());
+}
+
+TEST_P(fallback_scheduler_tester, when_msgb_not_yet_sent_ue_doesnt_get_allocated_until_msgb_slot_passes)
+{
+  setup_sched(create_expert_config(1), create_custom_cell_config_request(params.k0));
+
+  const rnti_t     tc_rnti      = to_rnti(0x4601);
+  const slot_point prach_slot   = current_slot;
+  const slot_point msgb_slot_tx = current_slot + 3;
+
+  // Simulate the RA scheduler having tracked a successRAR completion for this UE, with its MsgB PDSCH scheduled a
+  // few slots ahead of the current slot.
+  rach_indication_message::preamble preamble{};
+  preamble.tc_rnti = tc_rnti;
+  ASSERT_NE(bench->ra_ue_repo.add_msgb_success(preamble, prach_slot, msgb_slot_tx), nullptr);
+
+  // Add UE 1, as if it was created right after the successRAR was scheduled, before its PDSCH is transmitted.
+  add_ue(tc_rnti, to_du_ue_index(0));
+  const auto& test_ue = get_ue(to_du_ue_index(0));
+
+  // Notify about SRB0 message in DL of size 99 bytes.
+  push_buffer_state_to_dl_ue(to_du_ue_index(0), current_slot, 99, false);
+
+  // While the current slot has not passed the MsgB PDSCH slot, nothing should be scheduled for this UE.
+  while (current_slot < msgb_slot_tx) {
+    run_slot();
+    ASSERT_FALSE(ue_is_allocated_pdcch(test_ue));
+  }
+
+  // Once the MsgB PDSCH slot has passed, the fallback scheduler is free to schedule ConRes for this UE.
+  std::optional<slot_point> conres_pdcch;
+  for (unsigned i = 0; i != 20 and not conres_pdcch.has_value(); ++i) {
+    run_slot();
+    const pdcch_dl_information* pdcch_it = get_ue_allocated_pdcch(test_ue);
+    if (pdcch_it != nullptr and pdcch_it->dci.type() == dci_dl_rnti_config_type::tc_rnti_f1_0) {
+      conres_pdcch = current_slot;
+    }
+  }
+  ASSERT_TRUE(conres_pdcch.has_value());
 }
 
 TEST_P(fallback_scheduler_tester, in_ul_and_dl_allocation_pucch_cannot_collide_with_pusch_for_same_ue)

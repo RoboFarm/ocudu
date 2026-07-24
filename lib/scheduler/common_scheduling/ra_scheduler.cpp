@@ -1809,6 +1809,15 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         pctx.msgb_scheduled = true;
         ++success_count;
 
+        // Track the successRAR completion, so the UE-dedicated scheduler can tell (once this slot has passed) that
+        // contention was resolved without needing an explicit Msg3/ConRes exchange.
+        if (ra_ue_repo.add_msgb_success(pctx.info, msgb.prach_slot_rx, pdsch_alloc.slot) == nullptr) {
+          logger.warning("pci={} tc-rnti={}: Could not track successRAR completion. Cause: TC-RNTI ring slot "
+                         "already in use",
+                         cell_cfg.params.pci,
+                         pctx.info.tc_rnti);
+        }
+
       } else if (pctx.crc_result.has_value() and not *pctx.crc_result and fallback_count < nof_fallback_to_sched) {
         // FallbackRAR: MsgA PUSCH not decoded (or CRC pending at window boundary) — UE falls back to Msg3.
         if (msgb_rar.grants.full()) {
