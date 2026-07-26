@@ -14,6 +14,7 @@
 #include "tests/test_doubles/utils/test_rng.h"
 #include "ocudu/ran/du_types.h"
 #include "ocudu/ran/duplex_mode.h"
+#include "ocudu/ran/prach/prach_time_mapping.h"
 #include <functional>
 #include <gtest/gtest.h>
 
@@ -897,3 +898,138 @@ TEST_P(cfra_multi_ue_rar_test, cfra_pucch_does_not_block_other_ue_msg3_in_same_r
 }
 
 INSTANTIATE_TEST_SUITE_P(cfra_multi_ue_sweep, cfra_multi_ue_rar_test, ::testing::Range(0U, 20U));
+
+/// Fixture for the 2-step RACH (MsgA/MsgB) successRAR gate in the fallback scheduler: a UE can be created before
+/// its successRAR MsgB is transmitted, and the fallback scheduler must not send anything for it until then.
+class two_step_ra_fallback_scheduler_test : public scheduler_test_simulator, public ::testing::TestWithParam<bool>
+{
+protected:
+  static constexpr unsigned MSGA_PREAMBLE_ID = 60;
+
+  two_step_ra_fallback_scheduler_test() : scheduler_test_simulator(4, subcarrier_spacing::kHz30)
+  {
+    cell_config_builder_params bparams =
+        cell_config_builder_profiles::create(duplex_mode::TDD, frequency_range::FR1, bs_channel_bandwidth::MHz50);
+    bparams.min_k1 = 2;
+    bparams.min_k2 = 2;
+    // 10-slot (6D-1S-3U) period, td_offset equal to the period, so the MsgA PUSCH lands on the same UL slot
+    // position as the PRACH occasion one period later.
+    bparams.tdd_ul_dl_cfg_common = cell_config_builder_profiles::create_tdd_pattern(
+        cell_config_builder_profiles::tdd_pattern_profile_fr1_30khz::DDDDDDSUUU);
+    auto  cell_req = sched_config_helper::make_default_sched_cell_configuration_request(bparams);
+    auto& rach     = *cell_req.ran.ul_cfg_common.init_ul_bwp.rach_cfg_common;
+    // Reserve preamble MSGA_PREAMBLE_ID for 2-step CB RACH.
+    rach.nof_cb_preambles_per_ssb = MSGA_PREAMBLE_ID;
+    rach.two_step_rach_cfg.emplace();
+    // td_offset must equal the TDD period (10 slots), and be >= the simulator's tx_rx_delay (4), so the MsgA PUSCH
+    // lands on a valid UL slot within the allocatable resource grid.
+    rach.two_step_rach_cfg->pusch.td_offset = 10;
+    add_cell(cell_req);
+  }
+
+  bool is_srb0() const { return GetParam(); }
+
+  /// Advances to a valid PRACH occasion (required for MsgA: the RA scheduler pre-reserves the MsgA PUSCH from the
+  /// PRACH config index). Called before \c create_ue so its ra-ContentionResolutionTimer doesn't also cover this
+  /// search.
+  void seek_prach_occasion()
+  {
+    const prach_helper::preamble_slot_mapping prach_mapper{
+        cell_cfg().band(),
+        cell_cfg().init_bwp.ul.cfg().scs,
+        cell_cfg().init_bwp.ul.rach_common()->rach_cfg_generic.prach_config_index};
+    run_slot_until([this, &prach_mapper]() { return prach_mapper.has_prach_occasion(next_slot_rx()); });
+  }
+
+  /// Creates the UE in fallback (pending ConRes CE) with pending LCID0/LCID1 traffic, using the C-RNTI that will
+  /// arrive as the MsgA preamble's TC-RNTI. Call right before \c send_msga_rach.
+  void create_ue()
+  {
+    auto ue_req               = sched_config_helper::create_default_sched_ue_creation_request(cell_cfg().params, {});
+    ue_req.crnti              = tc_rnti;
+    ue_req.ue_index           = ue_index;
+    ue_req.starts_in_fallback = true;
+    ue_req.ul_ccch_slot_rx    = next_slot.without_hyper_sfn();
+    add_ue(ue_req);
+
+    push_dl_buffer_state(dl_buffer_state_indication_message{ue_index, is_srb0() ? LCID_SRB0 : LCID_SRB1, 100});
+  }
+
+  /// Sends the MsgA RACH indication at the PRACH occasion found by \c seek_prach_occasion.
+  void send_msga_rach()
+  {
+    last_prach_slot_rx = next_slot_rx();
+    auto preamble      = test_helper::create_preamble(MSGA_PREAMBLE_ID, tc_rnti);
+    sched->handle_rach_indication(test_helper::create_rach_indication(last_prach_slot_rx, {preamble}));
+  }
+
+  /// Injects a CRC result for the MsgA PUSCH, addressed by the (shared, per-occasion) RA-RNTI, as per TS 38.211.
+  void send_msga_crc(bool success)
+  {
+    const rnti_t ra_rnti = test_helper::compute_ra_rnti(cell_cfg(), last_prach_slot_rx, 0, 0);
+
+    ul_crc_indication crc_ind;
+    crc_ind.cell_index = to_du_cell_index(0);
+    crc_ind.sl_rx      = last_result_slot();
+    auto& pdu          = crc_ind.crcs.emplace_back();
+    pdu.rnti           = ra_rnti;
+    pdu.ue_index       = INVALID_DU_UE_INDEX;
+    pdu.harq_id        = to_harq_id(0);
+    pdu.rapid          = static_cast<uint8_t>(MSGA_PREAMBLE_ID);
+    pdu.tb_crc_success = success;
+    sched->handle_crc_indication(crc_ind);
+  }
+
+  bool has_success_rar_for(rnti_t rnti) const
+  {
+    for (const auto& rar : last_sched_result()->dl.rar_grants) {
+      for (const auto& g : rar.grants) {
+        if (g.temp_crnti == rnti and std::holds_alternative<rar_ul_grant::two_step_success_info>(g.type)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool anything_scheduled_for(rnti_t rnti) const
+  {
+    return find_ue_dl_pdcch(rnti) != nullptr or find_ue_pdsch(rnti, *last_sched_result()) != nullptr;
+  }
+
+  slot_point last_prach_slot_rx;
+
+  const du_ue_index_t ue_index = to_du_ue_index(0);
+  const rnti_t        tc_rnti  = to_rnti(0x4601);
+};
+
+/// A UE with ConRes CE and LCID0/LCID1 data pending must not be scheduled until its successRAR MsgB is
+/// transmitted, even though the grant may be decided several slots ahead of that.
+TEST_P(two_step_ra_fallback_scheduler_test, ue_with_pending_traffic_not_scheduled_until_msgb_sent)
+{
+  seek_prach_occasion();
+  send_msga_rach();
+
+  // MsgA PUSCH isn't addressed by tc-rnti, so detect it via any UL grant instead. Then confirm CRC=OK.
+  ASSERT_TRUE(run_slot_until([this]() { return not last_sched_result()->ul.puschs.empty(); }));
+  send_msga_crc(true);
+  create_ue();
+
+  // Nothing may be scheduled for this UE until its successRAR MsgB is transmitted.
+  bool success_rar_seen = false;
+  ASSERT_TRUE(run_slot_until([this, &success_rar_seen]() {
+    if (has_success_rar_for(tc_rnti)) {
+      success_rar_seen = true;
+      return true;
+    }
+    EXPECT_FALSE(anything_scheduled_for(tc_rnti)) << "UE scheduled before its successRAR MsgB was transmitted";
+    return false;
+  }));
+  ASSERT_TRUE(success_rar_seen) << "successRAR MsgB was not scheduled";
+
+  // Gate releases once the successRAR is transmitted.
+  ASSERT_TRUE(run_slot_until([this]() { return anything_scheduled_for(tc_rnti); }))
+      << "UE was never scheduled after its successRAR MsgB was transmitted";
+}
+
+INSTANTIATE_TEST_SUITE_P(srb0_srb1_gating_test, two_step_ra_fallback_scheduler_test, ::testing::Values(true, false));

@@ -139,6 +139,11 @@ private:
 
   void handle_pending_crc_indications_impl(cell_resource_allocator& res_alloc);
 
+  /// Marks the MsgA PUSCH CRC outcome for preamble \c rapid under \c ra_rnti, and creates the ra_ue_repository
+  /// entry (successRAR placeholder or Msg3 fallback entry).
+  /// \return false if the preamble wasn't found, or the entry couldn't be created (TC-RNTI ring slot collision).
+  bool handle_msga_crc(rnti_t ra_rnti, uint8_t rapid, bool success);
+
   void log_postponed_rar(const pending_rar_alloc&  rar,
                          const char*               cause_str,
                          std::optional<slot_point> sl = std::nullopt) const;
@@ -205,10 +210,8 @@ private:
                                                 unsigned nof_fallback_grants,
                                                 unsigned nof_success_grants) const;
 
-  /// \brief Allocates a common PUCCH resource for a successRAR's MsgB HARQ-ACK feedback, trying each of the
-  /// provided k1 candidates in turn.
-  /// \return The successRAR HARQ feedback fields to use in the RAR grant, if a PUCCH resource was allocated;
-  /// \c std::nullopt if no PUCCH resource is available for any of the k1 candidates.
+  /// Allocates a common PUCCH resource for a successRAR's MsgB HARQ-ACK, trying each k1 candidate in turn.
+  /// \return The HARQ feedback fields for the RAR grant; \c std::nullopt if no PUCCH resource is available.
   std::optional<rar_ul_grant::two_step_success_info> alloc_msgb_harq_ack_pucch(cell_resource_allocator& res_alloc,
                                                                                rnti_t                   tc_rnti,
                                                                                unsigned                 pdsch_delay,

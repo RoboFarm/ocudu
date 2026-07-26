@@ -276,8 +276,7 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
     // Determine if we should schedule ConRes, SRB0, SRB1 for the given UE.
     auto& u = ues[next_ue->ue_index];
 
-    // 2-step RACH gating: sending anything (ConRes CE, SRB0/SRB1) for a UE with a still-pending successRAR would
-    // race ahead of a UE that may not even be monitoring C-RNTI-addressed PDCCH yet.
+    // 2-step RACH: don't schedule ConRes CE/SRB0/SRB1 before the UE's successRAR PDSCH is sent.
     auto ra_it = ra_ue_repo.find(u.crnti);
     if (ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar_pending(res_alloc.slot_tx())) {
       ++next_ue;
@@ -325,9 +324,8 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
     }
 
     if (ra_it != ra_ue_repo.end() and conres_ce_pending_before and not u.logical_channels().is_con_res_id_pending()) {
-      // The RA entry is no longer needed once the ConRes CE has been scheduled for this UE -- free its ring slot now
-      // instead of waiting for slot_indication's ConRes-timer sweep. If its Msg3 HARQ (if any) is still awaiting
-      // ACK/CRC feedback, erase() defers the actual removal until that concludes.
+      // Free the RA entry's ring slot now that ConRes CE was scheduled, instead of waiting for the ConRes-timer
+      // sweep. erase() defers removal if a Msg3 HARQ is still awaiting ACK/CRC.
       ra_ue_repo.erase(ra_it);
     }
 
@@ -376,7 +374,6 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
 
   // Retrieve the slot of the last PDSCH for this UE.
   const slot_point last_pdsch_slot = u.get_pcell().harqs.last_pdsch_slot();
-  const slot_point last_slot_ack   = u.get_pcell().harqs.last_ack_slot();
 
   // \ref starting_slot is the slot from which the scheduler will search for PDSCH space for a given UE.
   // As per TS 38.214, clause 5.1, the PDSCHs need to follow the same order as PDCCHs for a given UE. Thus, we set the
@@ -455,12 +452,19 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
     // As per TS 38.214, clause 5.1, it is not possible to schedule a PDSCH whose related PUCCH falls in a slot that
     // is the same as or older than the most recent already scheduled ACK slot (for the same UE). Whenever we detect
     // this is the case we skip the allocation in advance.
-    slot_point most_recent_ack_slot = pdsch_alloc.slot;
-    if (last_slot_ack.valid()) {
-      if (pdsch_alloc.slot + dci_1_0_k1_values.back() <= last_slot_ack) {
-        continue;
-      }
+    const slot_point last_slot_ack        = u.get_pcell().harqs.last_ack_slot();
+    slot_point       most_recent_ack_slot = pdsch_alloc.slot;
+    if (last_slot_ack.valid() and last_slot_ack > most_recent_ack_slot) {
       most_recent_ack_slot = last_slot_ack;
+    }
+    // Fold in the still-pending successRAR's own HARQ-ACK slot, if any.
+    const auto ra_it = ra_ue_repo.find(u.crnti);
+    if (ra_it != ra_ue_repo.end() and ra_it->msgb_ack_slot_tx.has_value() and
+        *ra_it->msgb_ack_slot_tx > most_recent_ack_slot) {
+      most_recent_ack_slot = *ra_it->msgb_ack_slot_tx;
+    }
+    if (pdsch_alloc.slot + dci_1_0_k1_values.back() <= most_recent_ack_slot) {
+      continue;
     }
 
     auto h_dl =

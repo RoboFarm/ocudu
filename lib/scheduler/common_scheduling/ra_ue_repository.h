@@ -28,19 +28,21 @@ struct ra_ue_context {
   /// is only removed from the table once that HARQ concludes, so its ring slot cannot be reused while the HARQ
   /// manager still tracks it.
   bool pending_removal = false;
-  /// \brief Slot at which the 2-step RACH successRAR MsgB was transmitted for this UE, if any. \c nullopt while the
-  /// MsgB hasn't been scheduled yet. Only ever set for a successRAR completion (see \c add_msgb_success); a Msg3
-  /// entry (native 4-step or 2-step fallback) never sends a MsgB, so this field stays \c nullopt for those.
+  /// Slot of the 2-step RACH successRAR MsgB PDSCH. Nullopt until \c set_msgb_scheduled commits it, only ever set
+  /// for a successRAR completion.
+  /// \note Gates when contention is considered resolved (see \c is_msgb_success_rar_pending). Distinct from \c
+  /// msgb_ack_slot_tx, which gates the PUCCH resource instead.
   std::optional<slot_point> msgb_slot_tx;
+  /// Slot of the successRAR's own HARQ-ACK PUCCH feedback. Set together with \c msgb_slot_tx.
+  /// \note PUCCH-allocator constraint, not a scheduling gate: any later PUCCH for this RNTI must land strictly
+  /// after this slot, or it collides with the still-pending ack.
+  std::optional<slot_point> msgb_ack_slot_tx;
 
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
 
-  /// \brief Checks whether this entry represents a still-pending 2-step RACH successRAR completion (see \c
-  /// ra_ue_repository::add_msgb_success) as of \c slot_tx, i.e. it has no Msg3 HARQ (only ever true for a
-  /// successRAR-tracking entry) and its MsgB PDSCH transmission slot is either not yet set or still in the future.
-  /// A Msg3-tracking entry (native 4-step or 2-step fallback) always has a real harq_ent, so this is always false
-  /// for those, regardless of \c slot_tx.
+  /// True if this is a successRAR entry (no Msg3 HARQ) whose MsgB PDSCH slot is not yet committed or still in the
+  /// future. Always false for a Msg3-tracking entry (native 4-step or 2-step fallback).
   bool is_msgb_success_rar_pending(slot_point slot_tx) const
   {
     return harq_ent.empty() and (not msgb_slot_tx.has_value() or *msgb_slot_tx >= slot_tx);
@@ -104,19 +106,26 @@ public:
     return ctx;
   }
 
-  /// \brief Adds a new RA UE entry recording a 2-step RACH successRAR MsgB transmission. No Msg3 UL HARQ entity is
-  /// allocated, since contention is already resolved by the successRAR itself.
-  /// \return Pointer to the newly created entry; \c nullptr if a ring-key collision was detected (an unrelated,
-  /// still-live entry already occupies this TC-RNTI's ring slot).
-  ra_ue_context*
-  add_msgb_success(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx, slot_point msgb_slot_tx)
+  /// Adds a new RA UE entry as soon as MsgA CRC=OK is known, before the RA scheduler commits the successRAR grant
+  /// (can lag by several slots). No Msg3 HARQ is allocated, since contention is already resolved.
+  /// \return Pointer to the new entry; \c nullptr on a TC-RNTI ring-key collision.
+  ra_ue_context* add_msgb_pending(const rach_indication_message::preamble& preamble, slot_point prach_slot_rx)
   {
-    ra_ue_context* ctx = add_entry(preamble, prach_slot_rx);
-    if (ctx == nullptr) {
-      return nullptr;
+    return add_entry(preamble, prach_slot_rx);
+  }
+
+  /// Records the successRAR MsgB PDSCH slot and its HARQ-ACK feedback slot on an entry created by \c
+  /// add_msgb_pending.
+  /// \return \c false if no entry exists for \c tc_rnti.
+  bool set_msgb_scheduled(rnti_t tc_rnti, slot_point msgb_slot_tx, slot_point msgb_ack_slot_tx)
+  {
+    iterator it = find(tc_rnti);
+    if (it == end()) {
+      return false;
     }
-    ctx->msgb_slot_tx = msgb_slot_tx;
-    return ctx;
+    it->msgb_slot_tx     = msgb_slot_tx;
+    it->msgb_ack_slot_tx = msgb_ack_slot_tx;
+    return true;
   }
 
   /// \brief Erase a RA UE entry from the repository.

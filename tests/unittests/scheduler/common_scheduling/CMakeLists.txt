@@ -9,6 +9,7 @@ add_executable(common_scheduler_test
         prach_scheduler_test.cpp
         prach_scheduler_vectortest.cpp
         ra_scheduler_test.cpp
+        ra_ue_repository_test.cpp
         paging_scheduler_test.cpp
         sub_scheduler_test_environment.cpp)
 target_link_libraries(common_scheduler_test

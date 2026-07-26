@@ -696,13 +696,13 @@ TEST_P(fallback_scheduler_tester, when_msgb_not_yet_sent_ue_doesnt_get_allocated
   const slot_point prach_slot   = current_slot;
   const slot_point msgb_slot_tx = current_slot + 3;
 
-  // Simulate the RA scheduler having tracked a successRAR completion for this UE, with its MsgB PDSCH scheduled a
-  // few slots ahead of the current slot.
+  // Simulate the RA scheduler having committed the MsgB PDSCH a few slots ahead.
   rach_indication_message::preamble preamble{};
   preamble.tc_rnti = tc_rnti;
-  ASSERT_NE(bench->ra_ue_repo.add_msgb_success(preamble, prach_slot, msgb_slot_tx), nullptr);
+  ASSERT_NE(bench->ra_ue_repo.add_msgb_pending(preamble, prach_slot), nullptr);
+  ASSERT_TRUE(bench->ra_ue_repo.set_msgb_scheduled(tc_rnti, msgb_slot_tx, msgb_slot_tx + 4));
 
-  // Add UE 1, as if it was created right after the successRAR was scheduled, before its PDSCH is transmitted.
+  // UE created right after the successRAR was scheduled, before its PDSCH is transmitted.
   add_ue(tc_rnti, to_du_ue_index(0));
   const auto& test_ue = get_ue(to_du_ue_index(0));
 

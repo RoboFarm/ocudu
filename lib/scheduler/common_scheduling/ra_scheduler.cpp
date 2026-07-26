@@ -720,24 +720,40 @@ bool ra_scheduler::can_allocate_rar_ul_grant(rnti_t crnti, const cell_slot_resou
   return std::none_of(pucchs.begin(), pucchs.end(), [crnti](const pucch_info& pucch) { return pucch.crnti == crnti; });
 }
 
-void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& res_alloc)
+bool ra_scheduler::handle_msga_crc(rnti_t ra_rnti, uint8_t rapid, bool success)
 {
-  // Helper to mark MsgA PUSCH CRC outcome in pending_msgbs, matching on the exact preamble that originated it.
-  auto mark_msga_crc = [this](rnti_t ra_rnti, uint8_t rapid, bool success) {
-    for (auto& msgb : pending_msgbs) {
-      if (msgb.ra_rnti != ra_rnti) {
+  for (auto& msgb : pending_msgbs) {
+    if (msgb.ra_rnti != ra_rnti) {
+      continue;
+    }
+    for (auto& p : msgb.preambles) {
+      if (p.info.preamble_id != rapid) {
         continue;
       }
-      for (auto& p : msgb.preambles) {
-        if (p.info.preamble_id == rapid) {
-          p.crc_result = success;
-          return true;
-        }
-      }
-    }
-    return false;
-  };
+      p.crc_result = success;
 
+      // Track the outcome now: schedule_pending_msgbs can commit the grant several slots later, and the fallback
+      // gate needs an entry to check against before then.
+      ra_ue_context* ctx = success ? ra_ue_repo.add_msgb_pending(p.info, msgb.prach_slot_rx)
+                                   : ra_ue_repo.add(p.info, msgb.prach_slot_rx);
+      if (ctx != nullptr) {
+        return true;
+      }
+      logger.warning("pci={} tc-rnti={}: Could not track pending {}. Cause: TC-RNTI ring slot already in use",
+                     cell_cfg.params.pci,
+                     p.info.tc_rnti,
+                     success ? "successRAR completion" : "Msg3 fallback");
+      return false;
+    }
+  }
+
+  logger.warning(
+      "pci={} rnti={}: Invalid UL CRC PDU indication. Cause: Nonexistent 2-step RA UE", cell_cfg.params.pci, ra_rnti);
+  return false;
+}
+
+void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& res_alloc)
+{
   // Pop pending CRCs and process them.
   ul_crc_indication crc_ind;
   while (pending_crcs.try_pop(crc_ind)) {
@@ -750,12 +766,8 @@ void ra_scheduler::handle_pending_crc_indications_impl(cell_resource_allocator& 
           continue;
         }
 
-        // It is a 2-step RA UE.
-        if (not mark_msga_crc(crc.rnti, *crc.rapid, crc.tb_crc_success)) {
-          logger.warning("pci={} rnti={}: Invalid UL CRC PDU indication. Cause: Nonexistent 2-step RA UE",
-                         cell_cfg.params.pci,
-                         crc.rnti);
-        }
+        // It is a 2-step RA UE. Handle its MsgA PUSCH CRC.
+        handle_msga_crc(crc.rnti, *crc.rapid, crc.tb_crc_success);
         continue;
       }
       // It is a 4-step RA.
@@ -1810,15 +1822,6 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         pctx.msgb_scheduled = true;
         ++success_count;
 
-        // Track the successRAR completion, so the UE-dedicated scheduler can tell (once this slot has passed) that
-        // contention was resolved without needing an explicit Msg3/ConRes exchange.
-        if (ra_ue_repo.add_msgb_success(pctx.info, msgb.prach_slot_rx, pdsch_alloc.slot) == nullptr) {
-          logger.warning("pci={} tc-rnti={}: Could not track successRAR completion. Cause: TC-RNTI ring slot "
-                         "already in use",
-                         cell_cfg.params.pci,
-                         pctx.info.tc_rnti);
-        }
-
       } else if (pctx.crc_result.has_value() and not *pctx.crc_result and fallback_count < nof_fallback_to_sched) {
         // FallbackRAR: MsgA PUSCH not decoded (or CRC pending at window boundary) — UE falls back to Msg3.
         if (msgb_rar.grants.full()) {
@@ -1835,16 +1838,18 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
         cell_slot_resource_allocator& msg3_alloc = res_alloc[pdcch_slot + msg3_delay];
         const vrb_interval            vrbs       = ul_crb_to_vrb(cell_cfg, msg3_candidate.crbs);
 
-        // Create pending Msg3 entry (HARQ entity + preamble info).
-        ra_ue_context* pending_msg3 = ra_ue_repo.add(pctx.info, msgb.prach_slot_rx);
-        if (pending_msg3 == nullptr) {
-          logger.warning("pci={} tc-rnti={}: Cannot create Msg3 entry for FallbackRAR. Cause: TC-RNTI already in use",
+        // Fetch the pending Msg3 entry handle_msga_crc already created for this CRC=KO.
+        auto pending_msg3_it = ra_ue_repo.find(pctx.info.tc_rnti);
+        if (pending_msg3_it == ra_ue_repo.end()) {
+          logger.warning("pci={} tc-rnti={}: Cannot schedule Msg3 for FallbackRAR. Cause: No pending entry found "
+                         "for this TC-RNTI",
                          cell_cfg.params.pci,
                          pctx.info.tc_rnti);
           pctx.msgb_scheduled = true;
           ++fallback_count;
           continue;
         }
+        ra_ue_context*                        pending_msg3 = &*pending_msg3_it;
         std::optional<ul_harq_process_handle> h_ul =
             pending_msg3->harq_ent.alloc_ul_harq(msg3_alloc.slot, sched_cfg.max_nof_msg3_harq_retxs);
         ocudu_sanity_check(h_ul.has_value(), "Pending Msg3 HARQ must be available for FallbackRAR");
@@ -1988,6 +1993,18 @@ ra_scheduler::alloc_msgb_harq_ack_pucch(cell_resource_allocator&    res_alloc,
       // this always matches what was allocated.
       const unsigned r_pucch =
           get_pucch_default_resource_index(pdcch.ctx.cces.ncce, pdcch.ctx.coreset_cfg->get_nof_cces(), *delta_pri);
+
+      // PDSCH slot gates contention resolution (is_msgb_success_rar_pending); ACK slot is a separate PUCCH
+      // constraint, so a later PUCCH for this RNTI can't land at or before it.
+      const slot_point msgb_pdsch_slot = res_alloc.slot_tx() + pdsch_delay;
+      const slot_point harq_ack_slot   = msgb_pdsch_slot + k1_candidates[k1_idx] + delta;
+      if (not ra_ue_repo.set_msgb_scheduled(tc_rnti, msgb_pdsch_slot, harq_ack_slot)) {
+        logger.warning("pci={} tc-rnti={}: Could not track successRAR completion. Cause: No pending entry found "
+                       "for this TC-RNTI",
+                       cell_cfg.params.pci,
+                       tc_rnti);
+      }
+
       return rar_ul_grant::two_step_success_info{.harq_feedback_timing_indicator =
                                                      static_cast<uint8_t>(k1_candidates[k1_idx] - 1),
                                                  .pucch_resource_indicator = static_cast<uint8_t>(r_pucch)};
