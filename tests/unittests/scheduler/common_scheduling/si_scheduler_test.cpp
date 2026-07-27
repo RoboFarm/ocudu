@@ -182,9 +182,22 @@ TEST_F(si_scheduler_test, when_si_is_updated_then_new_msg_len_is_applied_right_a
   const unsigned si_ch_wind_len_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.bcch_cfg.mod_period_coeff) *
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
-  const unsigned sfn_mod = (next_slot + res_grid.max_dl_slot_alloc_delay).sfn() % si_ch_wind_len_rfs;
-  const unsigned si_change_min_count =
-      (si_ch_wind_len_rfs - sfn_mod) * next_slot.nof_slots_per_frame() - next_slot.slot_index();
+  const unsigned si_msg_period_slots =
+      new_si_sched_cfg.si_messages[0].period_radio_frames * next_slot.nof_slots_per_frame();
+  auto compute_si_change_min_count = [&]() {
+    const unsigned sfn_mod = (next_slot + res_grid.max_dl_slot_alloc_delay).sfn() % si_ch_wind_len_rfs;
+    return (si_ch_wind_len_rfs - sfn_mod) * next_slot.nof_slots_per_frame() - next_slot.slot_index();
+  };
+
+  // next_slot starts at a randomized point in time (see generate_random_slot_point), so the SI modification window
+  // boundary may be less than one SI-message period away. Skip ahead past the boundary until there is enough room
+  // to guarantee at least one SI-message occasion before it -- otherwise "found" below could stay false for a
+  // reason unrelated to what this test is checking.
+  unsigned si_change_min_count = compute_si_change_min_count();
+  while (si_change_min_count <= si_msg_period_slots) {
+    run_slot();
+    si_change_min_count = compute_si_change_min_count();
+  }
 
   // Update SI scheduling.
   si_sched.handle_si_update_request(si_scheduling_update_request{to_du_cell_index(0), 1, new_si_sched_cfg});
