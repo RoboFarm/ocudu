@@ -438,6 +438,7 @@ bool srs_scheduler_impl::allocate_srs_opportunity(cell_slot_resource_allocator& 
   const unsigned           starting_symb      = nof_symbs_per_slot - srs_res->res_mapping.start_pos - 1;
   // Fill only the RBs actually used by the SRS resource; this avoids the SRS symbols spuriously colliding with the
   // common PUCCH resources located at the edges of the UL BWP.
+  // Note: We do not check for collisions because SRSs of multiple UEs can use the same RBs and symbols.
   const std::optional<srs_configuration> srs_bw_cfg =
       srs_configuration_get(srs_res->freq_hop.c_srs, srs_res->freq_hop.b_srs);
   ocudu_assert(srs_bw_cfg.has_value(), "Invalid SRS bandwidth configuration");
@@ -446,15 +447,6 @@ bool srs_scheduler_impl::allocate_srs_opportunity(cell_slot_resource_allocator& 
       ul_bwp_cfg.scs,
       ofdm_symbol_range{starting_symb, starting_symb + static_cast<unsigned>(srs_res->res_mapping.nof_symb)},
       srs_crbs};
-  if (slot_alloc.ul_res_grid.collides(srs_grant)) {
-    logger.warning("cell={} c-rnti={}: SRS resource id={} could not be allocated for slot={}. Cause: Resource grid "
-                   "collision",
-                   cell_cfg.cell_index,
-                   srs_opportunity.rnti,
-                   fmt::underlying(srs_opportunity.srs_res_id),
-                   sl_srs);
-    return false;
-  }
   slot_alloc.ul_res_grid.fill(srs_grant);
 
   // Add SRS PDU into results.
