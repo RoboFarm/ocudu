@@ -355,6 +355,11 @@ struct fallback_sched_test_params {
   duplex_mode duplx_mode;
 };
 
+void PrintTo(const fallback_sched_test_params& p, std::ostream* os)
+{
+  *os << fmt::format("is_srb0={} duplex={}", p.is_srb0, to_string(p.duplx_mode));
+}
+
 class fallback_scheduler_tester : public base_fallback_tester, public ::testing::TestWithParam<srb0_test_params>
 {
 protected:
