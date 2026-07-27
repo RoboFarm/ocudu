@@ -344,6 +344,11 @@ struct srb0_test_params {
   duplex_mode duplx_mode;
 };
 
+void PrintTo(const srb0_test_params& p, std::ostream* os)
+{
+  *os << fmt::format("k0={} duplex={}", p.k0, to_string(p.duplx_mode));
+}
+
 // Parameters to be passed to test.
 struct fallback_sched_test_params {
   bool        is_srb0;
