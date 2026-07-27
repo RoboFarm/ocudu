@@ -1416,6 +1416,12 @@ struct ul_fallback_sched_test_params {
   bool        enable_pusch_transform_precoding;
 };
 
+void PrintTo(const ul_fallback_sched_test_params& p, std::ostream* os)
+{
+  *os << fmt::format(
+      "duplex={} pusch_transform_precoding={}", to_string(p.duplx_mode), p.enable_pusch_transform_precoding);
+}
+
 class ul_fallback_scheduler_tester : public base_fallback_tester,
                                      public ::testing::TestWithParam<ul_fallback_sched_test_params>
 {
