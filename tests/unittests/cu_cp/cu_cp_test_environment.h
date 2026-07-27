@@ -200,6 +200,15 @@ public:
   bool
   tick_until(std::chrono::milliseconds timeout, const std::function<bool()>& stop_condition, bool real_time = true);
 
+  /// \brief Ticks the CU-CP clock until \c is_ready returns true, evaluating \c is_ready on the CU-CP worker
+  /// thread rather than the calling thread.
+  ///
+  /// Use this (instead of \c tick_until) when the condition reads state that is only safe to observe from the
+  /// CU-CP worker thread, e.g. an async task's completion flag. Unlike \c tick_until, \c is_ready must NOT call
+  /// tick_until() or any of the wait_for_*_tx_pdu() helpers (directly or indirectly): those recursively dispatch
+  /// a blocking task to this same worker and would deadlock if invoked while already running on it.
+  bool wait_ready_on_cu_cp_worker(std::chrono::milliseconds timeout, const std::function<bool()>& is_ready);
+
   /// Tick CU-CP timer until a NGAP PDU is sent.
   bool wait_for_ngap_tx_pdu(ngap_message&             ngap_pdu,
                             std::chrono::milliseconds timeout = std::chrono::milliseconds{500},

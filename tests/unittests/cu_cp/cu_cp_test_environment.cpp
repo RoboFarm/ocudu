@@ -312,6 +312,43 @@ bool cu_cp_test_environment::tick_until(std::chrono::milliseconds    timeout,
   return stop_condition();
 }
 
+bool cu_cp_test_environment::wait_ready_on_cu_cp_worker(std::chrono::milliseconds    timeout,
+                                                        const std::function<bool()>& is_ready)
+{
+  std::mutex              mutex;
+  std::condition_variable cvar;
+  bool                    done  = false;
+  bool                    ready = false;
+
+  // is_ready is evaluated on the CU-CP worker, alongside the clock tick, so that reading state mutated by the
+  // CU-CP worker (e.g. an async task's completion flag) is properly synchronized.
+  for (unsigned i = 0; i != timeout.count(); ++i) {
+    done = false;
+    cu_cp_workers->worker.push_task_blocking([&]() {
+      ready = is_ready();
+      if (not ready) {
+        // Already running on the CU-CP worker; tick the clock directly rather than via \c tick(), which
+        // would try to (and fail to) push a blocking task to this same worker.
+        timers.tick();
+      }
+
+      std::lock_guard<std::mutex> lock(mutex);
+      done = true;
+      cvar.notify_one();
+    });
+
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      cvar.wait(lock, [&done]() { return done; });
+    }
+    if (ready) {
+      return true;
+    }
+  }
+
+  return ready;
+}
+
 bool cu_cp_test_environment::wait_for_ngap_tx_pdu(ngap_message&             pdu,
                                                   std::chrono::milliseconds timeout,
                                                   unsigned                  amf_idx)
