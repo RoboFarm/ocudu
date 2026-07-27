@@ -6,6 +6,7 @@
 #include "ocudu/asn1/rrc_nr/sys_info.h"
 #include "ocudu/ran/ssb/ssb_properties.h"
 #include "fmt/format.h"
+#include "fmt/ranges.h"
 #include <gtest/gtest.h>
 
 using namespace ocudu;
@@ -373,6 +374,27 @@ struct gap_pattern_params {
   supported_meas_gap_patterns supported_patterns;
   meas_gap_config             expected;
 };
+
+void PrintTo(const gap_pattern_params& p, std::ostream* os)
+{
+  std::vector<unsigned> pattern_ids;
+  for (unsigned pattern_id = 0; pattern_id != nof_meas_gap_patterns; ++pattern_id) {
+    if (p.supported_patterns.is_supported(pattern_id)) {
+      pattern_ids.push_back(pattern_id);
+    }
+  }
+  *os << fmt::format("{} scs={}kHz period={}ms offset={} dur={}sf patterns=[{}] expected={{offset={} mgl={}ms "
+                     "mgrp={}ms}}",
+                     p.tag,
+                     scs_to_khz(p.pcell_scs),
+                     fmt::underlying(p.smtc_period),
+                     p.smtc_offset,
+                     static_cast<unsigned>(p.smtc_dur) + 1,
+                     fmt::join(pattern_ids, ","),
+                     p.expected.offset,
+                     meas_gap_length_to_msec(p.expected.mgl),
+                     static_cast<unsigned>(p.expected.mgrp));
+}
 
 class du_meas_config_manager_gap_pattern_test : public ::testing::TestWithParam<gap_pattern_params>
 {};
