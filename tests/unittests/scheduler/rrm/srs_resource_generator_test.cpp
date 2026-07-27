@@ -18,6 +18,18 @@ struct srs_cfg_builder_params {
   nof_cyclic_shifts                 cyclic_shift_reuse_factor = nof_cyclic_shifts::no_cyclic_shift;
   unsigned                          sequence_id_reuse_factor  = 1;
 };
+
+void PrintTo(const srs_cfg_builder_params& p, std::ostream* os)
+{
+  *os << fmt::format("nof_ul_symbols={} max_nof_symbols={} tx_comb=n{} nof_symbols=n{} cyclic_shift_reuse={} "
+                     "sequence_id_reuse={}",
+                     p.nof_ul_symbols.has_value() ? std::to_string(p.nof_ul_symbols.value()) : "default",
+                     p.max_nof_symbols.value(),
+                     fmt::underlying(p.tx_comb),
+                     fmt::underlying(p.nof_symbols),
+                     fmt::underlying(p.cyclic_shift_reuse_factor),
+                     p.sequence_id_reuse_factor);
+}
 } // namespace
 
 class test_srs_res_list_builder : public ::testing::TestWithParam<srs_cfg_builder_params>
