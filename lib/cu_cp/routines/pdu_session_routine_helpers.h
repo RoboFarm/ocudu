@@ -27,9 +27,9 @@ bool verify_and_log_cell_group_config(const byte_buffer& packed_cell_group_cfg, 
 /// \param[in] ngap_qos_flow_setup_items The initial QoS flow setup request from AMF.
 /// \param[in] logger The logger.
 bool fill_f1ap_drb_setup_mod_item(f1ap_drb_to_setup& drb_setup_mod_item, // Request to setup DRB at DU.
-                                  slotted_id_vector<qos_flow_id_t, ngap_associated_qos_flow>* response_flow_list,
-                                  pdu_session_id_t                                            psi,
-                                  drb_id_t                                                    drb_id,
+                                  slotted_id_vector<qos_flow_id_t, cu_cp_associated_qos_flow>* response_flow_list,
+                                  pdu_session_id_t                                             psi,
+                                  drb_id_t                                                     drb_id,
                                   up_drb_context& next_drb_config,                 // DRB config (info is written back).
                                   const e1ap_drb_setup_item_ng_ran& e1ap_drb_item, // Response from CU-UP.
                                   const slotted_id_vector<qos_flow_id_t, qos_flow_setup_request_item>&

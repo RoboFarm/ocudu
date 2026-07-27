@@ -207,12 +207,12 @@ bool ocudu::ocucp::fill_rrc_reconfig_args(rrc_reconfiguration_procedure_request&
 }
 
 bool ocudu::ocucp::fill_f1ap_drb_setup_mod_item(
-    f1ap_drb_to_setup&                                          drb_setup_mod_item, // Request to setup DRB at DU.
-    slotted_id_vector<qos_flow_id_t, ngap_associated_qos_flow>* response_flow_list,
-    pdu_session_id_t                                            psi,
-    drb_id_t                                                    drb_id,
-    up_drb_context&                                             next_drb_config, // DRB config (info is written back).
-    const e1ap_drb_setup_item_ng_ran&                           e1ap_drb_item,   // Response from CU-UP.
+    f1ap_drb_to_setup&                                           drb_setup_mod_item, // Request to setup DRB at DU.
+    slotted_id_vector<qos_flow_id_t, cu_cp_associated_qos_flow>* response_flow_list,
+    pdu_session_id_t                                             psi,
+    drb_id_t                                                     drb_id,
+    up_drb_context&                                              next_drb_config, // DRB config (info is written back).
+    const e1ap_drb_setup_item_ng_ran&                            e1ap_drb_item,   // Response from CU-UP.
     const slotted_id_vector<qos_flow_id_t, qos_flow_setup_request_item>&
                                   ngap_qos_flow_setup_items, // Initial request from AMF.
     const ocudulog::basic_logger& logger)
@@ -264,7 +264,7 @@ bool ocudu::ocucp::fill_f1ap_drb_setup_mod_item(
 
     if (response_flow_list) {
       // Fill flow to NGAP response.
-      ngap_associated_qos_flow qos_flow;
+      cu_cp_associated_qos_flow qos_flow;
       qos_flow.qos_flow_id = e1ap_flow.qos_flow_id;
       response_flow_list->emplace(e1ap_flow.qos_flow_id, qos_flow);
     }

@@ -265,9 +265,10 @@ void xnap_source_handover_preparation_procedure::fill_asn1_pdu_session_res_list(
           asn1_qos_flow_item.qfi = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
           if (assoc_qos_flow.qos_flow_map_ind.has_value()) {
             asn1_qos_flow_item.qos_flow_map_ind_present = true;
-            asn1_qos_flow_item.qos_flow_map_ind = assoc_qos_flow.qos_flow_map_ind.value() == ngap_qos_flow_map_ind::ul
-                                                      ? qos_flow_map_ind_opts::options::ul
-                                                      : qos_flow_map_ind_opts::options::dl;
+            asn1_qos_flow_item.qos_flow_map_ind =
+                assoc_qos_flow.qos_flow_map_ind.value() == cu_cp_qos_flow_map_indication::ul
+                    ? qos_flow_map_ind_opts::options::ul
+                    : qos_flow_map_ind_opts::options::dl;
           }
           asn1_drb_item.qos_flows_list.push_back(asn1_qos_flow_item);
 

@@ -72,14 +72,14 @@ inline bool asn1_to_ue_context_info_ho_request(xnap_ue_context_info_ho_request& 
 
     // Fill source DRB-to-QoS-flow mapping, if the source proposed data forwarding for this PDU session.
     if (asn1_pdu_session.dataforwardinginfofrom_source_present) {
-      ngap_pdu_session_res_info_item pdu_session_res_info_item;
+      cu_cp_pdu_session_res_info_item pdu_session_res_info_item;
       pdu_session_res_info_item.pdu_session_id = pdu_session_id;
       for (const auto& asn1_drb_to_qos_flow_map :
            asn1_pdu_session.dataforwardinginfofrom_source.source_drb_to_qos_flow_map) {
-        ngap_drbs_to_qos_flows_map_item drb_to_qos_flow_map;
+        cu_cp_drbs_to_qos_flows_map_item drb_to_qos_flow_map;
         drb_to_qos_flow_map.drb_id = uint_to_drb_id(asn1_drb_to_qos_flow_map.drb_id);
         for (const auto& asn1_qos_flow : asn1_drb_to_qos_flow_map.qos_flows_list) {
-          ngap_associated_qos_flow assoc_qos_flow;
+          cu_cp_associated_qos_flow assoc_qos_flow;
           assoc_qos_flow.qos_flow_id = uint_to_qos_flow_id(asn1_qos_flow.qfi);
           drb_to_qos_flow_map.associated_qos_flow_list.push_back(assoc_qos_flow);
         }

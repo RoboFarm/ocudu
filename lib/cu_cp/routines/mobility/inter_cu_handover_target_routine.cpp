@@ -32,7 +32,7 @@ static bool handle_ue_context_setup_response(e1ap_bearer_context_modification_re
 // same DRB ID for the same QoS flow, keeping DRB numbering consistent with the source where possible (DRB IDs are
 // otherwise allocated independently by each RAN node; see TS 38.300 Section 9.2.3.2.3).
 static up_old_drb_association
-build_old_drb_association(const std::vector<ngap_pdu_session_res_info_item>& pdu_session_res_info_list)
+build_old_drb_association(const std::vector<cu_cp_pdu_session_res_info_item>& pdu_session_res_info_list)
 {
   up_old_drb_association old_drb_association;
   for (const auto& pdu_session : pdu_session_res_info_list) {

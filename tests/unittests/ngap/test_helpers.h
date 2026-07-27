@@ -222,7 +222,7 @@ public:
                                           int_to_gtpu_teid(1)};
               response_item.pdu_session_resource_setup_response_transfer.dlqos_flow_per_tnl_info
                   .associated_qos_flow_list.emplace(uint_to_qos_flow_id(5),
-                                                    ngap_associated_qos_flow{uint_to_qos_flow_id(5)});
+                                                    cu_cp_associated_qos_flow{uint_to_qos_flow_id(5)});
               resp.pdu_session_res_setup_response_items.emplace(response_item.pdu_session_id, response_item);
             }
           }

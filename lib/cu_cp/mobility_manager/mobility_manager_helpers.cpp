@@ -27,12 +27,12 @@ ngap_handover_preparation_request ocudu::ocucp::generate_ngap_handover_preparati
   // Create a map of all PDU sessions and their associated QoS flows, grouped by this source's own DRB-to-QoS-flow
   // mapping, so the target can be given a chance to preserve the same DRB numbering (TS 38.413 Section 9.3.1.29).
   for (const auto& pdu_session : pdu_sessions) {
-    std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map;
+    std::vector<cu_cp_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map;
     for (const auto& drb : pdu_session.second.drbs) {
-      ngap_drbs_to_qos_flows_map_item drb_item;
+      cu_cp_drbs_to_qos_flows_map_item drb_item;
       drb_item.drb_id = drb.first;
       for (const auto& qos_flow : drb.second.qos_flows) {
-        drb_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qos_flow.first, std::nullopt});
+        drb_item.associated_qos_flow_list.push_back(cu_cp_associated_qos_flow{qos_flow.first, std::nullopt});
       }
       drbs_to_qos_flows_map.push_back(drb_item);
     }
@@ -78,10 +78,10 @@ ocudu::ocucp::generate_xnap_handover_request(cu_cp_ue_index_t                   
     pdu_session_item.pdu_session_type = pdu_session_ctxt.type;
 
     // Iterate over all DRBs of the PDU session and collect all QoS flows.
-    ngap_pdu_session_res_info_item pdu_session_res_info_item;
+    cu_cp_pdu_session_res_info_item pdu_session_res_info_item;
     pdu_session_res_info_item.pdu_session_id = pid;
     for (const auto& [drb_id, drb_ctxt] : pdu_session_ctxt.drbs) {
-      ngap_drbs_to_qos_flows_map_item drb_to_qos_flows_map_item;
+      cu_cp_drbs_to_qos_flows_map_item drb_to_qos_flows_map_item;
       drb_to_qos_flows_map_item.drb_id = drb_id;
       for (const auto& [qfi, qos_flow] : drb_ctxt.qos_flows) {
         qos_flow_setup_request_item qos_flow_setup_item = {};
@@ -91,7 +91,7 @@ ocudu::ocucp::generate_xnap_handover_request(cu_cp_ue_index_t                   
         qos_flow_setup_item.qos_flow_level_qos_params = qos_flow.qos_params;
         pdu_session_item.qos_flow_setup_request_items.emplace(qfi, qos_flow_setup_item);
 
-        drb_to_qos_flows_map_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qfi, std::nullopt});
+        drb_to_qos_flows_map_item.associated_qos_flow_list.push_back(cu_cp_associated_qos_flow{qfi, std::nullopt});
       }
       pdu_session_res_info_item.drbs_to_qos_flows_map_list.push_back(drb_to_qos_flows_map_item);
     }

@@ -217,11 +217,11 @@ TEST_F(xnap_handover_preparation_procedure_test, when_handover_request_sent_then
   xnap_handover_request      request  = generate_handover_request(ue_index, sec_ctxt);
 
   // Report this source's DRB1 <-> QFI0 mapping, matching the PDU session set up by generate_handover_request().
-  ngap_pdu_session_res_info_item pdu_session_res_info_item;
+  cu_cp_pdu_session_res_info_item pdu_session_res_info_item;
   pdu_session_res_info_item.pdu_session_id = pdu_session_id_t::min;
-  ngap_drbs_to_qos_flows_map_item drb_item;
+  cu_cp_drbs_to_qos_flows_map_item drb_item;
   drb_item.drb_id = drb_id_t::drb1;
-  drb_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qos_flow_id_t::min, std::nullopt});
+  drb_item.associated_qos_flow_list.push_back(cu_cp_associated_qos_flow{qos_flow_id_t::min, std::nullopt});
   pdu_session_res_info_item.drbs_to_qos_flows_map_list.push_back(drb_item);
   request.ue_context_info_ho_request.pdu_session_res_info_list.push_back(pdu_session_res_info_item);
 

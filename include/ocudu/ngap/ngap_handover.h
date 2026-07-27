@@ -21,7 +21,7 @@ namespace ocudu::ocucp {
 struct ngap_ue_source_handover_context {
   /// This source's own DRB-to-QoS-flow mapping per PDU session, so it can be signalled to the target via the DRBs
   /// to QoS Flows Mapping List IE (TS 38.413 Section 9.3.1.29), letting the target prefer the same DRB numbering.
-  std::map<pdu_session_id_t, std::vector<ngap_drbs_to_qos_flows_map_item>> pdu_sessions;
+  std::map<pdu_session_id_t, std::vector<cu_cp_drbs_to_qos_flows_map_item>> pdu_sessions;
   /// Storage for the RRCContainer required in SourceNGRANNode-ToTargetNGRANNode-TransparentContainer (see TS 38.413)
   byte_buffer rrc_container;
 };
@@ -33,10 +33,10 @@ struct target_ran_node_id_t {
 };
 
 struct ngap_handover_preparation_request {
-  cu_cp_ue_index_t                                                         ue_index = cu_cp_ue_index_t::invalid;
-  target_ran_node_id_t                                                     target_id;
-  nr_cell_identity                                                         nci;
-  std::map<pdu_session_id_t, std::vector<ngap_drbs_to_qos_flows_map_item>> pdu_sessions;
+  cu_cp_ue_index_t                                                          ue_index = cu_cp_ue_index_t::invalid;
+  target_ran_node_id_t                                                      target_id;
+  nr_cell_identity                                                          nci;
+  std::map<pdu_session_id_t, std::vector<cu_cp_drbs_to_qos_flows_map_item>> pdu_sessions;
 };
 
 struct ngap_handover_preparation_response {
@@ -70,12 +70,12 @@ struct ngap_last_visited_cell_item {
 };
 
 struct ngap_source_ngran_node_to_target_ngran_node_transparent_container {
-  byte_buffer                                 rrc_container;
-  std::vector<ngap_pdu_session_res_info_item> pdu_session_res_info_list;
-  std::vector<ngap_erab_info_item>            erab_info_list;
-  nr_cell_global_id_t                         target_cell_id;
-  std::optional<uint16_t>                     idx_to_rfsp;
-  std::vector<ngap_last_visited_cell_item>    ue_history_info;
+  byte_buffer                                  rrc_container;
+  std::vector<cu_cp_pdu_session_res_info_item> pdu_session_res_info_list;
+  std::vector<ngap_erab_info_item>             erab_info_list;
+  nr_cell_global_id_t                          target_cell_id;
+  std::optional<uint16_t>                      idx_to_rfsp;
+  std::vector<ngap_last_visited_cell_item>     ue_history_info;
 };
 
 struct ngap_handover_request {

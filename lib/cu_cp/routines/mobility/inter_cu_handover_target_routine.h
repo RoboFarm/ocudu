@@ -47,7 +47,7 @@ struct cu_cp_inter_cu_handover_request {
   /// Source DRB-to-QoS-flow mapping, when known (TS 38.413 Section 9.3.1.29 for NG, TS 38.423 Section 9.2.1.17 for
   /// Xn). Used to prefer the source's DRB ID at the target during admission, since DRB IDs are otherwise allocated
   /// independently by each RAN node.
-  std::vector<ngap_pdu_session_res_info_item> pdu_session_res_info_list;
+  std::vector<cu_cp_pdu_session_res_info_item> pdu_session_res_info_list;
 
   void from_ngap_handover_request(const ngap_handover_request& ng_handover_request)
   {

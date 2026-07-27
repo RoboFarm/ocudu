@@ -626,7 +626,7 @@ ocudu::ocucp::generate_ngap_pdu_session_resource_setup_response(ngap_pdu_session
         pdu_session_setup_response_item.pdu_session_resource_setup_response_transfer.dlqos_flow_per_tnl_info;
     dlqos_flow_per_tnl_info.up_tp_layer_info = {transport_layer_address::create_from_string("0.0.0.0"),
                                                 int_to_gtpu_teid(0)};
-    ngap_associated_qos_flow assoc_qos_flow;
+    cu_cp_associated_qos_flow assoc_qos_flow;
     assoc_qos_flow.qos_flow_id = uint_to_qos_flow_id(1);
     dlqos_flow_per_tnl_info.associated_qos_flow_list.emplace(uint_to_qos_flow_id(1), assoc_qos_flow);
 
@@ -826,7 +826,7 @@ ocudu::ocucp::generate_ngap_pdu_session_resource_modify_response(pdu_session_id_
   qos_flow_per_tnl_info.up_tp_layer_info = {transport_layer_address::create_from_string("127.0.0.1"),
                                             int_to_gtpu_teid(1)};
 
-  ngap_associated_qos_flow assoc_qos_flow;
+  cu_cp_associated_qos_flow assoc_qos_flow;
   assoc_qos_flow.qos_flow_id = qos_flow_id;
 
   qos_flow_per_tnl_info.associated_qos_flow_list.emplace(qos_flow_id, assoc_qos_flow);
@@ -1134,12 +1134,12 @@ ngap_handover_preparation_request ocudu::ocucp::generate_handover_preparation_re
   request.nci = nci;
   // Fill create a map of all PDU sessions and their associated QoS flows, grouped by DRB.
   for (const auto& pdu_session : pdu_sessions) {
-    std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map;
+    std::vector<cu_cp_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map;
     for (const auto& drb : pdu_session.second.drbs) {
-      ngap_drbs_to_qos_flows_map_item drb_item;
+      cu_cp_drbs_to_qos_flows_map_item drb_item;
       drb_item.drb_id = drb.first;
       for (const auto& qos_flow : drb.second.qos_flows) {
-        drb_item.associated_qos_flow_list.push_back(ngap_associated_qos_flow{qos_flow.first, std::nullopt});
+        drb_item.associated_qos_flow_list.push_back(cu_cp_associated_qos_flow{qos_flow.first, std::nullopt});
       }
       drbs_to_qos_flows_map.push_back(drb_item);
     }

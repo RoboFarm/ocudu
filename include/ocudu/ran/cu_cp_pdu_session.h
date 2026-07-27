@@ -19,11 +19,11 @@ struct qos_flow_setup_request_item {
   std::optional<uint8_t>        erab_id;
 };
 
-enum class ngap_qos_flow_map_ind { ul = 0, dl };
+enum class cu_cp_qos_flow_map_indication { ul = 0, dl };
 
-struct ngap_associated_qos_flow {
-  qos_flow_id_t                        qos_flow_id = qos_flow_id_t::invalid;
-  std::optional<ngap_qos_flow_map_ind> qos_flow_map_ind;
+struct cu_cp_associated_qos_flow {
+  qos_flow_id_t                                qos_flow_id = qos_flow_id_t::invalid;
+  std::optional<cu_cp_qos_flow_map_indication> qos_flow_map_ind;
 };
 
 struct cu_cp_pdu_session_res_setup_item {

@@ -28,14 +28,14 @@ struct ngap_qos_flow_failed_to_setup_item {
 };
 
 struct ngap_qos_flow_per_tnl_information {
-  up_transport_layer_info                                    up_tp_layer_info;
-  slotted_id_vector<qos_flow_id_t, ngap_associated_qos_flow> associated_qos_flow_list;
+  up_transport_layer_info                                     up_tp_layer_info;
+  slotted_id_vector<qos_flow_id_t, cu_cp_associated_qos_flow> associated_qos_flow_list;
 };
 
 struct ngap_pdu_session_resource_setup_response_transfer {
   std::vector<ngap_qos_flow_per_tnl_information>                       add_dl_qos_flow_per_tnl_info;
   ngap_qos_flow_per_tnl_information                                    dlqos_flow_per_tnl_info;
-  slotted_id_vector<qos_flow_id_t, ngap_associated_qos_flow>           associated_qos_flow_list;
+  slotted_id_vector<qos_flow_id_t, cu_cp_associated_qos_flow>          associated_qos_flow_list;
   slotted_id_vector<qos_flow_id_t, ngap_qos_flow_failed_to_setup_item> qos_flow_failed_to_setup_list;
   std::optional<security_result_t>                                     security_result;
 };

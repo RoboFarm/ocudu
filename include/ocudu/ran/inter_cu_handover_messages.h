@@ -25,20 +25,20 @@ struct cu_cp_data_forwarding_resp_drb_item {
   std::optional<up_transport_layer_info> ul_forwarding_up_tnl;
 };
 
-struct ngap_qos_flow_info_item {
+struct cu_cp_qos_flow_info_item {
   qos_flow_id_t       qos_flow_id = qos_flow_id_t::invalid;
   std::optional<bool> dl_forwarding;
 };
 
-struct ngap_drbs_to_qos_flows_map_item {
-  drb_id_t                              drb_id = drb_id_t::invalid;
-  std::vector<ngap_associated_qos_flow> associated_qos_flow_list;
+struct cu_cp_drbs_to_qos_flows_map_item {
+  drb_id_t                               drb_id = drb_id_t::invalid;
+  std::vector<cu_cp_associated_qos_flow> associated_qos_flow_list;
 };
 
-struct ngap_pdu_session_res_info_item {
-  pdu_session_id_t                             pdu_session_id = pdu_session_id_t::invalid;
-  std::vector<ngap_qos_flow_info_item>         qos_flow_info_list;
-  std::vector<ngap_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map_list;
+struct cu_cp_pdu_session_res_info_item {
+  pdu_session_id_t                              pdu_session_id = pdu_session_id_t::invalid;
+  std::vector<cu_cp_qos_flow_info_item>         qos_flow_info_list;
+  std::vector<cu_cp_drbs_to_qos_flows_map_item> drbs_to_qos_flows_map_list;
 };
 
 struct cu_cp_qos_flow_with_data_forwarding_item {

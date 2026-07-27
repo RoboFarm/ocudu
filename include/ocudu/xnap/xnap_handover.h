@@ -32,7 +32,7 @@ struct xnap_ue_context_info_ho_request {
   /// Source DRB-to-QoS-flow mapping, when the source proposed data forwarding for a DRB (TS 38.423 Section
   /// 9.2.1.17, Data Forwarding and Offloading Info from source NG-RAN node). Used to preserve DRB numbering at
   /// the target where possible, since DRB IDs are otherwise allocated independently by each RAN node.
-  std::vector<ngap_pdu_session_res_info_item> pdu_session_res_info_list;
+  std::vector<cu_cp_pdu_session_res_info_item> pdu_session_res_info_list;
 };
 
 /// Common type XNAP handover request, defined in TS 38.423 section 9.1.1.1.

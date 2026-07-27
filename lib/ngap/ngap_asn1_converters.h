@@ -66,7 +66,7 @@ inline asn1::ngap::security_result_s cu_cp_security_result_to_ngap_security_resu
 /// \param[in] cu_cp_qos_flow The CU-CP Associated QoS Flow.
 /// \return The NGAP Associated QoS Flow Item.
 inline asn1::ngap::associated_qos_flow_item_s
-cu_cp_assoc_qos_flow_to_ngap_assoc_qos_flow_item(ngap_associated_qos_flow cu_cp_qos_flow)
+cu_cp_assoc_qos_flow_to_ngap_assoc_qos_flow_item(cu_cp_associated_qos_flow cu_cp_qos_flow)
 {
   asn1::ngap::associated_qos_flow_item_s asn1_assoc_qos_item;
 
@@ -75,7 +75,7 @@ cu_cp_assoc_qos_flow_to_ngap_assoc_qos_flow_item(ngap_associated_qos_flow cu_cp_
   if (cu_cp_qos_flow.qos_flow_map_ind.has_value()) {
     asn1_assoc_qos_item.qos_flow_map_ind_present = true;
 
-    if (cu_cp_qos_flow.qos_flow_map_ind.value() == ngap_qos_flow_map_ind::ul) {
+    if (cu_cp_qos_flow.qos_flow_map_ind.value() == cu_cp_qos_flow_map_indication::ul) {
       asn1_assoc_qos_item.qos_flow_map_ind.value =
           asn1::ngap::associated_qos_flow_item_s::qos_flow_map_ind_opts::options::ul;
     } else {
@@ -605,14 +605,14 @@ inline void asn1_to_source_to_target_transport_container(
 
   // Fill PDU session res info list.
   for (const auto& asn1_pdu_info_item : asn1_container.pdu_session_res_info_list) {
-    ngap_pdu_session_res_info_item pdu_info_item;
+    cu_cp_pdu_session_res_info_item pdu_info_item;
 
     // Fill PDU session ID.
     pdu_info_item.pdu_session_id = uint_to_pdu_session_id(asn1_pdu_info_item.pdu_session_id);
 
     // Fill QoS flow info list.
     for (const auto& asn1_qos_flow : asn1_pdu_info_item.qos_flow_info_list) {
-      ngap_qos_flow_info_item qos_flow;
+      cu_cp_qos_flow_info_item qos_flow;
       // Fill QoS flow ID.
       qos_flow.qos_flow_id = uint_to_qos_flow_id(asn1_qos_flow.qos_flow_id);
 
@@ -626,14 +626,14 @@ inline void asn1_to_source_to_target_transport_container(
 
     // Fill DRBs to QoS flow map list.
     for (const auto& asn1_drbs_to_qos_flow_map : asn1_pdu_info_item.drbs_to_qos_flows_map_list) {
-      ngap_drbs_to_qos_flows_map_item drbs_to_qos_flow_map;
+      cu_cp_drbs_to_qos_flows_map_item drbs_to_qos_flow_map;
 
       // Fill DRB ID.
       drbs_to_qos_flow_map.drb_id = uint_to_drb_id(asn1_drbs_to_qos_flow_map.drb_id);
 
       // Fill Associated QoS flow list.
       for (const auto& asn1_assoc_qos_flow : asn1_drbs_to_qos_flow_map.associated_qos_flow_list) {
-        ngap_associated_qos_flow assoc_qos_flow;
+        cu_cp_associated_qos_flow assoc_qos_flow;
 
         // Fill QoS flow ID.
         assoc_qos_flow.qos_flow_id = uint_to_qos_flow_id(asn1_assoc_qos_flow.qos_flow_id);
@@ -642,10 +642,10 @@ inline void asn1_to_source_to_target_transport_container(
         if (asn1_assoc_qos_flow.qos_flow_map_ind_present) {
           if (asn1_assoc_qos_flow.qos_flow_map_ind ==
               asn1::ngap::associated_qos_flow_item_s::qos_flow_map_ind_opts::options::ul) {
-            assoc_qos_flow.qos_flow_map_ind = ngap_qos_flow_map_ind::ul;
+            assoc_qos_flow.qos_flow_map_ind = cu_cp_qos_flow_map_indication::ul;
           } else if (asn1_assoc_qos_flow.qos_flow_map_ind ==
                      asn1::ngap::associated_qos_flow_item_s::qos_flow_map_ind_opts::options::dl) {
-            assoc_qos_flow.qos_flow_map_ind = ngap_qos_flow_map_ind::dl;
+            assoc_qos_flow.qos_flow_map_ind = cu_cp_qos_flow_map_indication::dl;
           }
         }
 
