@@ -136,25 +136,6 @@ void uci_allocator_impl::stop()
   }
 }
 
-static bool is_cg_slot(const cg_configuration* cg_cfg, slot_point slot)
-{
-  // TODO: support type 2.
-  if (cg_cfg == nullptr) {
-    return false;
-  }
-
-  if (not cg_cfg->rrc_configured_ul_grant_cfg.has_value()) {
-    return false;
-  }
-
-  const auto& rrc_cg_cfg = cg_cfg->rrc_configured_ul_grant_cfg.value();
-  if (slot.count() % static_cast<unsigned>(cg_cfg->periodicity) == rrc_cg_cfg.time_domain_offset) {
-    return true;
-  }
-
-  return false;
-}
-
 std::optional<uci_allocation> uci_allocator_impl::alloc_harq_ack(cell_resource_allocator&     res_alloc,
                                                                  const ue_cell_configuration& ue_cell_cfg,
                                                                  unsigned                     k0,
@@ -224,12 +205,6 @@ std::optional<uci_allocation> uci_allocator_impl::alloc_harq_ack(cell_resource_a
         *ue_cell_cfg.init_bwp().ul.ue_cfg(), cell_cfg.params.init_bwp.pucch.sr_period, uci_slot);
     const unsigned scheduled_harq_bits     = get_scheduled_pdsch_counter_in_ue_uci(slot_alloc.slot, ue_cell_cfg.crnti);
     unsigned       nof_available_harq_bits = 0U;
-
-    // This is needed as the test UE currently doesn't support more than 1 HARQ-ACK bit in UCI on CG.
-    // TODO: remove this once test UE supports more than 1 HARQ-ACK bit in UCI on CG.
-    if (is_cg_slot(ue_cell_cfg.init_bwp().ul.cg_cfg(), uci_slot) and scheduled_harq_bits != 0) {
-      continue;
-    }
 
     if (ue_cell_cfg.init_bwp().ul.ue_cfg()->periodic_csi_report.has_value() and
         csi_helper::is_csi_reporting_slot(*ue_cell_cfg.init_bwp().ul.ue_cfg()->periodic_csi_report,

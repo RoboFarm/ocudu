@@ -73,7 +73,7 @@ private:
   // Storage of the periodic CG PUSCH opportunities to be scheduled in the resource grid. Each position of the vector
   // represents a slot in a ring-like structure (i.e. slot % max_cg_slot_periodicity). Each of these vector
   // indexes/slots contains a list of RNTIs with a CG grant due in that slot.
-  std::vector<static_vector<rnti_t, MAX_PUSCH_PDUS_PER_SLOT>> periodic_pusch_slot_wheel;
+  circular_vector<static_vector<rnti_t, MAX_PUSCH_PDUS_PER_SLOT>> periodic_pusch_slot_wheel;
 
   // UEs whose CG configuration has been added or updated in between the last and current slot indications. Their CG
   // resources still need to be pre-reserved over the whole resource grid.

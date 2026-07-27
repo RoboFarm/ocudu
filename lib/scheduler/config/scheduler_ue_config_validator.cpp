@@ -39,6 +39,17 @@ static validator_result validate_cg_cfg(const uplink_config& ul_cfg, const cell_
              ul_cfg.pusch_serv_cell_cfg->ul_harq_mode == ~harq_ul_mode_mask(MAX_NOF_HARQS),
          "Configured Grant requires the default uplinkHARQ-mode (all UL HARQ processes in mode A)");
 
+  if (cell_cfg.params.tdd_cfg.has_value()) {
+    // If every full UL slot is a CG opportunity, the scheduler couldn't allocate any dynamic PUSCHs, which is necessary
+    // to complete the RRC reconfiguration.
+    const unsigned nof_tdd_slots_per_period     = nof_slots_per_tdd_period(cell_cfg.params.tdd_cfg.value());
+    const unsigned nof_full_ul_slots_per_period = nof_full_ul_slots_per_tdd_period(cell_cfg.params.tdd_cfg.value());
+    VERIFY(nof_tdd_slots_per_period < static_cast<unsigned>(cg_cfg.periodicity) or
+               (nof_tdd_slots_per_period == static_cast<unsigned>(cg_cfg.periodicity) and
+                nof_full_ul_slots_per_period > 1U),
+           "TDD configuration is not compatible with CG period");
+  }
+
   return {};
 }
 

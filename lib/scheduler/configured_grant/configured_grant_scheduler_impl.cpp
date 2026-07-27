@@ -142,9 +142,7 @@ void configured_grant_scheduler_impl::rem_ue(const ue_cell_configuration& ue_cfg
     }
 
     // Swap with last element and pop for O(1) removal.
-    if (it != slot_wheel.end() - 1) {
-      std::swap(*it, *(slot_wheel.end() - 1));
-    }
+    std::swap(*it, slot_wheel.back());
     slot_wheel.pop_back();
   }
 }
@@ -195,7 +193,7 @@ void configured_grant_scheduler_impl::reserve_updated_ues_resources(cell_resourc
 
     for (unsigned n = 0; n != res_alloc.max_ul_slot_alloc_delay; ++n) {
       cell_slot_resource_allocator& slot_alloc = res_alloc[n];
-      const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint() % max_cg_slot_periodicity];
+      const auto&                   rnti_list  = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint()];
       if (std::find(rnti_list.begin(), rnti_list.end(), rnti) != rnti_list.end()) {
         reserve_cg_resources(slot_alloc, *ue_cfg);
       }
@@ -208,7 +206,7 @@ void configured_grant_scheduler_impl::reserve_updated_ues_resources(cell_resourc
 
 void configured_grant_scheduler_impl::reserve_slot_cg_resources(cell_slot_resource_allocator& slot_alloc) const
 {
-  const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint() % max_cg_slot_periodicity];
+  const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint()];
   for (const rnti_t rnti : rnti_list) {
     const ue_cell_configuration* ue_cfg = get_ue_cfg(rnti);
     if (ue_cfg == nullptr) {
@@ -255,7 +253,7 @@ void configured_grant_scheduler_impl::stop()
 
 void configured_grant_scheduler_impl::allocate_slot_cg_opportunities(cell_slot_resource_allocator& slot_alloc) const
 {
-  const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint() % max_cg_slot_periodicity];
+  const auto& rnti_list = periodic_pusch_slot_wheel[slot_alloc.slot.to_uint()];
   for (const rnti_t rnti : rnti_list) {
     allocate_cg_opportunity(slot_alloc, rnti);
   }
@@ -324,7 +322,7 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
   const harq_id_t           h_id =
       get_harq_id(pusch_slot, pusch_params.symbols.start(), cg_cfg.periodicity, cg_cfg.nof_harq_processes);
   const unsigned cg_harq_timeout = cg_configuration::configured_grant_timer * static_cast<unsigned>(cg_cfg.periodicity);
-  auto h_ul = ue_cc->harqs.alloc_ul_harq(pusch_slot, nof_harq_retx, h_id, /*select_normal_mode*/ true, cg_harq_timeout);
+  auto h_ul = ue_cc->harqs.alloc_ul_harq(pusch_slot, nof_harq_retx, cg_harq_alloc_params{h_id, cg_harq_timeout});
   ocudu_assert(h_ul.has_value(), "Failed to allocate UL HARQ id={}", fmt::underlying(h_id));
 
   // Build DMRS information from the CG-specific DMRS configuration.

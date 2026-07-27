@@ -71,7 +71,7 @@ void pusch_power_controller::handle_phr(const cell_ph_report& phr, slot_point sl
   }
 
   // PHR reported in Configured Grant PUSCH have a different RNTI from the C-RNTI used by the UE.
-  // We ignore these PHRs and only issue warnings when the reported PH is negative.
+  // We ignore these PHRs and only log the event when the reported PH is negative.
   if (phr_rnti != rnti) {
     if (phr.ph.stop() < 0) {
       logger.info("cs-rnti={}: negative PHR reported by Configured Grant PUSCH at slot={}", phr_rnti, slot_rx);
@@ -86,7 +86,6 @@ void pusch_power_controller::handle_phr(const cell_ph_report& phr, slot_point sl
         std::all_of(pusch_pw_ctrl_grid.begin(), pusch_pw_ctrl_grid.end(), [](const pusch_pw_ctrl_data& data) {
           return not data.slot_rx.valid();
         });
-    // If RNTI doesn't match, then it means the PHR is from a CG PUSCH.
     if (not first_phr_reporting) {
       logger.info("rnti={}: No PUSCH allocation corresponding to the PHR received at slot={} grid_idx={}. Consider "
                   "increasing the grid size",

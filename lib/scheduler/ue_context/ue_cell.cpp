@@ -483,19 +483,3 @@ double ue_cell::get_estimated_ul_rate(const pusch_config_params& pusch_cfg, sch_
   // Return the estimated throughput, considering that the number of bytes is for a slot.
   return tbs_bytes.value();
 }
-
-bool ue_cell::is_cg_slot(slot_point slot) const
-{
-  // TODO: support type 2.
-  if (ue_cfg->init_bwp().ul.cg_cfg() != nullptr) {
-    const auto& cg_cfg = ue_cfg->init_bwp().ul.cg_cfg();
-    if (cg_cfg->rrc_configured_ul_grant_cfg.has_value()) {
-      const auto& rrc_cg_cfg = cg_cfg->rrc_configured_ul_grant_cfg.value();
-      if (slot.count() % static_cast<unsigned>(cg_cfg->periodicity) == rrc_cg_cfg.time_domain_offset) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}

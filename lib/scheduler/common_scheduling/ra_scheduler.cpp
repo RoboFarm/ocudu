@@ -659,7 +659,7 @@ void ra_scheduler::handle_msga_occasion(const rach_indication_message::occasion&
     pusch.new_data                = true;
     pusch.harq_id                 = to_harq_id(0);
     pusch.tb_size_bytes           = tbs;
-    pusch.num_cb                  = 0;
+    pusch.nof_cb                  = 0;
     pusch.transform_precoding     = cell_cfg.use_msg3_transform_precoder();
     pusch.intra_slot_freq_hopping = false;
     pusch.tx_direct_current_location =

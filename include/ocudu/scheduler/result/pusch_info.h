@@ -72,7 +72,7 @@ struct pusch_information {
   /// \brief Number of CBs in the TB (could be more than the number of CBs in this PUSCH transmission). Should be set
   /// to zero in any of the following conditions: 1) CBG is not supported or requested 2) newData=1 (new transmission)
   /// 3) tbSize=0.
-  uint16_t num_cb;
+  uint16_t nof_cb;
 };
 
 struct uci_info {

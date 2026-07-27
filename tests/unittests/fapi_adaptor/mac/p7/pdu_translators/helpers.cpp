@@ -541,7 +541,7 @@ ul_sched_info_test_helper unittests::build_valid_pusch_pdu()
   pusch.harq_id                    = to_harq_id(2);
   pusch.new_data                   = true;
   pusch.tb_size_bytes              = units::bytes{11};
-  pusch.num_cb                     = 0;
+  pusch.nof_cb                     = 0;
 
   // UCI.
   uci_info& uci             = info.uci.emplace();

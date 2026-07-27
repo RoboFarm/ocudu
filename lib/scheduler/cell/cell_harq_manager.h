@@ -41,6 +41,14 @@ public:
   virtual void on_feedback_disabled_harq_timeout(du_ue_index_t ue_idx, bool is_dl, units::bytes tbs) = 0;
 };
 
+/// Parameters for the allocation of a UL HARQ process reserved for Configured Grants.
+struct cg_harq_alloc_params {
+  /// HARQ process ID reserved for the CG occasion.
+  harq_id_t harq_id;
+  /// Timeout, in slots, after which the CG HARQ process is released (configured_grant_timer x periodicity).
+  unsigned cg_harq_timeout;
+};
+
 namespace harq_utils {
 
 /// Possible states of a HARQ process.
@@ -202,7 +210,7 @@ struct cell_harq_repository {
   /// \param[in] sl_ack_end Slot of the last transmission that can carry the respective ACK/CRC; equal to \c sl_ack
   /// unless the HARQ-ACK is reported over a multi-slot PUCCH repetition burst (see \c base_harq_process::slot_ack_end).
   /// \param[in] max_nof_harq_retxs Maximum number of retransmissions allowed for this HARQ process before it is reset.
-  /// \param[in] harq_id If set, forces the allocation of this specific HARQ-id (e.g. for Configured Grants); the
+  /// \param[in] cg_params If set, forces the allocation of this specific HARQ-id (e.g. for Configured Grants); the
   /// process must be free and, unless \c select_normal_mode's constraint below applies, not reserved.
   /// \param[in] select_normal_mode Whether the picked HARQ process must be currently operating in normal mode (as
   /// opposed to feedback-disabled/mode B). Only relevant for NTN cells.
@@ -211,15 +219,14 @@ struct cell_harq_repository {
   /// slot (see \c ue_harq_entity_impl::last_slot_tx) to the end of the whole transmission, not just \c sl_tx.
   /// \return Pointer to the allocated HARQ process, or \c nullptr if the UE has no free (and, when applicable, no
   /// matching reserved or mode-matching) HARQ process available.
-  harq_type* alloc_harq(du_ue_index_t            ue_idx,
-                        slot_point               sl_tx,
-                        slot_point               sl_ack,
-                        slot_point               sl_ack_end,
-                        unsigned                 max_nof_harq_retxs,
-                        std::optional<harq_id_t> harq_id            = std::nullopt,
-                        bool                     select_normal_mode = true,
-                        uint8_t                  nof_repetitions    = 1,
-                        unsigned                 cg_harq_timeout    = 0);
+  harq_type* alloc_harq(du_ue_index_t                       ue_idx,
+                        slot_point                          sl_tx,
+                        slot_point                          sl_ack,
+                        slot_point                          sl_ack_end,
+                        unsigned                            max_nof_harq_retxs,
+                        std::optional<cg_harq_alloc_params> cg_params          = std::nullopt,
+                        bool                                select_normal_mode = true,
+                        uint8_t                             nof_repetitions    = 1);
   void       dealloc_harq(harq_type& h);
   void       handle_ack(harq_type& h, bool ack);
   void       set_pending_retx(harq_type& h);
@@ -541,13 +548,12 @@ private:
                                               uint8_t       nof_repetitions    = 1);
 
   /// \brief Called on every UL new Tx to allocate an UL HARQ process.
-  harq_utils::ul_harq_process_impl* new_ul_tx(du_ue_index_t            ue_idx,
-                                              rnti_t                   rnti,
-                                              slot_point               pusch_slot,
-                                              unsigned                 max_harq_nof_retxs,
-                                              std::optional<harq_id_t> harq_id            = std::nullopt,
-                                              bool                     select_normal_mode = true,
-                                              unsigned                 cg_harq_timeout    = 0);
+  harq_utils::ul_harq_process_impl* new_ul_tx(du_ue_index_t                       ue_idx,
+                                              rnti_t                              rnti,
+                                              slot_point                          pusch_slot,
+                                              unsigned                            max_harq_nof_retxs,
+                                              std::optional<cg_harq_alloc_params> cg_params          = std::nullopt,
+                                              bool                                select_normal_mode = true);
 
   const uint8_t                          max_harqs_per_ue;
   std::unique_ptr<harq_timeout_notifier> dl_timeout_notifier;
@@ -657,11 +663,10 @@ public:
                                                       bool                    select_normal_mode = true,
                                                       uint8_t                 nof_repetitions    = 1,
                                                       std::optional<unsigned> last_ack_delay     = std::nullopt);
-  std::optional<ul_harq_process_handle> alloc_ul_harq(slot_point               sl_tx,
-                                                      unsigned                 max_harq_nof_retxs,
-                                                      std::optional<harq_id_t> harq_id            = std::nullopt,
-                                                      bool                     select_normal_mode = true,
-                                                      unsigned                 cg_harq_timeout    = 0);
+  std::optional<ul_harq_process_handle> alloc_ul_harq(slot_point                          sl_tx,
+                                                      unsigned                            max_harq_nof_retxs,
+                                                      std::optional<cg_harq_alloc_params> cg_params = std::nullopt,
+                                                      bool                                select_normal_mode = true);
 
   std::optional<dl_harq_process_handle>       find_pending_dl_retx();
   std::optional<const dl_harq_process_handle> find_pending_dl_retx() const;

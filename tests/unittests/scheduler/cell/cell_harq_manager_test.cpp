@@ -1344,7 +1344,7 @@ TEST_F(cg_harq_reservation_test, when_cg_harq_id_requested_then_returns_process_
 {
   // Request a specific HARQ-ID from the CG-reserved range [0, nof_cg_reserved).
   constexpr harq_id_t requested_id = to_harq_id(2);
-  auto                h_ul         = harq_ent.alloc_ul_harq(pusch_slot, max_retxs, requested_id, true, cg_harq_timeout);
+  auto h_ul = harq_ent.alloc_ul_harq(pusch_slot, max_retxs, cg_harq_alloc_params{requested_id, cg_harq_timeout});
 
   ASSERT_TRUE(h_ul.has_value());
   ASSERT_EQ(h_ul->id(), requested_id);
@@ -1354,7 +1354,8 @@ TEST_F(cg_harq_reservation_test, when_cg_harq_id_outside_reserved_range_then_all
 {
   // Request a HARQ-ID that falls in the non-reserved range (>= nof_cg_reserved). This should be rejected.
   const harq_id_t non_reserved_id = to_harq_id(nof_cg_reserved);
-  const auto      h_ul = harq_ent.alloc_ul_harq(pusch_slot, max_retxs, non_reserved_id, true, cg_harq_timeout);
+  const auto      h_ul =
+      harq_ent.alloc_ul_harq(pusch_slot, max_retxs, cg_harq_alloc_params{non_reserved_id, cg_harq_timeout});
 
   ASSERT_FALSE(h_ul.has_value());
 }
@@ -1383,7 +1384,7 @@ TEST_F(cg_harq_reservation_test, when_no_harq_id_specified_then_reserved_ids_are
 
   // Reserved IDs are still free and can be allocated individually.
   for (unsigned id = 0; id != nof_cg_reserved; ++id) {
-    auto h_ul = harq_ent.alloc_ul_harq(pusch_slot, max_retxs, to_harq_id(id), true, cg_harq_timeout);
+    auto h_ul = harq_ent.alloc_ul_harq(pusch_slot, max_retxs, cg_harq_alloc_params{to_harq_id(id), cg_harq_timeout});
     ASSERT_TRUE(h_ul.has_value());
     ASSERT_EQ(h_ul->id(), to_harq_id(id));
   }

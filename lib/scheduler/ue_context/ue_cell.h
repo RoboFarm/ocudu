@@ -141,7 +141,12 @@ public:
   }
 
   /// \brief Handle CRC PDU indication.
-  /// True if PDU was detected as transmitted, false if DTX
+  ///
+  /// Dynamic PUSCH CRC always yields a "detected" outcome (i.e., ACK or NACK); whereas, the Configured Grant PUSCH CRC
+  /// can yield a not-detected outcome, e.g., when the SINR associated with its PUSCH is below the detection threshold.
+  ///
+  /// \return A pair with the TBS that was (N)ACKed or not detected (DTX) and boolean indicating whether the PDU was
+  /// detected as transmitted (True if detected, false if not detected).
   expected<std::pair<units::bytes, bool>> handle_crc_pdu(slot_point pusch_slot, const ul_crc_pdu_indication& crc_pdu);
 
   /// \brief Handle Sounding Reference Signal (SRS) channel matrix.
@@ -193,8 +198,6 @@ public:
     ocudu_assert(components.pcell_state != nullptr, "Invalid access to Pcell state for SCell");
     return *components.pcell_state;
   }
-
-  bool is_cg_slot(slot_point slot) const;
 
 private:
   /// \brief Performs link adaptation procedures such as cancelling HARQs etc.

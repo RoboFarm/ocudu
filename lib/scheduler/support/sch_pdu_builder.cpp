@@ -535,7 +535,7 @@ void ocudu::build_pusch_f0_0_tc_rnti(pusch_information&                   pusch,
 
   pusch.tb_size_bytes = tbs_bytes;
   // Set number of CB to zero if no CBs are being used.
-  pusch.num_cb = 0;
+  pusch.nof_cb = 0;
 }
 
 void ocudu::build_pusch_f0_0_c_rnti(pusch_information&                  pusch,
@@ -581,7 +581,7 @@ void ocudu::build_pusch_f0_0_c_rnti(pusch_information&                  pusch,
   // TBS.
   pusch.nof_layers    = pusch_cfg.nof_layers;
   pusch.tb_size_bytes = tbs_bytes;
-  pusch.num_cb        = 0;
+  pusch.nof_cb        = 0;
 
   // HARQ.
   pusch.rv_index = dci_cfg.redundancy_version;
@@ -655,7 +655,7 @@ void ocudu::build_pusch_f0_1_c_rnti(pusch_information&           pusch,
   pusch.nof_layers    = pusch_cfg.nof_layers;
   pusch.tb_size_bytes = mcs_tbs_info.tbs;
   // TODO: Set based on CobeBook config.
-  pusch.num_cb = 0;
+  pusch.nof_cb = 0;
 
   // HARQ.
   pusch.rv_index = dci_cfg.redundancy_version;
@@ -679,7 +679,6 @@ void ocudu::build_pusch_cs_rnti(pusch_information&           pusch,
   const cg_configuration& cg_cfg = bwp_info.ul.ded()->cg_cfg.value();
   ocudu_assert(cg_cfg.rrc_configured_ul_grant_cfg.has_value(), "RRC-ConfiguredUplinkGrant for CG type 1 not set");
 
-  // TODO: Populate based on config.
   pusch.intra_slot_freq_hopping = false;
   pusch.is_cg                   = true;
   pusch.pusch_second_hop_prb    = 0;
@@ -711,8 +710,8 @@ void ocudu::build_pusch_cs_rnti(pusch_information&           pusch,
   pusch.dmrs          = pusch_cfg.dmrs;
   pusch.nof_layers    = pusch_cfg.nof_layers;
   pusch.tb_size_bytes = mcs_tbs_info.tbs;
-  // TODO: Set based on CobeBook config.
-  pusch.num_cb = 0;
+  // Only 1 Codeword supported.
+  pusch.nof_cb = 1U;
 
   // HARQ.
   pusch.rv_index = rv_index;
