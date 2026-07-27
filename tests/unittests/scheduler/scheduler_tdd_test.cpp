@@ -94,7 +94,8 @@ protected:
     // Shorten the PUCCH resources so that they do not overlap in symbols with the SRS at the tail of the slot, as the
     // DU does. Without this, the full-slot PUCCH F1 resources at the BWP edges overlap the SRS RBs.
     if (srs_enabled) {
-      config_helpers::cap_pucch_symbols_to_avoid_srs(pucch_params, cell_req.ran.init_bwp.srs_cfg);
+      pucch_helper::cap_pucch_symbols(
+          pucch_params, config_helpers::compute_max_nof_pucch_symbols(cell_req.ran.init_bwp.srs_cfg).value());
     }
     cell_req.ran.init_bwp.pucch.resources = pucch_params;
     // A duration-2 CORESET#0 doubles the PDCCH candidate cost per aggregation level, so reduce the common SS#1

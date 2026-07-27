@@ -110,23 +110,3 @@ config_helpers::compute_max_nof_pucch_symbols(const srs_builder_params& user_srs
              ? NOF_OFDM_SYM_PER_SLOT_NORMAL_CP - user_srs_params.max_nof_symbols.value()
              : NOF_OFDM_SYM_PER_SLOT_NORMAL_CP;
 }
-
-void config_helpers::cap_pucch_symbols_to_avoid_srs(pucch_resource_builder_params& user_params,
-                                                    const srs_builder_params&      user_srs_params)
-{
-  user_params.max_nof_symbols       = compute_max_nof_pucch_symbols(user_srs_params);
-  const unsigned max_nof_pucch_syms = user_params.max_nof_symbols.value();
-
-  // Formats 0 and 2 span at most 2 symbols, so they always fit in the symbols left over by the SRS.
-  if (std::holds_alternative<pucch_f1_params>(user_params.f0_or_f1_params)) {
-    auto& f1_params    = std::get<pucch_f1_params>(user_params.f0_or_f1_params);
-    f1_params.nof_syms = std::min(max_nof_pucch_syms, f1_params.nof_syms.value());
-  }
-  if (std::holds_alternative<pucch_f3_params>(user_params.f2_or_f3_or_f4_params)) {
-    auto& f3_params    = std::get<pucch_f3_params>(user_params.f2_or_f3_or_f4_params);
-    f3_params.nof_syms = std::min(max_nof_pucch_syms, f3_params.nof_syms.value());
-  } else if (std::holds_alternative<pucch_f4_params>(user_params.f2_or_f3_or_f4_params)) {
-    auto& f4_params    = std::get<pucch_f4_params>(user_params.f2_or_f3_or_f4_params);
-    f4_params.nof_syms = std::min(max_nof_pucch_syms, f4_params.nof_syms.value());
-  }
-}

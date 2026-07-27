@@ -1071,8 +1071,8 @@ std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_un
                                                  base_cell.csi_cfg.csi_rs_enabled
                                                      ? std::optional<unsigned>{base_cell.csi_cfg.csi_rs_period_msec}
                                                      : std::nullopt);
-    config_helpers::cap_pucch_symbols_to_avoid_srs(du_pucch_cfg, du_srs_cfg);
-    if (user_srs_cfg.srs_type_enabled == "periodic" or user_srs_cfg.srs_type_enabled == "aperiodic") {
+    pucch_helper::cap_pucch_symbols(du_pucch_cfg, config_helpers::compute_max_nof_pucch_symbols(du_srs_cfg).value());
+    if (du_srs_cfg.srs_type_enabled != srs_type::disabled) {
       // Regenerate the PUSCH time-domain resources, adding extra ones to enable PUSCH on symbols not used by the SRS.
       out_cell.ran.ul_cfg_common.init_ul_bwp.pusch_cfg_common->pusch_td_alloc_list =
           time_domain_resource_helper::generate_dedicated_pusch_td_res_list(

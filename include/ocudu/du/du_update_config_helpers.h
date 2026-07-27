@@ -56,11 +56,5 @@ void compute_nof_sr_csi_pucch_res(pucch_resource_builder_params& user_params,
 
 bounded_integer<unsigned, 1, 14> compute_max_nof_pucch_symbols(const srs_builder_params& user_srs_params);
 
-/// \brief Caps the PUCCH resource symbols so that they do not overlap the SRS symbols at the end of the slot.
-/// \param user_params PUCCH resource builder parameters to cap.
-/// \param user_srs_params SRS parameters of the cell.
-void cap_pucch_symbols_to_avoid_srs(pucch_resource_builder_params& user_params,
-                                    const srs_builder_params&      user_srs_params);
-
 } // namespace config_helpers
 } // namespace ocudu

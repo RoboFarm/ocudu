@@ -446,4 +446,29 @@ struct pucch_resource_builder_params {
   }
 };
 
+namespace pucch_helper {
+
+/// Cap maximum UE-dedicated PUCCH OFDM symbols.
+///
+/// This is useful for limiting the number of symbols used by the PUCCH to avoid conflicts with other uplink
+/// transmissions, such as SRS.
+inline void cap_pucch_symbols(pucch_resource_builder_params& user_params, unsigned max_nof_pucch_syms)
+{
+  user_params.max_nof_symbols = max_nof_pucch_syms;
+
+  if (std::holds_alternative<pucch_f1_params>(user_params.f0_or_f1_params)) {
+    auto& f1_params    = std::get<pucch_f1_params>(user_params.f0_or_f1_params);
+    f1_params.nof_syms = std::min(max_nof_pucch_syms, f1_params.nof_syms.value());
+  }
+  if (std::holds_alternative<pucch_f3_params>(user_params.f2_or_f3_or_f4_params)) {
+    auto& f3_params    = std::get<pucch_f3_params>(user_params.f2_or_f3_or_f4_params);
+    f3_params.nof_syms = std::min(max_nof_pucch_syms, f3_params.nof_syms.value());
+  } else if (std::holds_alternative<pucch_f4_params>(user_params.f2_or_f3_or_f4_params)) {
+    auto& f4_params    = std::get<pucch_f4_params>(user_params.f2_or_f3_or_f4_params);
+    f4_params.nof_syms = std::min(max_nof_pucch_syms, f4_params.nof_syms.value());
+  }
+}
+
+} // namespace pucch_helper
+
 } // namespace ocudu

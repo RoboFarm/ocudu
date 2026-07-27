@@ -66,8 +66,9 @@ du_high_configuration odu::create_du_high_configuration(const du_high_env_sim_pa
       auto& cell_ran_cfg                                   = cfg.ran.cells.back().ran;
       cell_ran_cfg.init_bwp.srs_cfg.srs_type_enabled       = srs_type::periodic;
       cell_ran_cfg.init_bwp.srs_cfg.srs_period_prohib_time = params.srs_period.value();
-      config_helpers::cap_pucch_symbols_to_avoid_srs(cell_ran_cfg.init_bwp.pucch.resources,
-                                                     cell_ran_cfg.init_bwp.srs_cfg);
+      pucch_helper::cap_pucch_symbols(
+          cell_ran_cfg.init_bwp.pucch.resources,
+          config_helpers::compute_max_nof_pucch_symbols(cell_ran_cfg.init_bwp.srs_cfg).value());
     }
   }
 
