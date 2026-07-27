@@ -16,6 +16,7 @@
 #include "ocudu/cu_cp/cu_cp_configuration.h"
 #include "ocudu/ran/cu_cp_location_reporting_types.h"
 #include "ocudu/ran/plmn_identity.h"
+#include "ocudu/support/async/async_test_utils.h"
 #include <optional>
 #include <unordered_map>
 
@@ -208,6 +209,22 @@ public:
   /// tick_until() or any of the wait_for_*_tx_pdu() helpers (directly or indirectly): those recursively dispatch
   /// a blocking task to this same worker and would deadlock if invoked while already running on it.
   bool wait_ready_on_cu_cp_worker(std::chrono::milliseconds timeout, const std::function<bool()>& is_ready);
+
+  /// \brief Waits for a previously launched CU-CP task to complete, ticking the CU-CP clock as needed, and
+  /// returns its result. Callers are expected to have already launched \c launcher (e.g. via a
+  /// \c lazy_task_launcher wrapping the task returned by a CU-CP command handler) and to have performed any
+  /// DU/CU-UP/AMF interaction required for the task to reach completion.
+  template <typename T>
+  T wait_for_task_result(lazy_task_launcher<T>&    launcher,
+                         std::chrono::milliseconds timeout = std::chrono::milliseconds{500})
+  {
+    bool ready = wait_ready_on_cu_cp_worker(timeout, [&launcher]() { return launcher.ready(); });
+    ocudu_assert(ready, "CU-CP task did not complete within {}ms", timeout.count());
+    if constexpr (not std::is_void_v<T>) {
+      ocudu_assert(launcher.result.has_value(), "CU-CP task completed without a result");
+      return std::move(launcher.result).value();
+    }
+  }
 
   /// Tick CU-CP timer until a NGAP PDU is sent.
   bool wait_for_ngap_tx_pdu(ngap_message&             ngap_pdu,

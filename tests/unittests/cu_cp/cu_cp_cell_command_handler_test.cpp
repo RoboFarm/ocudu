@@ -83,9 +83,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_deactivate_cell_then_cfg_upd_carrie
 
   // DU acks the update; the procedure completes with success.
   get_du(du_idx).push_ul_pdu(make_ack_for(cu_cfg_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_TRUE(launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(launcher).success);
 }
 
 TEST_F(cu_cp_cell_command_handler_test, when_activate_cell_then_cfg_upd_carries_cgi_and_completes_on_du_ack)
@@ -104,9 +102,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_activate_cell_then_cfg_upd_carries_
   ASSERT_EQ(activ_item.nr_cgi.nr_cell_id.to_number(), served_cgi.nci.value());
 
   get_du(du_idx).push_ul_pdu(make_ack_for(cu_cfg_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_TRUE(launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(launcher).success);
 }
 
 TEST_F(cu_cp_cell_command_handler_test, when_cgi_is_unknown_then_command_fails_without_f1ap_traffic)
@@ -147,9 +143,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_du_rejects_cfg_upd_then_command_fai
   get_du(du_idx).push_ul_pdu(fail);
 
   // CU-CP should resolve the procedure as failed.
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_FALSE(launcher.result.value().success);
+  EXPECT_FALSE(wait_for_task_result(launcher).success);
 }
 
 TEST_F(cu_cp_cell_command_handler_test, when_activate_follows_deactivate_then_deactivated_cell_is_found)
@@ -165,9 +159,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_activate_follows_deactivate_then_de
     ASSERT_TRUE(pop_cu_cfg_upd(deact_upd));
     get_du(du_idx).push_ul_pdu(make_ack_for(deact_upd));
 
-    ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return deact_launcher.ready(); }, false));
-    ASSERT_TRUE(deact_launcher.result.has_value());
-    ASSERT_TRUE(deact_launcher.result.value().success);
+    ASSERT_TRUE(wait_for_task_result(deact_launcher).success);
   }
 
   // Unlock. activate_cell must locate the now-deactivated cell via the any-state DU lookup; the
@@ -182,9 +174,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_activate_follows_deactivate_then_de
   ASSERT_EQ(upd_ies->cells_to_be_activ_list.size(), 1U);
 
   get_du(du_idx).push_ul_pdu(make_ack_for(act_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return act_launcher.ready(); }, false));
-  ASSERT_TRUE(act_launcher.result.has_value());
-  EXPECT_TRUE(act_launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(act_launcher).success);
 }
 
 TEST_F(cu_cp_cell_command_handler_test, when_deactivate_cell_with_attached_ue_then_cu_releases_ue_before_deactivating)
@@ -219,9 +209,7 @@ TEST_F(cu_cp_cell_command_handler_test, when_deactivate_cell_with_attached_ue_th
   ASSERT_EQ(upd_ies->cells_to_be_deactiv_list.size(), 1U);
 
   get_du(du_idx).push_ul_pdu(make_ack_for(cu_cfg_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_TRUE(launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(launcher).success);
 }
 
 TEST_F(cu_cp_cell_command_handler_test,
@@ -258,9 +246,7 @@ TEST_F(cu_cp_cell_command_handler_test,
   ASSERT_TRUE(pop_cu_cfg_upd(cu_cfg_upd)) << "deactivation cfg update should follow all UE releases";
 
   get_du(du_idx).push_ul_pdu(make_ack_for(cu_cfg_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_TRUE(launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(launcher).success);
 }
 
 /// Fixture with two cells on a single DU, used to prove that deactivating one cell only releases that cell's UEs.
@@ -337,9 +323,7 @@ TEST_F(cu_cp_cell_command_multicell_test, when_deactivate_cell_then_ues_on_other
             other_cgi.nci.value());
 
   get_du(du_idx).push_ul_pdu(make_ack_for(cu_cfg_upd));
-  ASSERT_TRUE(tick_until(std::chrono::milliseconds{500}, [&]() { return launcher.ready(); }, false));
-  ASSERT_TRUE(launcher.result.has_value());
-  EXPECT_TRUE(launcher.result.value().success);
+  EXPECT_TRUE(wait_for_task_result(launcher).success);
 
   // The UE on the camped cell survived the lock of the other cell.
   EXPECT_EQ(get_cu_cp().get_metrics_handler().request_metrics_report().ues.size(), 1U);
