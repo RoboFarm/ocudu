@@ -40,7 +40,7 @@ struct meas_gap_test_params {
 void PrintTo(const meas_gap_test_params& p, std::ostream* os)
 {
   *os << "scs=" << scs_to_khz(p.pcell_scs) << "kHz period=" << static_cast<unsigned>(p.smtc_period)
-      << "sf off=" << +p.smtc_offsets.first << "_" << +p.smtc_offsets.second
+      << "ms off=" << +p.smtc_offsets.first << "_" << +p.smtc_offsets.second
       << " dur=" << (static_cast<unsigned>(p.smtc_dur) + 1) << "sf"
       << " mgl=" << meas_gap_length_to_msec(p.expected_mgl) << "ms mgrp=" << static_cast<unsigned>(p.expected_mgrp)
       << "ms";
@@ -76,7 +76,7 @@ ssb_mtc_s make_smtc(ssb_periodicity period, uint8_t offset, smtc_duration dur)
 std::string param_name(const ::testing::TestParamInfo<meas_gap_test_params>& info)
 {
   const auto& p = info.param;
-  return fmt::format("scs_{:_>3}kHz_period_{:_>3}sf_offsets_{:_>3}_to_{:_>3}_duration_{:01}sf",
+  return fmt::format("scs_{:_>3}kHz_period_{:_>3}ms_offsets_{:_>3}_to_{:_>3}_duration_{:01}sf",
                      scs_to_khz(p.pcell_scs),
                      fmt::underlying(p.smtc_period),
                      p.smtc_offsets.first,
@@ -212,7 +212,7 @@ struct collision_params {
 void PrintTo(const collision_params& p, std::ostream* os)
 {
   *os << p.tag << " scs=" << scs_to_khz(p.pcell_scs) << "kHz period=" << static_cast<unsigned>(p.smtc_period)
-      << "sf offset=" << +p.smtc_offset << " dur=" << (static_cast<unsigned>(p.smtc_dur) + 1)
+      << "ms offset=" << +p.smtc_offset << " dur=" << (static_cast<unsigned>(p.smtc_dur) + 1)
       << "sf expected={offset=" << p.expected.offset << " mgl=" << meas_gap_length_to_msec(p.expected.mgl)
       << "ms mgrp=" << static_cast<unsigned>(p.expected.mgrp) << "ms}";
 }
