@@ -576,7 +576,7 @@ void ocudu::test_ul_resource_grid_collisions(const cell_configuration& cell_cfg,
   }
 
   for (const test_grant_info& test_grant : ul_grants) {
-    if (test_grant.type == test_grant_info::PUCCH) {
+    if (test_grant.type == test_grant_info::PUCCH or test_grant.type == test_grant_info::SRS) {
       continue;
     }
     if (test_grant.type == test_grant_info::MSGA_PUSCH) {
@@ -596,6 +596,16 @@ void ocudu::test_ul_resource_grid_collisions(const cell_configuration& cell_cfg,
       // TODO: Handle no multiplexing of UCI into PUSCH.
       rntis.emplace(test_grant.rnti);
     }
+  }
+
+  // SRSs of different UEs are multiplexed in the code domain (comb offset, cyclic shift and sequence ID) over the same
+  // symbols and RBs, so they are only checked against the non-SRS grants, which are the ones already in the grid.
+  for (const test_grant_info& test_grant : ul_grants) {
+    if (test_grant.type != test_grant_info::SRS) {
+      continue;
+    }
+    ASSERT_FALSE(grid.collides(test_grant.grant))
+        << fmt::format("Resource collision for grant with rnti={}", test_grant.rnti);
   }
 }
 

@@ -75,7 +75,12 @@ protected:
 
     // Add Cell. Provision ample PUCCH resources (as in a real deployment) so tests can host many UEs, each with a
     // distinct PUCCH config, on the (single) UL slot.
-    auto                          cell_req = sched_config_helper::make_default_sched_cell_configuration_request(params);
+    auto       cell_req    = sched_config_helper::make_default_sched_cell_configuration_request(params);
+    const bool srs_enabled = testparams.srs_period.has_value();
+    if (srs_enabled) {
+      cell_req.ran.init_bwp.srs_cfg.srs_type_enabled       = srs_type::periodic;
+      cell_req.ran.init_bwp.srs_cfg.srs_period_prohib_time = *testparams.srs_period;
+    }
     pucch_resource_builder_params pucch_params;
     pucch_params.res_set_size             = 8;
     pucch_params.nof_cell_res_set_configs = 2;
@@ -86,7 +91,12 @@ protected:
     f1.occ_supported                      = testparams.f1_occ_supported;
     // Increase PUCCH Format 2 code rate to support DL-heavy TDD configurations.
     std::get<pucch_f2_params>(pucch_params.f2_or_f3_or_f4_params).max_code_rate = max_pucch_code_rate::dot_35;
-    cell_req.ran.init_bwp.pucch.resources                                       = pucch_params;
+    // Shorten the PUCCH resources so that they do not overlap in symbols with the SRS at the tail of the slot, as the
+    // DU does. Without this, the full-slot PUCCH F1 resources at the BWP edges overlap the SRS RBs.
+    if (srs_enabled) {
+      config_helpers::cap_pucch_symbols_to_avoid_srs(pucch_params, cell_req.ran.init_bwp.srs_cfg);
+    }
+    cell_req.ran.init_bwp.pucch.resources = pucch_params;
     // A duration-2 CORESET#0 doubles the PDCCH candidate cost per aggregation level, so reduce the common SS#1
     // (RA/paging) and dedicated SS#2 candidate counts to keep the monitored candidates per slot within limits.
     if (testparams.cs_type == common_tdd_tester_params::coreset_type::dur2) {
@@ -108,10 +118,7 @@ protected:
     cell_req.ran.ul_cfg_common.init_ul_bwp.rach_cfg_common->rach_cfg_generic.msg1_frequency_start =
         config_helpers::compute_prach_frequency_start(
             pucch_params, cell_req.ran.ul_cfg_common.init_ul_bwp.generic_params.crbs.length(), false);
-    const bool srs_enabled = testparams.srs_period.has_value();
     if (srs_enabled) {
-      cell_req.ran.init_bwp.srs_cfg.srs_type_enabled       = srs_type::periodic;
-      cell_req.ran.init_bwp.srs_cfg.srs_period_prohib_time = *testparams.srs_period;
       // Regenerate the common PUSCH time-domain-resource table with SRS awareness, adding a shortened candidate per
       // slot so Msg3/RAR PUSCH can still be scheduled once SRS occupies the tail of the slot.
       cell_req.ran.ul_cfg_common.init_ul_bwp.pusch_cfg_common->pusch_td_alloc_list =

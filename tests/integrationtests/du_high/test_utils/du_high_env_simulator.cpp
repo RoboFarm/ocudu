@@ -14,6 +14,7 @@
 #include "ocudu/du/du_high/du_high_clock_controller.h"
 #include "ocudu/du/du_high/du_high_factory.h"
 #include "ocudu/du/du_high/du_qos_config_helpers.h"
+#include "ocudu/du/du_update_config_helpers.h"
 #include "ocudu/mac/mac_cell_timing_context.h"
 #include "ocudu/scheduler/config/scheduler_expert_config_factory.h"
 #include "ocudu/support/error_handling.h"
@@ -62,8 +63,11 @@ du_high_configuration odu::create_du_high_configuration(const du_high_env_sim_pa
     }
     cfg.ran.mac_cfg.configs.push_back({10000, 10000, 10000});
     if (params.srs_period.has_value()) {
-      cfg.ran.cells.back().ran.init_bwp.srs_cfg.srs_type_enabled       = srs_type::periodic;
-      cfg.ran.cells.back().ran.init_bwp.srs_cfg.srs_period_prohib_time = params.srs_period.value();
+      auto& cell_ran_cfg                                   = cfg.ran.cells.back().ran;
+      cell_ran_cfg.init_bwp.srs_cfg.srs_type_enabled       = srs_type::periodic;
+      cell_ran_cfg.init_bwp.srs_cfg.srs_period_prohib_time = params.srs_period.value();
+      config_helpers::cap_pucch_symbols_to_avoid_srs(cell_ran_cfg.init_bwp.pucch.resources,
+                                                     cell_ran_cfg.init_bwp.srs_cfg);
     }
   }
 

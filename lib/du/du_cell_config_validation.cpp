@@ -749,13 +749,27 @@ static check_outcome check_prach_config(const du_cell_config& cell_cfg)
   return {};
 }
 
-/// Warns if a manually configured SRS bandwidth overlaps with the common PUCCH resources, as this would starve those
-/// resources of RBs. This is not a hard failure, as the scheduler tolerates the overlap; it is intended to help
-/// operators catch a likely misconfiguration early, rather than deep inside the DU manager's logs.
+/// Fails if the dedicated PUCCH resources overlap the SRS symbols. Warns if a manually configured SRS bandwidth
+/// overlaps with the common PUCCH resources, which the scheduler tolerates.
 static check_outcome check_srs_config(const du_cell_config& cell_cfg)
 {
   const auto& srs_cfg = cell_cfg.ran.init_bwp.srs_cfg;
-  if (srs_cfg.srs_type_enabled == srs_type::disabled or not srs_cfg.c_srs.has_value()) {
+  if (srs_cfg.srs_type_enabled == srs_type::disabled) {
+    return {};
+  }
+
+  // The dedicated PUCCH resources are placed starting from the first symbol of the slot, so their symbol budget must
+  // leave the last symbols of the slot free for the SRS. Otherwise, the PUCCH resources at the BWP edges overlap the
+  // SRS RBs, and the two are transmitted on top of each other.
+  const unsigned max_nof_pucch_symbols = config_helpers::compute_max_nof_pucch_symbols(srs_cfg).value();
+  CHECK_TRUE(cell_cfg.ran.init_bwp.pucch.resources.max_nof_symbols.value() <= max_nof_pucch_symbols,
+             "The cell PUCCH resources span up to {} symbols, which overlaps the last {} symbols of the slot reserved "
+             "for the SRS. The PUCCH resources must be capped to {} symbols",
+             cell_cfg.ran.init_bwp.pucch.resources.max_nof_symbols,
+             srs_cfg.max_nof_symbols,
+             max_nof_pucch_symbols);
+
+  if (not srs_cfg.c_srs.has_value()) {
     return {};
   }
 
