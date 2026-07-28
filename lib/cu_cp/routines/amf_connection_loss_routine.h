@@ -7,6 +7,7 @@
 #include "../cu_cp_controller/cu_cp_controller.h"
 #include "../ue_manager/ue_manager_impl.h"
 #include "ocudu/support/async/async_task.h"
+#include <utility>
 
 namespace ocudu::ocucp {
 
@@ -16,7 +17,7 @@ class amf_connection_loss_routine
 public:
   amf_connection_loss_routine(cu_cp_amf_index_t                 amf_index_,
                               const cu_cp_configuration&        cu_cp_cfg_,
-                              std::vector<plmn_identity>&       plmns_,
+                              std::vector<plmn_identity>        plmns_,
                               du_processor_repository&          du_db_,
                               cu_cp_ue_context_release_handler& ue_release_handler_,
                               ue_manager&                       ue_mng_,
@@ -30,7 +31,7 @@ public:
 private:
   const cu_cp_amf_index_t           amf_index;
   const cu_cp_configuration&        cu_cp_cfg;
-  std::vector<plmn_identity>&       plmns;
+  std::vector<plmn_identity>        plmns;
   du_processor_repository&          du_db;
   cu_cp_ue_context_release_handler& ue_release_handler;
   ue_manager&                       ue_mng;
