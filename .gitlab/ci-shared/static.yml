@@ -84,3 +84,48 @@ include:
       }
     - cd $CPP_SRC_DIR
     - include-guards-check
+
+.dco:
+  extends: .static
+  script:
+    - |
+      git config advice.detachedHead false
+      unshallow_flag() {
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          echo --unshallow
+        fi
+      }
+      if [ "$CI_PROJECT_PATH" = "$CI_MERGE_REQUEST_PROJECT_PATH" ]; then
+        # job on target
+        git fetch $(unshallow_flag) origin \
+          "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" \
+          "$CI_MERGE_REQUEST_REF_PATH:refs/mr-source-head"
+        git branch -f "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        git branch -f "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" refs/mr-source-head
+      else
+        # job on the fork
+        git fetch $(unshallow_flag) origin "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+        git branch -f "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" "origin/$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+        git remote get-url upstream >/dev/null 2>&1 || \
+          git remote add upstream "$CI_MERGE_REQUEST_PROJECT_URL"
+        git fetch $(unshallow_flag) upstream "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        git branch -f "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" "upstream/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+      fi
+
+      SOURCE_SHA=$(git rev-parse "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
+      FORK_POINT=$(git merge-base "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
+    - |
+      EXIT_CODE=0
+      for rev in $(git rev-list --reverse $FORK_POINT..$SOURCE_SHA); do
+        if ! git log -1 --format=%B "$rev" | grep -qiE '^Signed-off-by:\s+.+\s+<.+>$'; then
+          echo "✗ Missing Signed-off-by trailer in commit."
+          git log -1 --oneline "$rev"
+          EXIT_CODE=1
+        fi
+      done
+      exit $EXIT_CODE
+
+dco:
+  extends: .dco
+  rules:
+    - if: $ON_MR_FORK

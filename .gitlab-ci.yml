@@ -285,6 +285,15 @@ include-guards:
       optional: true
       artifacts: false
 
+dco:
+  extends: .dco
+  rules:
+    - if: $ON_MR_FORK
+  needs:
+    - job: trigger static
+      optional: true
+      artifacts: false
+
 .codechecker:
   image: ${OCUDU_REGISTRY_URI}/codechecker:${DOCKER_BUILDER_VERSION}
   stage: static
