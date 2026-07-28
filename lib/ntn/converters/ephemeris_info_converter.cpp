@@ -13,21 +13,21 @@ using namespace ocudu_ntn;
 /// Earth's gravitational parameter (GM) [m^3/s^2].
 static constexpr double MU = 3.986004418e14;
 
-/// Solve Kepler's equation for eccentric anomaly.
+/// Solve Kepler's equation M = E - e * sin(E) for the eccentric anomaly E, by Newton-Raphson iteration.
 static double
-solve_kepler_equation(double mean_anomaly, double e, double tolerance = 1e-12, unsigned max_iterations = 100)
+solve_kepler_equation(double mean_anomaly, double eccentricity, double tolerance = 1e-12, unsigned max_iterations = 100)
 {
-  double ecc_anomaly = (e < 0.8) ? mean_anomaly : M_PI;
+  double eccentric_anomaly = (eccentricity < 0.8) ? mean_anomaly : M_PI;
   for (unsigned i = 0; i != max_iterations; ++i) {
-    double f       = ecc_anomaly - e * std::sin(ecc_anomaly) - mean_anomaly;
-    double f_prime = 1.0 - e * std::cos(ecc_anomaly);
+    double f       = eccentric_anomaly - eccentricity * std::sin(eccentric_anomaly) - mean_anomaly;
+    double f_prime = 1.0 - eccentricity * std::cos(eccentric_anomaly);
     double delta   = f / f_prime;
-    ecc_anomaly -= delta;
+    eccentric_anomaly -= delta;
     if (std::abs(delta) < tolerance) {
       break;
     }
   }
-  return ecc_anomaly;
+  return eccentric_anomaly;
 }
 
 orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& eci_state)
@@ -51,7 +51,7 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
                                    ((v2 - MU / r) * position.z - r_dot_v * velocity.z) / MU};
 
   // Semi-major axis.
-  double a = -MU / (2.0 * (v2 / 2.0 - MU / r));
+  double semi_major_axis = -MU / (2.0 * (v2 / 2.0 - MU / r));
 
   // Eccentricity.
   double eccentricity = std::sqrt(ev[0] * ev[0] + ev[1] * ev[1] + ev[2] * ev[2]);
@@ -82,38 +82,32 @@ orbital_elements ephemeris_info_converter::eci_to_orbital(const state_vector& ec
   }
 
   // Eccentric anomaly.
-  double ecc_anomaly =
+  double eccentric_anomaly =
       2.0 * std::atan(std::sqrt((1.0 - eccentricity) / (1.0 + eccentricity)) * std::tan(true_anomaly / 2.0));
 
-  // Mean anomaly.
-  double mean_anomaly = ecc_anomaly - eccentricity * std::sin(ecc_anomaly);
+  // Mean anomaly, from Kepler's equation M = E - e * sin(E).
+  double mean_anomaly = eccentric_anomaly - eccentricity * std::sin(eccentric_anomaly);
   if (mean_anomaly < 0) {
     mean_anomaly += 2.0 * M_PI;
   }
 
-  return {a, eccentricity, inclination, longitude, periapsis, mean_anomaly};
+  return {semi_major_axis, eccentricity, inclination, longitude, periapsis, mean_anomaly};
 }
 
-state_vector ephemeris_info_converter::orbital_to_eci(const orbital_elements& params)
+state_vector ephemeris_info_converter::orbital_to_eci(const orbital_elements& oe)
 {
-  // Unpack parameters.
-  double a            = params.semi_major_axis;
-  double e            = params.eccentricity;
-  double i            = params.inclination;
-  double raan         = params.longitude;
-  double omega        = params.periapsis;
-  double mean_anomaly = params.mean_anomaly;
-
   // Solve Kepler's equation for eccentric anomaly.
-  double ecc_anomaly = solve_kepler_equation(mean_anomaly, e);
+  double eccentric_anomaly = solve_kepler_equation(oe.mean_anomaly, oe.eccentricity);
 
   // True anomaly.
-  double true_anomaly =
-      2.0 * std::atan2(std::sqrt(1 + e) * std::sin(ecc_anomaly / 2.0), std::sqrt(1 - e) * std::cos(ecc_anomaly / 2.0));
+  double true_anomaly = 2.0 * std::atan2(std::sqrt(1 + oe.eccentricity) * std::sin(eccentric_anomaly / 2.0),
+                                         std::sqrt(1 - oe.eccentricity) * std::cos(eccentric_anomaly / 2.0));
 
-  // Distance.
-  double r = a * (1 - e * std::cos(ecc_anomaly));
-  double p = a * (1 - e * e);
+  // Orbital radius, i.e. the distance from the focus to the satellite.
+  double r = oe.semi_major_axis * (1 - oe.eccentricity * std::cos(eccentric_anomaly));
+
+  // Semi-latus rectum.
+  double p = oe.semi_major_axis * (1 - oe.eccentricity * oe.eccentricity);
 
   // Position in perifocal (PQW) frame.
   double x_p = r * std::cos(true_anomaly);
@@ -121,20 +115,19 @@ state_vector ephemeris_info_converter::orbital_to_eci(const orbital_elements& pa
   double z_p = 0.0;
 
   // Velocity in perifocal (PQW) frame.
-  double mu   = MU;
-  double vx_p = -std::sqrt(mu / p) * std::sin(true_anomaly);
-  double vy_p = std::sqrt(mu / p) * (e + std::cos(true_anomaly));
+  double vx_p = -std::sqrt(MU / p) * std::sin(true_anomaly);
+  double vy_p = std::sqrt(MU / p) * (oe.eccentricity + std::cos(true_anomaly));
   double vz_p = 0.0;
 
   // Rotation matrix components.
-  double cos_raan = std::cos(raan);
-  double sin_raan = std::sin(raan);
-  double cos_i    = std::cos(i);
-  double sin_i    = std::sin(i);
-  double cos_w    = std::cos(omega);
-  double sin_w    = std::sin(omega);
+  double cos_raan = std::cos(oe.longitude);
+  double sin_raan = std::sin(oe.longitude);
+  double cos_i    = std::cos(oe.inclination);
+  double sin_i    = std::sin(oe.inclination);
+  double cos_w    = std::cos(oe.periapsis);
+  double sin_w    = std::sin(oe.periapsis);
 
-  // Perifocal to ECI transformation.
+  // Perifocal to ECI transformation, the 3-1-3 rotation R_z(-raan) * R_x(-inclination) * R_z(-omega).
   double r11 = cos_raan * cos_w - sin_raan * sin_w * cos_i;
   double r12 = -cos_raan * sin_w - sin_raan * cos_w * cos_i;
   double r13 = sin_raan * sin_i;
