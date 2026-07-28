@@ -7,6 +7,33 @@
 
 using namespace ocudu;
 
+namespace {
+
+/// Reads a JSON integer and range-checks it against [lo, hi] before narrowing to T. nlohmann stores integers in two
+/// slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can silently narrow and even
+/// a straight get<int64_t>() can wrap (e.g. 2^32+25 -> 25, or UINT64_MAX -> -1, which sits inside a signed range).
+/// Every bound fits in int64, so reject a uint64 above INT64_MAX up front, then read losslessly as int64 and check.
+template <typename T>
+error_type<std::string>
+parse_int_in_range(const nlohmann::json& value, int64_t lo, int64_t hi, std::string_view field, T& out)
+{
+  if (!value.is_number_integer()) {
+    return make_unexpected(fmt::format("'{}' object value type should be an integer", field));
+  }
+  if (value.is_number_unsigned() && value.get<uint64_t>() > 0x7fffffffffffffffULL) {
+    return make_unexpected(fmt::format("'{}' value out of range, valid range is from {} to {}", field, lo, hi));
+  }
+  const int64_t parsed = value.get<int64_t>();
+  if (parsed < lo || parsed > hi) {
+    return make_unexpected(
+        fmt::format("'{}' value out of range, received '{}', valid range is from {} to {}", field, parsed, lo, hi));
+  }
+  out = static_cast<T>(parsed);
+  return {};
+}
+
+} // namespace
+
 error_type<std::string> ssb_modify_remote_command::execute(const nlohmann::json& json)
 {
   auto cells_key = json.find("cells");
@@ -56,14 +83,10 @@ error_type<std::string> ssb_modify_remote_command::execute(const nlohmann::json&
     if (ssb_block_power_key == cell.value().end()) {
       return make_unexpected("'ssb_block_power_dbm' object is missing and it is mandatory");
     }
-    if (!ssb_block_power_key->is_number_integer()) {
-      return make_unexpected("'ssb_block_power_dbm' object value type should be an integer");
-    }
-    int ssb_block_power_value = ssb_block_power_key->get<int>();
-    if (ssb_block_power_value < -60 || ssb_block_power_value > 50) {
-      return make_unexpected(
-          fmt::format("'ssb_block_power_dbm' value out of range, received '{}', valid range is from -60 to 50",
-                      ssb_block_power_value));
+    int ssb_block_power_value = 0;
+    if (auto res = parse_int_in_range(*ssb_block_power_key, -60, 50, "ssb_block_power_dbm", ssb_block_power_value);
+        !res) {
+      return res;
     }
     req.cells.emplace_back(nr_cgi, ssb_block_power_value);
   }
@@ -128,22 +151,23 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
     if (sst_key == policy_member_key.value().end()) {
       return make_unexpected("'sst' object is missing and it is mandatory");
     }
-    if (!sst_key->is_number_integer()) {
-      return make_unexpected("'sst' object value type should be an integer");
+    uint8_t sst = 0;
+    if (auto res = parse_int_in_range(*sst_key, 0, 255, "sst", sst); !res) {
+      return res;
     }
-    uint8_t sst = sst_key->get<uint8_t>();
 
     auto sd_key = policy_member_key.value().find("sd");
 
     expected<slice_differentiator> sd = make_unexpected(default_error_t{});
     // SD is optional.
     if (sd_key != policy_member_key.value().end()) {
-      if (!sd_key->is_number_integer()) {
-        return make_unexpected("'sd' object value type should be an integer");
+      // create() validates the 24-bit SD domain below; parse_int_in_range first keeps a crafted value from truncating
+      // into uint32 (e.g. 2^32 -> 0), which create() would otherwise accept.
+      uint32_t sd_int = 0;
+      if (auto res = parse_int_in_range(*sd_key, 0, 0xffffffffLL, "sd", sd_int); !res) {
+        return res;
       }
-
-      uint32_t sd_int = sd_key->get<uint32_t>();
-      sd              = slice_differentiator::create(sd_int);
+      sd = slice_differentiator::create(sd_int);
       if (!sd) {
         return make_unexpected("Invalid slice differentiator value");
       }
@@ -161,45 +185,33 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   auto                    min_prb_policy_ratio       = policies_key.value().find("min_prb_policy_ratio");
   std::optional<unsigned> min_prb_policy_ratio_value = std::nullopt;
   if (min_prb_policy_ratio != policies_key.value().end()) {
-    if (!min_prb_policy_ratio->is_number_integer()) {
-      return make_unexpected("'min_prb_policy_ratio' object value type should be an integer");
+    unsigned min_prb = 0;
+    if (auto res = parse_int_in_range(*min_prb_policy_ratio, 0, 100, "min_prb_policy_ratio", min_prb); !res) {
+      return res;
     }
-    min_prb_policy_ratio_value = static_cast<unsigned>(min_prb_policy_ratio->get<int>());
-    if (min_prb_policy_ratio_value < 0 || min_prb_policy_ratio_value > 100) {
-      return make_unexpected(
-          fmt::format("'min_prb_policy_ratio' value out of range, received '{}', valid range is from 0 to 100",
-                      min_prb_policy_ratio_value.value()));
-    }
+    min_prb_policy_ratio_value = min_prb;
   }
 
   // Maximum percentage of PRBs to be allocated to this group.
   auto                    max_prb_policy_ratio       = policies_key.value().find("max_prb_policy_ratio");
   std::optional<unsigned> max_prb_policy_ratio_value = std::nullopt;
   if (max_prb_policy_ratio != policies_key.value().end()) {
-    if (!max_prb_policy_ratio->is_number_integer()) {
-      return make_unexpected("'max_prb_policy_ratio' object value type should be an integer");
+    unsigned max_prb = 0;
+    if (auto res = parse_int_in_range(*max_prb_policy_ratio, 0, 100, "max_prb_policy_ratio", max_prb); !res) {
+      return res;
     }
-    max_prb_policy_ratio_value = static_cast<unsigned>(max_prb_policy_ratio->get<int>());
-    if (max_prb_policy_ratio_value < 0 || max_prb_policy_ratio_value > 100) {
-      return make_unexpected(
-          fmt::format("'max_prb_policy_ratio' value out of range, received '{}', valid range is from 0 to 100",
-                      max_prb_policy_ratio_value.value()));
-    }
+    max_prb_policy_ratio_value = max_prb;
   }
 
   /// The percentage of PRBs to be allocated to this group.
   auto                    dedicated_ratio       = policies_key.value().find("dedicated_ratio");
   std::optional<unsigned> dedicated_ratio_value = std::nullopt;
   if (dedicated_ratio != policies_key.value().end()) {
-    if (!dedicated_ratio->is_number_integer()) {
-      return make_unexpected("'dedicated_ratio' object value type should be an integer");
+    unsigned dedicated = 0;
+    if (auto res = parse_int_in_range(*dedicated_ratio, 0, 100, "dedicated_ratio", dedicated); !res) {
+      return res;
     }
-    dedicated_ratio_value = static_cast<unsigned>(dedicated_ratio->get<int>());
-    if (dedicated_ratio_value < 0 || dedicated_ratio_value > 100) {
-      return make_unexpected(
-          fmt::format("'dedicated_ratio' value out of range, received '{}', valid range is from 0 to 100",
-                      dedicated_ratio_value.value()));
-    }
+    dedicated_ratio_value = dedicated;
   }
 
   rrm_policy_group.minimum_ratio   = min_prb_policy_ratio_value;
@@ -261,6 +273,9 @@ static expected<q_hyst_t, std::string> parse_q_hyst_db(const nlohmann::json& obj
   if (!key->is_number_integer()) {
     return make_unexpected("'q_hyst_db' value type should be an integer");
   }
+  if (key->is_number_unsigned() && key->get<uint64_t>() > 0x7fffffffffffffffULL) {
+    return make_unexpected("'q_hyst_db' value out of range");
+  }
   const int64_t v = key->get<int64_t>();
   switch (v) {
     case 0:
@@ -293,10 +308,12 @@ static expected<q_hyst_t, std::string> parse_q_hyst_db(const nlohmann::json& obj
 static expected<q_offset_range_t, std::string> parse_q_offset_range(const nlohmann::json& val,
                                                                     std::string_view      field_name)
 {
-  if (!val.is_number_integer()) {
-    return make_unexpected(fmt::format("'{}' value type should be an integer", field_name));
+  // Full-width range parse first (rejects the uint64 wrap where e.g. UINT64_MAX -> -1 lands on a valid negative dB
+  // offset), then validate the discrete set.
+  int64_t v = 0;
+  if (auto res = parse_int_in_range(val, -24, 24, field_name, v); !res) {
+    return make_unexpected(res.error());
   }
-  const int64_t v = val.get<int64_t>();
   switch (v) {
     case -24:
     case -22:
@@ -347,6 +364,9 @@ static expected<subcarrier_spacing, std::string> parse_scs_khz(const nlohmann::j
   if (!val.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be a non-negative integer", field_name));
   }
+  if (val.is_number_unsigned() && val.get<uint64_t>() > 0x7fffffffffffffffULL) {
+    return make_unexpected(fmt::format("'{}' value type should be a non-negative integer", field_name));
+  }
   const auto v = val.get<int64_t>();
   if (v < 0) {
     return make_unexpected(fmt::format("'{}' value type should be a non-negative integer", field_name));
@@ -375,6 +395,12 @@ static expected<bounded_integer<T, MIN, MAX>, std::string> parse_bounded_int(con
 {
   if (!val.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be an integer", field_name));
+  }
+  // A uint64 above INT64_MAX would wrap to a negative int64 that could land inside a signed range (e.g. q_rx_lev_min's
+  // [-70,-22]); every bound fits in int64, so reject it before the now-lossless int64 read.
+  if (val.is_number_unsigned() && val.get<uint64_t>() > 0x7fffffffffffffffULL) {
+    return make_unexpected(fmt::format(
+        "'{}' value out of range [{},{}]", field_name, static_cast<int64_t>(MIN), static_cast<int64_t>(MAX)));
   }
   const auto v = val.get<int64_t>();
   if (v < static_cast<int64_t>(MIN) || v > static_cast<int64_t>(MAX)) {
@@ -405,6 +431,9 @@ static expected<pci_t, std::string> find_and_parse_pci(const nlohmann::json& obj
   }
   if (!it->is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be an integer", field));
+  }
+  if (it->is_number_unsigned() && it->get<uint64_t>() > 0x7fffffffffffffffULL) {
+    return make_unexpected(fmt::format("'{}' value out of range [0, 1007]", field));
   }
   const int64_t v = it->get<int64_t>();
   if (v < 0 || v > 1007) {
@@ -521,6 +550,9 @@ static expected<sib3_info, std::string> parse_sib3(const nlohmann::json& content
       if (range_it == excl_obj.end() || !range_it->is_number_integer()) {
         return make_unexpected("'range' missing or not a non-negative integer in excluded list entry");
       }
+      if (range_it->is_number_unsigned() && range_it->get<uint64_t>() > 0x7fffffffffffffffULL) {
+        return make_unexpected("'range' missing or not a non-negative integer in excluded list entry");
+      }
       const int64_t range_val = range_it->get<int64_t>();
       if (range_val < 0) {
         return make_unexpected("'range' missing or not a non-negative integer in excluded list entry");
@@ -594,6 +626,9 @@ static expected<sib4_info, std::string> parse_sib4(const nlohmann::json& content
     }
     if (!arfcn_it->is_number_integer()) {
       return make_unexpected("'arfcn' value type should be an integer");
+    }
+    if (arfcn_it->is_number_unsigned() && arfcn_it->get<uint64_t>() > 0x7fffffffffffffffULL) {
+      return make_unexpected("'arfcn' value out of range [0, 3279165]");
     }
     const int64_t arfcn_val = arfcn_it->get<int64_t>();
     if (arfcn_val < 0 || arfcn_val > 3279165) {
