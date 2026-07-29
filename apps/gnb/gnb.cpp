@@ -320,7 +320,7 @@ int main(int argc, char** argv)
   if (not gnb_cfg.trace_cfg.filename.empty()) {
     app_tracer.enable_tracer(gnb_cfg.trace_cfg.filename,
                              gnb_cfg.trace_cfg.max_tracing_events_per_file,
-                             gnb_cfg.trace_cfg.nof_tracing_events_after_severe,
+                             gnb_cfg.trace_cfg.nof_tracing_events_before_severe,
                              gnb_logger);
   }
 

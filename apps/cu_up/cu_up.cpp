@@ -262,7 +262,7 @@ int main(int argc, char** argv)
   if (not cu_up_cfg.trace_cfg.filename.empty()) {
     app_tracer.enable_tracer(cu_up_cfg.trace_cfg.filename,
                              cu_up_cfg.trace_cfg.max_tracing_events_per_file,
-                             cu_up_cfg.trace_cfg.nof_tracing_events_after_severe,
+                             cu_up_cfg.trace_cfg.nof_tracing_events_before_severe,
                              cu_up_logger);
   }
 

@@ -199,7 +199,7 @@ int main(int argc, char** argv)
   if (not du_low_cfg.trace_cfg.filename.empty()) {
     app_tracer.enable_tracer(du_low_cfg.trace_cfg.filename,
                              du_low_cfg.trace_cfg.max_tracing_events_per_file,
-                             du_low_cfg.trace_cfg.nof_tracing_events_after_severe,
+                             du_low_cfg.trace_cfg.nof_tracing_events_before_severe,
                              app_logger);
   }
 
