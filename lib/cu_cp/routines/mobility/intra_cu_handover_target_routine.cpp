@@ -44,7 +44,7 @@ void intra_cu_handover_target_routine::operator()(coro_context<async_task<void>>
   }
   target_ue = ue_mng.find_du_ue(request.target_ue_index);
 
-  logger.debug("ue={}: \"{}\" started...", request.target_ue_index, name());
+  logger.info("ue={}: \"{}\" started...", request.target_ue_index, name());
 
   // Notify RRC UE to await ReconfigurationComplete.
   CORO_AWAIT_VALUE(reconf_result,
@@ -119,7 +119,7 @@ void intra_cu_handover_target_routine::operator()(coro_context<async_task<void>>
 
   schedule_source_release_on_source_task_sched(request.source_ue_index);
 
-  logger.debug("ue={}: \"{}\" finished successfully", request.target_ue_index, name());
+  logger.info("ue={}: \"{}\" finished successfully", request.target_ue_index, name());
 
   CORO_RETURN();
 }

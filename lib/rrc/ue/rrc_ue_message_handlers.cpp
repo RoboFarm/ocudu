@@ -771,15 +771,16 @@ async_task<bool> rrc_ue_impl::handle_handover_reconfiguration_complete_expected(
       metrics_notifier.on_new_rrc_connection();
 
     } else {
-      const char* cause_str =
-          transaction.failure_cause() == protocol_transaction_failure::timeout ? "timeout" : "canceled";
+      std::string cause_str = transaction.failure_cause() == protocol_transaction_failure::timeout
+                                  ? fmt::format("timeout ({}ms)", timeout_ms.count())
+                                  : "canceled";
       if (release_on_failure) {
-        logger.log_debug(
+        logger.log_warning(
             "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. Requesting target UE release",
             cause_str);
         on_ue_release_required(ngap_cause_radio_network_t::ho_fail_in_target_5_gc_ngran_node_or_target_sys);
       } else {
-        logger.log_debug(
+        logger.log_warning(
             "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. UE release handled externally",
             cause_str);
       }
