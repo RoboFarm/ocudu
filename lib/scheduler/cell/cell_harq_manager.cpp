@@ -269,7 +269,8 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
                                                                                        slot_point    sl_ack,
                                                                                        unsigned      max_nof_harq_retxs,
                                                                                        std::optional<harq_id_t> harq_id,
-                                                                                       bool select_normal_mode)
+                                                                                       bool    select_normal_mode,
+                                                                                       uint8_t nof_repetitions)
 {
   ue_harq_entity_impl& ue_harq_entity = ues[ue_idx];
   if (ue_harq_entity.free_harq_ids.empty()) {
@@ -323,15 +324,19 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
   // Set allocated HARQ common params.
   h.status             = harq_state_t::waiting_ack;
   h.slot_tx            = sl_tx;
+  h.last_occasion_slot = sl_tx + (nof_repetitions - 1U);
   h.slot_ack           = sl_ack;
   h.nof_retxs          = 0;
   h.ndi                = !h.ndi;
   h.max_nof_harq_retxs = max_nof_harq_retxs;
   h.retxs_cancelled    = false;
 
-  // Set UE HARQ entity common params.
-  ue_harq_entity.last_slot_tx =
-      ue_harq_entity.last_slot_tx.valid() ? std::max(ue_harq_entity.last_slot_tx, sl_tx) : sl_tx;
+  // Set UE HARQ entity common params. last_slot_tx covers the whole transmission (all repetition occasions, not just
+  // sl_tx), so that ordering checks relying on it (ue_cell::is_pdsch_enabled, the fallback scheduler) know that the
+  // remaining occasions still occupy the following slots.
+  ue_harq_entity.last_slot_tx = ue_harq_entity.last_slot_tx.valid()
+                                    ? std::max(ue_harq_entity.last_slot_tx, h.last_occasion_slot)
+                                    : h.last_occasion_slot;
   ue_harq_entity.last_slot_ack =
       ue_harq_entity.last_slot_ack.valid() ? std::max(ue_harq_entity.last_slot_ack, sl_ack) : sl_ack;
 
@@ -369,7 +374,7 @@ void cell_harq_repository<IsDl>::dealloc_harq(harq_type& h)
 
   // Check if common HARQ entity params need to be updated.
   ue_harq_entity_impl& ue_harq_entity = ues[h.ue_idx];
-  if (ue_harq_entity.last_slot_tx.valid() and h.slot_tx >= ue_harq_entity.last_slot_tx) {
+  if (ue_harq_entity.last_slot_tx.valid() and h.last_occasion_slot >= ue_harq_entity.last_slot_tx) {
     // If the HARQ being reset corresponds to the last recorded Tx, we also reset "last_slot_tx". This avoids
     // encountering ambiguities with the slot wrap-around, when the UE stays for very long without being scheduled.
     ue_harq_entity.last_slot_tx = {};
@@ -442,7 +447,10 @@ void cell_harq_repository<IsDl>::set_pending_retx(harq_type& h)
 }
 
 template <bool IsDl>
-bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h, slot_point sl_tx, slot_point sl_ack)
+bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h,
+                                                 slot_point sl_tx,
+                                                 slot_point sl_ack,
+                                                 uint8_t    nof_repetitions)
 {
   if (h.status != harq_state_t::pending_retx) {
     logger.warning(
@@ -456,15 +464,17 @@ bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h, slot_point sl_tx,
   h.slot_timeout = {};
 
   // Update HARQ common parameters.
-  h.status   = harq_state_t::waiting_ack;
-  h.slot_tx  = sl_tx;
-  h.slot_ack = sl_ack;
+  h.status             = harq_state_t::waiting_ack;
+  h.slot_tx            = sl_tx;
+  h.last_occasion_slot = sl_tx + (nof_repetitions - 1U);
+  h.slot_ack           = sl_ack;
   ++h.nof_retxs;
 
   // Set UE HARQ entity common params.
   ue_harq_entity_impl& ue_harq_entity = ues[h.ue_idx];
-  ue_harq_entity.last_slot_tx =
-      ue_harq_entity.last_slot_tx.valid() ? std::max(ue_harq_entity.last_slot_tx, sl_tx) : sl_tx;
+  ue_harq_entity.last_slot_tx         = ue_harq_entity.last_slot_tx.valid()
+                                            ? std::max(ue_harq_entity.last_slot_tx, h.last_occasion_slot)
+                                            : h.last_occasion_slot;
   ue_harq_entity.last_slot_ack =
       ue_harq_entity.last_slot_ack.valid() ? std::max(ue_harq_entity.last_slot_ack, sl_ack) : sl_ack;
 
@@ -687,10 +697,16 @@ harq_utils::dl_harq_process_impl* cell_harq_manager::new_dl_tx(du_ue_index_t ue_
                                                                unsigned      ack_delay,
                                                                unsigned      max_harq_nof_retxs,
                                                                uint8_t       harq_bit_idx,
-                                                               bool          select_normal_mode)
+                                                               bool          select_normal_mode,
+                                                               uint8_t       nof_repetitions)
 {
-  dl_harq_process_impl* h =
-      dl.alloc_harq(ue_idx, pdsch_slot, pdsch_slot + ack_delay, max_harq_nof_retxs, std::nullopt, select_normal_mode);
+  dl_harq_process_impl* h = dl.alloc_harq(ue_idx,
+                                          pdsch_slot,
+                                          pdsch_slot + ack_delay,
+                                          max_harq_nof_retxs,
+                                          std::nullopt,
+                                          select_normal_mode,
+                                          nof_repetitions);
   if (h == nullptr) {
     return nullptr;
   }
@@ -722,9 +738,12 @@ harq_utils::ul_harq_process_impl* cell_harq_manager::new_ul_tx(du_ue_index_t    
   return h;
 }
 
-bool dl_harq_process_handle::new_retx(slot_point pdsch_slot, unsigned ack_delay, uint8_t harq_bit_idx)
+bool dl_harq_process_handle::new_retx(slot_point pdsch_slot,
+                                      unsigned   ack_delay,
+                                      uint8_t    harq_bit_idx,
+                                      uint8_t    nof_repetitions)
 {
-  if (not harq_repo->handle_new_retx(*impl, pdsch_slot, pdsch_slot + ack_delay)) {
+  if (not harq_repo->handle_new_retx(*impl, pdsch_slot, pdsch_slot + ack_delay, nof_repetitions)) {
     return false;
   }
   // Reset DL-only HARQ parameters.
@@ -1050,10 +1069,11 @@ std::optional<dl_harq_process_handle> unique_ue_harq_entity::alloc_dl_harq(slot_
                                                                            unsigned   ack_delay,
                                                                            unsigned   max_harq_nof_retxs,
                                                                            unsigned   harq_bit_idx,
-                                                                           bool       select_normal_mode)
+                                                                           bool       select_normal_mode,
+                                                                           uint8_t    nof_repetitions)
 {
-  dl_harq_process_impl* h =
-      cell_harq_mgr->new_dl_tx(ue_index, crnti, sl_tx, ack_delay, max_harq_nof_retxs, harq_bit_idx, select_normal_mode);
+  dl_harq_process_impl* h = cell_harq_mgr->new_dl_tx(
+      ue_index, crnti, sl_tx, ack_delay, max_harq_nof_retxs, harq_bit_idx, select_normal_mode, nof_repetitions);
   if (h == nullptr) {
     return std::nullopt;
   }

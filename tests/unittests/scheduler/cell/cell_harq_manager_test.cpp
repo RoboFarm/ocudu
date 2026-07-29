@@ -465,6 +465,97 @@ TEST_F(single_ue_harq_entity_test, when_harq_entity_is_created_all_harqs_are_emp
   }
 }
 
+// Rel-16 PDSCH repetition tests for the UE's last known PDSCH slot (used by ue_cell::is_pdsch_enabled and the
+// fallback scheduler to enforce that a UE is never scheduled a PDSCH that overlaps with another one).
+
+TEST_F(single_ue_harq_entity_test, when_newtx_has_no_repetitions_then_last_pdsch_slot_matches_pdsch_slot)
+{
+  auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0);
+  ASSERT_TRUE(h_dl.has_value());
+  dl_msg_alloc          ue_pdsch = make_dummy_ue_pdsch_info();
+  dl_harq_alloc_context harq_ctxt{dci_dl_rnti_config_type::c_rnti_f1_0};
+  h_dl->save_grant_params(harq_ctxt, ue_pdsch);
+
+  ASSERT_EQ(h_dl->pdsch_slot(), current_slot);
+  ASSERT_EQ(harq_ent.last_pdsch_slot(), current_slot);
+
+  ASSERT_TRUE(h_dl->dl_ack_info(mac_harq_ack_report_status::ack, std::nullopt));
+  ASSERT_FALSE(harq_ent.last_pdsch_slot().valid());
+}
+
+TEST_F(single_ue_harq_entity_test, when_newtx_uses_pdsch_repetitions_then_last_pdsch_slot_covers_the_whole_bundle)
+{
+  constexpr uint8_t nof_reps = 4;
+
+  auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0, true, nof_reps);
+  ASSERT_TRUE(h_dl.has_value());
+  dl_msg_alloc          ue_pdsch = make_dummy_ue_pdsch_info();
+  dl_harq_alloc_context harq_ctxt{dci_dl_rnti_config_type::c_rnti_f1_1};
+  harq_ctxt.nof_repetitions = nof_reps;
+  h_dl->save_grant_params(harq_ctxt, ue_pdsch);
+
+  // pdsch_slot() always points at the first, PDCCH-scheduled occasion...
+  ASSERT_EQ(h_dl->pdsch_slot(), current_slot);
+  // ...but the UE's last known PDSCH slot must cover the whole repetition bundle, so that a different HARQ process
+  // is not scheduled a PDSCH into the still-active repetition window.
+  ASSERT_EQ(harq_ent.last_pdsch_slot(), current_slot + (nof_reps - 1));
+
+  // Once the HARQ is ACKed, the reservation of the whole bundle must be released.
+  ASSERT_TRUE(h_dl->dl_ack_info(mac_harq_ack_report_status::ack, std::nullopt));
+  ASSERT_FALSE(harq_ent.last_pdsch_slot().valid());
+}
+
+TEST_F(single_ue_harq_entity_test, when_retx_uses_pdsch_repetitions_then_last_pdsch_slot_follows_the_retx_bundle)
+{
+  constexpr uint8_t nof_reps = 4;
+
+  auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0, true, nof_reps);
+  ASSERT_TRUE(h_dl.has_value());
+  dl_msg_alloc          ue_pdsch = make_dummy_ue_pdsch_info();
+  dl_harq_alloc_context harq_ctxt{dci_dl_rnti_config_type::c_rnti_f1_1};
+  harq_ctxt.nof_repetitions = nof_reps;
+  h_dl->save_grant_params(harq_ctxt, ue_pdsch);
+
+  ASSERT_TRUE(h_dl->dl_ack_info(mac_harq_ack_report_status::nack, std::nullopt));
+  run_slot();
+  ASSERT_TRUE(h_dl->new_retx(current_slot, k1, 0, nof_reps));
+  h_dl->save_grant_params(harq_ctxt, ue_pdsch);
+
+  // The retx's own bundle (starting at the new pdsch_slot()) must be reserved, not the original transmission's.
+  ASSERT_EQ(h_dl->pdsch_slot(), current_slot);
+  ASSERT_EQ(harq_ent.last_pdsch_slot(), current_slot + (nof_reps - 1));
+
+  ASSERT_TRUE(h_dl->dl_ack_info(mac_harq_ack_report_status::ack, std::nullopt));
+  ASSERT_FALSE(harq_ent.last_pdsch_slot().valid());
+}
+
+TEST_F(single_ue_harq_entity_test,
+       when_newtx_with_repetitions_is_reset_before_save_grant_params_then_reservation_is_released_immediately)
+{
+  constexpr uint8_t nof_reps = 4;
+
+  // The repetition count is known and reserved from the moment the HARQ is allocated (not only once
+  // save_grant_params runs).
+  auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0, true, nof_reps);
+  ASSERT_TRUE(h_dl.has_value());
+  ASSERT_EQ(harq_ent.last_pdsch_slot(), current_slot + (nof_reps - 1));
+
+  // The grant is aborted (e.g. RB allocation failure) before save_grant_params ever ran. Unlike
+  // prev_tx_params.nof_repetitions (only correct once save_grant_params has run), last_occasion_slot is set together
+  // with slot_tx regardless, so dealloc_harq can tell precisely that this HARQ held the whole reservation and
+  // releases it immediately, rather than leaving the UE needlessly unschedulable for the rest of the nominal window.
+  // NOTE: reset() immediately frees the HARQ-id itself for reuse (cell_harq_manager does not gate alloc_dl_harq on
+  // last_pdsch_slot() at all); it is ue_cell::is_pdsch_enabled, one layer up and not exercised by this test, that
+  // reads last_pdsch_slot() and would reject a newTx/reTx candidate for as long as a reservation is in place.
+  h_dl->reset();
+  ASSERT_FALSE(harq_ent.last_pdsch_slot().valid());
+
+  // The UE is immediately schedulable again, even for a slot still within the aborted bundle's nominal window.
+  auto h_dl2 = harq_ent.alloc_dl_harq(current_slot + 1, k1, max_retxs, 0);
+  ASSERT_TRUE(h_dl2.has_value());
+  ASSERT_EQ(harq_ent.last_pdsch_slot(), current_slot + 1);
+}
+
 TEST_F(single_ue_harq_entity_test, when_harq_is_allocated_then_harq_entity_finds_harq_in_waiting_ack_state)
 {
   auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0);

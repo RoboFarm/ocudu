@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_link_adaptation_controller.h"
+#include "../config/time_domain_mapper.h"
 #include "../support/mcs_calculator.h"
 
 using namespace ocudu;
@@ -158,6 +159,31 @@ pucch_repetition_factor ue_link_adaptation_controller::get_recommended_pucch_rep
     }
   }
   return pucch_repetition_factor::n1;
+}
+
+std::optional<uint8_t>
+ue_link_adaptation_controller::select_pdsch_repetition_count(const search_space_info& ss_info) const
+{
+  if (cell_cfg.expert_cfg.ue.pdsch_cqi_rep_threshold == 0.0F) {
+    return std::nullopt;
+  }
+
+  // Repetitions are feature-gated and only apply to a SearchSpace whose dedicated PDSCH TDRA list carries a
+  // repetition row (i.e., a Rel-16 list).
+  const std::optional<uint8_t> max_reps =
+      ss_info.bwp->dl.td_mapper().max_pdsch_repetitions(ss_info.get_dl_dci_format());
+  if (not max_reps.has_value()) {
+    return std::nullopt;
+  }
+
+  // Repetitions are triggered when the effective CQI (reported CQI corrected by OLLA) is below the threshold.
+  if (get_effective_cqi() >= cell_cfg.expert_cfg.ue.pdsch_cqi_rep_threshold) {
+    return std::nullopt;
+  }
+
+  // Single repetition level for now: request the maximum configured. Future link adaptation may pick a lower level
+  // based on the effective CQI.
+  return max_reps;
 }
 
 void ue_link_adaptation_controller::update_dl_mcs_lims(pdsch_mcs_table mcs_table)

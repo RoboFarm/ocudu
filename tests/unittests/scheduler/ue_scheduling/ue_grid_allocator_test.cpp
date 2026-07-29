@@ -881,6 +881,37 @@ TEST_P(ue_grid_allocator_pdsch_repetition_test, retx_reuses_original_repetition_
          "from the current CQI)";
 }
 
+// If a repetition bundle's grant is aborted (e.g. RB allocation failure) after the HARQ was allocated but before
+// save_grant_params ever ran, the UE's last known PDSCH slot must be released immediately rather than needlessly
+// kept reserved for the rest of the nominal bundle window (see dl_harq_process_impl::last_occasion_slot /
+// cell_harq_repository::dealloc_harq): nothing was ever committed to the grid, so the UE must be schedulable again
+// right away.
+TEST_P(ue_grid_allocator_pdsch_repetition_test,
+       when_newtx_bundle_aborts_before_commit_then_ue_is_immediately_schedulable_again)
+{
+  const ue& u     = add_repetition_ue();
+  ue_cell&  ue_cc = ues[u.ue_index].get_pcell();
+
+  // Low CQI: the newTx qualifies for a repetition bundle.
+  set_reported_cqi(ue_cc, 3);
+
+  // Allocate the HARQ (and PDCCH/UCI) for a bundle, then abort it by committing empty VRBs, before the repetition
+  // occasions are ever written to the grid.
+  auto result = alloc.allocate_dl_grant(
+      ue_newtx_dl_grant_request{slice_ues[u.ue_index], current_slot, units::bytes{1000}, false});
+  ASSERT_TRUE(result.has_value());
+  result.value().set_pdsch_params({}, {}, false);
+
+  ASSERT_FALSE(ue_cc.harqs.last_pdsch_slot().valid());
+
+  // The very next slot -- still nominally within the aborted bundle's window -- is immediately schedulable.
+  slot_indication();
+  auto retry = alloc.allocate_dl_grant(
+      ue_newtx_dl_grant_request{slice_ues[u.ue_index], current_slot, units::bytes{1000}, false});
+  ASSERT_TRUE(retry.has_value());
+  retry.value().set_pdsch_params({}, {}, false);
+}
+
 INSTANTIATE_TEST_SUITE_P(ue_grid_allocator_test,
                          ue_grid_allocator_pdsch_repetition_test,
                          testing::Values(duplex_mode::FDD));

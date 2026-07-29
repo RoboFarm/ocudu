@@ -258,7 +258,7 @@ static std::optional<dl_sched_context> get_dl_sched_context(const slice_ue&     
         dl_td_mapper.pdsch_td_resources(dci_format)[pdsch_td_index];
 
     // Consider only rows matching the requested repetition count (nullopt = single transmission).
-    if (dl_td_mapper.get_pdsch_repetition_number(dci_format, pdsch_td_index) != nof_repetitions) {
+    if (pdsch_td_res.rep_number != nof_repetitions) {
       continue;
     }
 
@@ -320,7 +320,7 @@ static std::optional<dl_sched_context> get_dl_sched_context(const slice_ue&     
   ctxt.recommended_ri     = nof_layers;
   ctxt.expected_nof_rbs   = mcs_prbs_sel->nof_prbs;
   ctxt.pending_bytes      = units::bytes{pending_bytes};
-  ctxt.nof_repetitions    = dl_td_mapper.get_pdsch_repetition_number(dci_format, *selected_pdsch_td_index);
+  ctxt.nof_repetitions    = dl_td_mapper.pdsch_td_resources(dci_format)[*selected_pdsch_td_index].rep_number;
   return ctxt;
 }
 

@@ -695,15 +695,11 @@ unsigned intra_slice_scheduler::schedule_ul_newtx_candidates(ul_ran_slice_candid
 
 bool intra_slice_scheduler::can_allocate_pdsch(const slice_ue& u, const ue_cell& ue_cc) const
 {
-  // Check if PDCCH/PDSCH is possible for this slot (e.g. not in UL slot or measGap)
+  // Check if PDCCH/PDSCH is possible for this slot (e.g. not in UL slot or measGap). This also rejects a UE that
+  // already has a PDSCH in this slot (e.g. a PDSCH repetition occasion carried over from a bundle scheduled in a
+  // preceding slot),
   ocudu_assert(not ue_cc.is_in_fallback_mode(), "Slice UE cannot be in fallback mode");
-  if (not ue_cc.is_pdsch_enabled(pdcch_slot, pdsch_slot)) {
-    return false;
-  }
-  // The UE may already have a PDSCH in this slot (e.g. a PDSCH repetition occasion carried over from a bundle
-  // scheduled in a preceding slot). Reject it here, before it is picked as a candidate and consumes a PDCCH
-  // allocation attempt.
-  return not ue_alloc.has_pdsch_in_slot(pdsch_slot, u.crnti());
+  return ue_cc.is_pdsch_enabled(pdcch_slot, pdsch_slot);
 }
 
 bool intra_slice_scheduler::can_allocate_pusch(const slice_ue& u, const ue_cell& ue_cc) const

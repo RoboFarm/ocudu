@@ -76,8 +76,7 @@ sched_bwp_config bwp_config_pool::add_ded_cfg(const bwp_downlink_dedicated* dl_d
 const dl_time_domain_mapper& bwp_config_pool::get_dl_td_mapper(const bwp_downlink_dedicated* dl_ded)
 {
   // Get TDRA dedicated list, resolved to the common list if absent, matching dl_time_domain_mapper's own fallback
-  // behavior for DCI format 1_1 (see time_domain_mapper.cpp). May carry repetition rows (TS 38.214, Table
-  // 5.1.2.1.1-1).
+  // behavior for DCI format 1_1. May carry repetition rows (TS 38.214, Table 5.1.2.1.1-1).
   span<const pdsch_time_domain_resource_allocation> ded_res = bwp_dl_cmn.pdsch_common.pdsch_td_alloc_list;
   if (dl_ded != nullptr and dl_ded->pdsch_cfg.has_value() and not dl_ded->pdsch_cfg->pdsch_td_alloc_list.empty()) {
     ded_res = dl_ded->pdsch_cfg->pdsch_td_alloc_list;

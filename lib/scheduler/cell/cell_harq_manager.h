@@ -64,6 +64,9 @@ struct base_harq_process : public intrusive_double_linked_list_element<>,
   harq_mode_t   mode   = harq_mode_t::normal;
   /// Slot at which the PxSCH was transmitted.
   slot_point slot_tx;
+  /// \brief Slot of the last occasion of the transmission starting at \c slot_tx. Equal to \c slot_tx, unless Rel-16
+  /// PDSCH repetitions were used, in which case it is \c slot_tx + the number of repetitions - 1.
+  slot_point last_occasion_slot;
   /// Slot at which the respective ACK/CRC is expected to be received in the PHY.
   slot_point slot_ack;
   /// \brief Slot at which the currently set timeout expires. In case of status == waiting_ack, the timeout expires
@@ -93,7 +96,8 @@ struct dl_harq_process_impl : public base_harq_process {
     uint8_t                 nof_symbols;
     uint8_t                 nof_layers{1};
     /// Number of Rel-16 slot-based PDSCH repetitions of the grant. Value 1 means a single transmission. Fixed across
-    /// HARQ retxs, so reTxs reuse the repetition scheme of the original transmission.
+    /// HARQ retxs, so reTxs reuse the repetition scheme of the original transmission. The actual number of repetitions
+    /// used during reTx depends on available slots in TDD pattern.
     uint8_t                                     nof_repetitions{1};
     bool                                        is_fallback{false};
     cqi_value                                   cqi;
@@ -180,19 +184,23 @@ struct cell_harq_repository {
   unsigned                                                       ntn_cs_koffset;
   std::unique_ptr<harq_alloc_history>                            alloc_hist;
 
-  void               slot_indication(slot_point sl_tx);
-  void               stop();
-  void               handle_harq_ack_timeout(harq_type& h, slot_point sl_tx);
+  void slot_indication(slot_point sl_tx);
+  void stop();
+  void handle_harq_ack_timeout(harq_type& h, slot_point sl_tx);
+  /// \param[in] nof_repetitions Number of consecutive slots spanned by this transmission, starting at \c sl_tx (Rel-16
+  /// PDSCH repetitions; DL-only, UL always uses the default). Used solely to extend the UE entity's last known Tx
+  /// slot (see \c ue_harq_entity_impl::last_slot_tx) to the end of the whole transmission, not just \c sl_tx.
   harq_type*         alloc_harq(du_ue_index_t            ue_idx,
                                 slot_point               sl_tx,
                                 slot_point               sl_ack,
                                 unsigned                 max_nof_harq_retxs,
                                 std::optional<harq_id_t> harq_id            = std::nullopt,
-                                bool                     select_normal_mode = true);
+                                bool                     select_normal_mode = true,
+                                uint8_t                  nof_repetitions    = 1);
   void               dealloc_harq(harq_type& h);
   void               handle_ack(harq_type& h, bool ack);
   void               set_pending_retx(harq_type& h);
-  [[nodiscard]] bool handle_new_retx(harq_type& h, slot_point sl_tx, slot_point sl_ack);
+  [[nodiscard]] bool handle_new_retx(harq_type& h, slot_point sl_tx, slot_point sl_ack, uint8_t nof_repetitions = 1);
   void               reserve_ue_harqs(du_ue_index_t ue_idx, rnti_t rnti, unsigned nof_harqs);
   void               extend_ue_harqs(du_ue_index_t ue_idx, rnti_t rnti, unsigned new_nof_harqs);
   void               destroy_ue(du_ue_index_t ue_idx);
@@ -293,7 +301,10 @@ public:
 
   using base_type::cancel_retxs;
 
-  [[nodiscard]] bool new_retx(slot_point pdsch_slot, unsigned ack_delay, uint8_t harq_bit_idx);
+  /// \param[in] nof_repetitions Number of consecutive slots spanned by this transmission, starting at \c pdsch_slot
+  /// (Rel-16 PDSCH repetitions; 1 for a single transmission). See \c cell_harq_repository::handle_new_retx.
+  [[nodiscard]] bool
+  new_retx(slot_point pdsch_slot, unsigned ack_delay, uint8_t harq_bit_idx, uint8_t nof_repetitions = 1);
 
   /// \brief Update the state of the DL HARQ process waiting for an HARQ-ACK.
   /// \param[in] ack HARQ-ACK status received.
@@ -479,7 +490,8 @@ private:
                                               unsigned      ack_delay,
                                               unsigned      max_harq_nof_retxs,
                                               uint8_t       harq_bit_idx,
-                                              bool          select_normal_mode = true);
+                                              bool          select_normal_mode = true,
+                                              uint8_t       nof_repetitions    = 1);
 
   /// \brief Called on every UL new Tx to allocate an UL HARQ process.
   harq_utils::ul_harq_process_impl* new_ul_tx(du_ue_index_t            ue_idx,
@@ -579,11 +591,14 @@ public:
     return std::nullopt;
   }
 
+  /// \param[in] nof_repetitions Number of consecutive slots spanned by this transmission, starting at \c sl_tx
+  /// (Rel-16 PDSCH repetitions; 1 for a single transmission). See \c cell_harq_repository::alloc_harq.
   std::optional<dl_harq_process_handle> alloc_dl_harq(slot_point sl_tx,
                                                       unsigned   ack_delay,
                                                       unsigned   max_harq_nof_retxs,
                                                       unsigned   harq_bit_idx,
-                                                      bool       select_normal_mode = true);
+                                                      bool       select_normal_mode = true,
+                                                      uint8_t    nof_repetitions    = 1);
   std::optional<ul_harq_process_handle> alloc_ul_harq(slot_point               sl_tx,
                                                       unsigned                 max_harq_nof_retxs,
                                                       std::optional<harq_id_t> harq_id            = std::nullopt,

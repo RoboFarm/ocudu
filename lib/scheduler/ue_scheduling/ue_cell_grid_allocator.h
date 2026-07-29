@@ -244,12 +244,6 @@ public:
   /// In particular, this function can redimension the existing grants to fill the remaining RBs if it deems necessary.
   void post_process_results();
 
-  /// \brief Determines whether the UE already has a PDSCH (e.g. a repetition occasion of a grant scheduled in a
-  /// preceding slot) allocated in the given slot.
-  /// \remark Exposed so that candidate eligibility/prioritization can skip a UE that is already known to fail this
-  /// check before spending a PDCCH allocation attempt on it (see \c allocate_dl_grant).
-  bool has_pdsch_in_slot(slot_point pdsch_slot, rnti_t rnti) const;
-
 private:
   // Setup DL grant builder.
   expected<dl_grant_info, dl_alloc_failure_cause>
@@ -268,17 +262,9 @@ private:
     bool defer = false;
   };
 
-  // Decides the number of Rel-16 PDSCH repetitions to request for a grant on the given SearchSpace, based on the
-  // configured CQI threshold and the UE's effective CQI, or nullopt for a single transmission. Only applies to a DCI
-  // format 1_1 SearchSpace using the Rel-16 TDRA list.
-  std::optional<uint8_t> select_pdsch_repetition_count(const ue_cell& ue_cc, const search_space_info& ss_info) const;
-
   // Builds the PDSCH repetition bundle for a grant whose selected TDRA row is a repetition row: computes the
   // transmitted occasions within the window and decides whether the bundle can start in this slot. Returns a deferral
-  // when it cannot (a repetition grant is never downgraded to a single transmission). The repetition count is read
-  // directly off the TDRA row at \c pdsch_td_res_index (see \c dl_time_domain_mapper::get_pdsch_repetition_number),
-  // rather than being passed in, since the row is already the sole source of truth for it; the caller must have
-  // already checked that this row does carry a repetition count.
+  // when it cannot (a repetition grant is never downgraded to a single transmission).
   dl_repetition_selection
   select_pdsch_repetitions(const ue_cell& ue_cc, const search_space_info& ss_info, uint8_t pdsch_td_res_index) const;
 
