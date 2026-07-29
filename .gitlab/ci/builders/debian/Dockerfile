@@ -23,6 +23,7 @@ RUN chmod +x /usr/local/bin/install_dependencies.sh /usr/local/bin/builder.sh /u
     /usr/local/bin/install_dependencies.sh && \
     apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     python3 -m venv /usr/local/builder_tools && \
+    /usr/local/builder_tools/bin/pip install --no-cache-dir --upgrade pip "setuptools>=78.1.1" && \
     /usr/local/builder_tools/bin/pip install --no-cache-dir "pandas<3" "psutil"
 
 ADD lib /opt/lib

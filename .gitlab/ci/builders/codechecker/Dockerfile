@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (C) 2021-2026 Software Radio Systems Limited
 # SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 
-ARG CODECHECKER_VERSION=6.26.1
+ARG CODECHECKER_VERSION=6.28.2
 
 FROM ubuntu:22.04 AS codecheck_builder
 ARG CODECHECKER_VERSION
