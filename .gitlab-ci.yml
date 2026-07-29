@@ -410,12 +410,14 @@ clang-tidy incremental:
       SOURCE_SHA=$(git rev-parse "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME")
       FORK_POINT=$(git merge-base "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME" "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME")
     - |
+      clean_arg="-r"
       for rev in $FORK_POINT $SOURCE_SHA; do
         echo "##################################################"
         echo "#### $rev ####"
         echo "##################################################"
         git checkout $rev
-        CodeChecker log -o ${CI_PROJECT_DIR}/build/compile_commands.json --build "builder.sh -m -j${CPU_JOBS} -c clang -DMARCH=x86-64-v3 -DENABLE_ARMPL=False -DENABLE_MKL=False -DENABLE_FFTW=True -DASSERT_LEVEL=PARANOID -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=False $CI_PROJECT_DIR"
+        CodeChecker log -o ${CI_PROJECT_DIR}/build/compile_commands.json --build "builder.sh -m -j${CPU_JOBS} -c clang ${clean_arg} -DMARCH=x86-64-v3 -DENABLE_ARMPL=False -DENABLE_MKL=False -DENABLE_FFTW=True -DASSERT_LEVEL=PARANOID -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=False $CI_PROJECT_DIR"
+        clean_arg=""
       done
     - *codechecker_script
   cache:

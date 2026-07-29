@@ -126,8 +126,13 @@ include:
       export CPU_JOBS
     - |
       build_ocudu() {
+        clean_arg=""
+        if [ -z "${OCUDU_BUILD_DONE}" ]; then
+          clean_arg="-r"
+          OCUDU_BUILD_DONE=1
+        fi
         set -x
-        builder.sh -b "${OCUDU_BUILD_DIR}" -m "-j${CPU_JOBS} ${OCUDU_TARGET}" ${BUILD_CMD} ${OCUDU_DIR}
+        builder.sh -b "${OCUDU_BUILD_DIR}" -m "-j${CPU_JOBS} ${OCUDU_TARGET}" ${clean_arg} ${BUILD_CMD} ${OCUDU_DIR}
         { set +x; } 2>/dev/null
       }
     - |
