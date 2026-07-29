@@ -59,6 +59,7 @@ target_link_libraries(du_ue_config_test du_manager_test_helpers rrc_test_doubles
 gtest_discover_tests(du_ue_config_test)
 
 add_executable(du_manager_procedure_test
+        procedures/await_all_ues_test.cpp
         procedures/du_param_config_procedure_test.cpp
         procedures/du_pws_broadcast_procedure_test.cpp
 )
