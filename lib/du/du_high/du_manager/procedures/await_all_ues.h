@@ -52,8 +52,8 @@ private:
       return;
     }
 
-    // Launch UE tasks in their respective task scheduler.
-    for (unsigned ue_count = 0; ue_count != remaining_ues; ++ue_count) {
+    const unsigned nof_ues = ues_to_update.size();
+    for (unsigned ue_count = 0; ue_count != nof_ues; ++ue_count) {
       ue_mng.schedule_async_task(ues_to_update[ue_count], launch_ue_task(ues_to_update[ue_count]));
     }
   }
