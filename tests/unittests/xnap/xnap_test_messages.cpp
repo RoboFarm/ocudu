@@ -5,6 +5,7 @@
 #include "xnap_test_messages.h"
 #include "lib/xnap/xnap_asn1_converters.h"
 #include "ocudu/asn1/asn1_utils.h"
+#include "ocudu/asn1/rrc_nr/rrc_nr.h"
 #include "ocudu/asn1/xnap/common.h"
 #include "ocudu/asn1/xnap/xnap_ies.h"
 #include "ocudu/asn1/xnap/xnap_pdu_contents.h"
@@ -16,8 +17,50 @@ using namespace ocudu;
 using namespace ocucp;
 using namespace asn1::xnap;
 
+// Adds AS-Config to a packed RRC HandoverPreparationInformation, reporting the source's DRB1 <-> QFI1 mapping for
+// PDU session 1 in the embedded RRCReconfiguration (TS 38.331 Section 11.2.3). The rest of the container, in
+// particular the UE capabilities the target needs, is preserved.
+static byte_buffer add_as_config_drb_mapping(const byte_buffer& packed_ho_prep)
+{
+  asn1::rrc_nr::ho_prep_info_s ho_prep_info;
+  asn1::cbit_ref               bref({packed_ho_prep.begin(), packed_ho_prep.end()});
+  report_fatal_error_if_not(ho_prep_info.unpack(bref) == asn1::OCUDUASN_SUCCESS,
+                            "Failed to unpack HandoverPreparationInformation");
+
+  // Build the source's RRCReconfiguration carrying the full radio bearer configuration.
+  asn1::rrc_nr::rrc_recfg_s source_recfg;
+  auto&                     recfg_ies     = source_recfg.crit_exts.set_rrc_recfg();
+  recfg_ies.radio_bearer_cfg_present      = true;
+  asn1::rrc_nr::drb_to_add_mod_s asn1_drb = {};
+  asn1_drb.drb_id                         = 1;
+  asn1_drb.cn_assoc_present               = true;
+  auto& asn1_sdap_cfg                     = asn1_drb.cn_assoc.set_sdap_cfg();
+  asn1_sdap_cfg.pdu_session               = 1;
+  asn1_sdap_cfg.sdap_hdr_dl               = asn1::rrc_nr::sdap_cfg_s::sdap_hdr_dl_opts::absent;
+  asn1_sdap_cfg.sdap_hdr_ul               = asn1::rrc_nr::sdap_cfg_s::sdap_hdr_ul_opts::absent;
+  asn1_sdap_cfg.default_drb               = true;
+  asn1_sdap_cfg.mapped_qos_flows_to_add.push_back(1);
+  recfg_ies.radio_bearer_cfg.drb_to_add_mod_list.push_back(asn1_drb);
+
+  byte_buffer   packed_recfg;
+  asn1::bit_ref recfg_packer{packed_recfg};
+  report_fatal_error_if_not(source_recfg.pack(recfg_packer) == asn1::OCUDUASN_SUCCESS,
+                            "Failed to pack AS-Config RRCReconfiguration");
+
+  auto& ies                = ho_prep_info.crit_exts.c1().ho_prep_info();
+  ies.source_cfg_present   = true;
+  ies.source_cfg.rrc_recfg = std::move(packed_recfg);
+
+  byte_buffer   repacked;
+  asn1::bit_ref packer{repacked};
+  report_fatal_error_if_not(ho_prep_info.pack(packer) == asn1::OCUDUASN_SUCCESS,
+                            "Failed to pack HandoverPreparationInformation");
+  return repacked;
+}
+
 xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id,
-                                                     bool               include_drb_to_qos_flow_mapping)
+                                                     bool               include_drb_to_qos_flow_mapping,
+                                                     bool               include_as_config_drb_mapping)
 {
   xnap_message xnap_msg;
 
@@ -85,6 +128,11 @@ xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xn
           "00217b8680ce811d1960097e360e1317000183f1300098a09a00000020400f13400389a00000000e268208010010134a0f0040000000"
           "00000040000000247001040000259650100400002596500052388008404008010100200400200801052050")
           .value();
+
+  if (include_as_config_drb_mapping) {
+    ho_request->ue_context_info_ho_request.rrc_context =
+        add_as_config_drb_mapping(ho_request->ue_context_info_ho_request.rrc_context);
+  }
 
   asn1::xnap::last_visited_cell_item_c last_visited_cell;
   last_visited_cell.set_ng_ran_cell() = make_byte_buffer("0000f11000066c0000800000").value();
