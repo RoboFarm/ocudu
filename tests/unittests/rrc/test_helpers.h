@@ -113,7 +113,7 @@ public:
   up_context on_up_context_required() override
   {
     logger.info("UP context requested");
-    return up_context{};
+    return up_ctxt;
   }
 
   async_task<void> on_ue_removal_required() override
@@ -149,6 +149,9 @@ public:
 
   /// If set, on_measurement_config_request() returns this value; allows tests to inject a real config.
   std::optional<rrc_meas_cfg> next_meas_cfg;
+
+  /// Returned by on_up_context_required(); allows tests to inject the UE's active DRBs.
+  up_context up_ctxt;
 
   cu_cp_ue_context_release_request last_cu_cp_ue_context_release_request;
 

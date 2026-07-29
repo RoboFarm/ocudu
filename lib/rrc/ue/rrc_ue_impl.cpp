@@ -143,6 +143,30 @@ void rrc_ue_impl::on_new_as_security_context(bool security_mode_active)
   srb1.enable_tx_security(security::integrity_enabled::on, security::ciphering_enabled::off, sec_cfg);
 }
 
+// Builds the UE's current radio bearer configuration (all active DRBs across all PDU sessions) from the UP
+// context.
+static rrc_radio_bearer_config build_source_radio_bearer_config(const up_context& up_ctxt)
+{
+  rrc_radio_bearer_config radio_bearer_config;
+  for (const auto& [psi, pdu_session_ctxt] : up_ctxt.pdu_sessions) {
+    for (const auto& [drb_id, drb_ctxt] : pdu_session_ctxt.drbs) {
+      rrc_drb_to_add_mod drb_to_add_mod;
+      drb_to_add_mod.drb_id   = drb_id;
+      drb_to_add_mod.pdcp_cfg = drb_ctxt.pdcp_cfg;
+
+      rrc_cn_assoc cn_assoc;
+      cn_assoc.sdap_cfg       = drb_ctxt.sdap_cfg;
+      drb_to_add_mod.cn_assoc = cn_assoc;
+
+      radio_bearer_config.drb_to_add_mod_list.emplace(drb_id, drb_to_add_mod);
+    }
+  }
+
+  // TODO: Fill SRB config and security config.
+
+  return radio_bearer_config;
+}
+
 byte_buffer rrc_ue_impl::get_packed_handover_preparation_message()
 {
   struct ho_prep_info_s ho_prep;
@@ -155,7 +179,22 @@ byte_buffer rrc_ue_impl::get_packed_handover_preparation_message()
   }
   ies.ue_cap_rat_list = *context.capabilities_list;
 
-  // TODO fill source and as configs.
+  // Fill AS-Config with the UE's current radio bearer configuration. TS 38.331 Section 11.2.3 mandates that the
+  // RRCReconfiguration embedded here reflects the UE's complete AS configuration, not a delta relative to prior
+  // signalling, so it is built from the UP context rather than from any previously sent RRCReconfiguration.
+  rrc_radio_bearer_config source_radio_bearer_cfg =
+      build_source_radio_bearer_config(cu_cp_notifier.on_up_context_required());
+  if (!source_radio_bearer_cfg.drb_to_add_mod_list.empty()) {
+    ies.source_cfg_present = true;
+    rrc_reconfiguration_procedure_request source_cfg_request;
+    source_cfg_request.radio_bearer_cfg = source_radio_bearer_cfg;
+    rrc_recfg_s source_recfg;
+    fill_asn1_rrc_reconfiguration_msg(source_recfg, 0, source_cfg_request);
+    ies.source_cfg.rrc_recfg = pack_into_pdu(source_recfg, "AS-Config RRCReconfiguration");
+  }
+
+  // TODO: Fill measurement configuration and MCG/SCG.
+
   return pack_into_pdu(ho_prep, "handover preparation info");
 }
 
