@@ -4,8 +4,8 @@
 
 # Build args
 ################
-# OS                    Base image name, e.g. ubuntu, debian, or fedora
-# OS_VERSION            Image tag, e.g. 24.04, bookworm, or 43 (must match OS)
+# OS                    Base image name, e.g. ubuntu, debian, fedora, or quay.io/centos/centos
+# OS_VERSION            Image tag, e.g. 24.04, bookworm, 43, or stream10 (must match OS)
 # UHD_VERSION           UHD version number
 # DPDK_VERSION          DPDK version number
 # ROHC_VERSION          ROHC version number

@@ -62,6 +62,25 @@ gnb docker compose fedora 44:
       allow_failure: true
     - if: $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /Weekly/
 
+# Manual only: validates gNB image on quay.io/centos/centos:stream10 (dnf, EPEL/CRB). Run from the child pipeline when docker CI is included.
+gnb docker compose centos stream10 manual:
+  extends: gnb docker compose
+  variables:
+    OS: quay.io/centos/centos
+    OS_VERSION: "stream10"
+  rules:
+    - if: $CI_MERGE_REQUEST_LABELS =~ /ci-no-docker/
+      when: never
+    - if: $ON_MR
+      changes:
+        paths:
+          - docker/scripts/**/*
+          - docker/Dockerfile
+          - docker/docker-compose.yml
+      when: manual
+      allow_failure: true
+    - if: $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /Weekly/
+
 5gc docker compose:
   extends: .docker compose
   stage: deploy
