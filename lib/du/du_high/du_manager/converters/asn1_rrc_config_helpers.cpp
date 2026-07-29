@@ -3726,7 +3726,7 @@ bool ocudu::odu::calculate_reconfig_with_sync_diff(asn1::rrc_nr::recfg_with_sync
 
   out.new_ue_id = to_value(rnti);
 
-  out.t304.value = recfg_with_sync_s::t304_opts::ms2000;
+  asn1::number_to_enum(out.t304, du_cell_cfg.si.ue_timers_and_constants.t304.count());
 
   // In case of CFRA.
   out.rach_cfg_ded_present = dest.cfra.has_value();

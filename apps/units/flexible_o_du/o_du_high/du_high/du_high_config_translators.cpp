@@ -606,6 +606,7 @@ static void fill_si_acquisition_info(si_acquisition_info& si, const du_high_unit
   si.ue_timers_and_constants.t311 = std::chrono::milliseconds(cli_cfg.sib_cfg.ue_timers_and_constants.t311);
   si.ue_timers_and_constants.n311 = cli_cfg.sib_cfg.ue_timers_and_constants.n311;
   si.ue_timers_and_constants.t319 = std::chrono::milliseconds(cli_cfg.sib_cfg.ue_timers_and_constants.t319);
+  si.ue_timers_and_constants.t304 = std::chrono::milliseconds(cli_cfg.sib_cfg.ue_timers_and_constants.t304);
 }
 
 std::vector<odu::du_cell_config> ocudu::generate_du_cell_config(const du_high_unit_config& config)

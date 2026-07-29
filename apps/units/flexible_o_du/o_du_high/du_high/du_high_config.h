@@ -991,6 +991,9 @@ struct du_high_unit_sib_config {
     /// t319
     /// Values (in ms): {100, 200, 300, 400, 600, 1000, 1500, 2000}
     unsigned t319 = 1000;
+    /// t304
+    /// Values (in ms): {50, 100, 150, 200, 500, 1000, 2000, 10000}
+    unsigned t304 = 2000;
   };
 
   /// The length of the SI scheduling window, in slots. It is always shorter or equal to the period of the SI message.

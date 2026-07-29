@@ -316,6 +316,10 @@ struct ue_timers_and_constants_config {
   /// t319
   /// Values (in ms): {100, 200, 300, 400, 600, 1000, 1500, 2000}
   std::chrono::milliseconds t319{1000};
+  /// \brief Timer used by the UE during handover/reconfiguration with sync, as per TS 38.331, 7.1.1. Configured by
+  /// the DU in the \c ReconfigurationWithSync IE of the RRCReconfiguration message.
+  /// Values (in ms): {50, 100, 150, 200, 500, 1000, 2000, 10000}
+  std::chrono::milliseconds t304{2000};
 };
 
 /// Parameters related to SIB1 and other-SI scheduling information.

@@ -2397,6 +2397,13 @@ static void configure_cli11_sib_args(CLI::App& app, du_high_unit_sib_config& sib
              "or RRCResumeRequest1.")
       ->capture_default_str()
       ->check(CLI::IsMember({100, 200, 300, 400, 600, 1000, 1500, 2000}));
+  add_option(app,
+             "--t304",
+             sib_params.ue_timers_and_constants.t304,
+             "Reconfiguration with sync timer in ms. The timer starts upon reception of an RRCReconfiguration "
+             "message including the reconfigurationWithSync (e.g. handover).")
+      ->capture_default_str()
+      ->check(CLI::IsMember({50, 100, 150, 200, 500, 1000, 2000, 10000}));
 }
 
 static void configure_cli11_slicing_scheduling_args(CLI::App&                             app,

@@ -147,6 +147,7 @@ static YAML::Node build_du_high_sib_section(const du_high_unit_sib_config& confi
   node["t310"]             = config.ue_timers_and_constants.t310;
   node["t311"]             = config.ue_timers_and_constants.t311;
   node["t319"]             = config.ue_timers_and_constants.t319;
+  node["t304"]             = config.ue_timers_and_constants.t304;
   node["n310"]             = config.ue_timers_and_constants.n310;
   node["n311"]             = config.ue_timers_and_constants.n311;
 
