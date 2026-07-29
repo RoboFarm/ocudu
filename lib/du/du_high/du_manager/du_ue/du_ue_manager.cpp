@@ -249,23 +249,17 @@ expected<du_ue*, std::string> du_ue_manager::add_ue(const du_ue_context&        
 
 void du_ue_manager::remove_ue(du_ue_index_t ue_index)
 {
-  // Note: The caller of this function can be a UE procedure. Thus, we have to wait for the procedure to finish
-  // before safely removing the UE. This achieved via a scheduled async task
-
   ocudu_assert(is_du_ue_index_valid(ue_index), "Invalid ue index={}", fmt::underlying(ue_index));
-  logger.debug("ue={}: Scheduled deletion of UE context", fmt::underlying(ue_index));
-  ue_ctrl_loop[ue_index].clear_pending_tasks();
+  ocudu_assert(ue_db.contains(ue_index), "ue={}: Remove UE called for inexistent UE", ue_index);
+  logger.debug("ue={}: Removing UE context", ue_index);
 
-  // Schedule UE removal task
-  ue_ctrl_loop[ue_index].schedule([this, ue_index](coro_context<async_task<void>>& ctx) {
-    CORO_BEGIN(ctx);
-    ocudu_assert(ue_db.contains(ue_index), "ue={}: Remove UE called for inexistent UE", fmt::underlying(ue_index));
-    rnti_to_ue_index.erase(ue_db[ue_index].rnti);
-    ue_db.erase(ue_index);
-    ue_ctrl_loop[ue_index].clear_pending_tasks();
-    logger.debug("ue={}: Freeing UE context", fmt::underlying(ue_index));
-    CORO_RETURN();
-  });
+  // Erase synchronously so ue_db/find_ue reflect the removal immediately.
+  rnti_to_ue_index.erase(ue_db[ue_index].rnti);
+  ue_db.erase(ue_index);
+
+  // Drop anything else still queued against this now-removed UE.
+  ue_ctrl_loop[ue_index].clear_pending_tasks();
+  logger.debug("ue={}: Freed UE context", ue_index);
 }
 
 void du_ue_manager::update_crnti(du_ue_index_t ue_index, rnti_t crnti)
