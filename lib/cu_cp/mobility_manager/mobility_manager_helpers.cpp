@@ -78,11 +78,7 @@ ocudu::ocucp::generate_xnap_handover_request(cu_cp_ue_index_t                   
     pdu_session_item.pdu_session_type = pdu_session_ctxt.type;
 
     // Iterate over all DRBs of the PDU session and collect all QoS flows.
-    cu_cp_pdu_session_res_info_item pdu_session_res_info_item;
-    pdu_session_res_info_item.pdu_session_id = pid;
     for (const auto& [drb_id, drb_ctxt] : pdu_session_ctxt.drbs) {
-      cu_cp_drbs_to_qos_flows_map_item drb_to_qos_flows_map_item;
-      drb_to_qos_flows_map_item.drb_id = drb_id;
       for (const auto& [qfi, qos_flow] : drb_ctxt.qos_flows) {
         qos_flow_setup_request_item qos_flow_setup_item = {};
         // Set QFI.
@@ -90,16 +86,10 @@ ocudu::ocucp::generate_xnap_handover_request(cu_cp_ue_index_t                   
         // Fill QoS flow level QoS parameters.
         qos_flow_setup_item.qos_flow_level_qos_params = qos_flow.qos_params;
         pdu_session_item.qos_flow_setup_request_items.emplace(qfi, qos_flow_setup_item);
-
-        drb_to_qos_flows_map_item.associated_qos_flow_list.push_back(cu_cp_associated_qos_flow{qfi, std::nullopt});
       }
-      pdu_session_res_info_item.drbs_to_qos_flows_map_list.push_back(drb_to_qos_flows_map_item);
     }
 
     request.ue_context_info_ho_request.pdu_session_res_to_be_setup_list.emplace(pid, pdu_session_item);
-    // Report this source's own DRB-to-QoS-flow mapping, so the target can prefer the same DRB numbering
-    // (TS 38.423 Section 9.2.1.17).
-    request.ue_context_info_ho_request.pdu_session_res_info_list.push_back(pdu_session_res_info_item);
   }
   request.ue_context_info_ho_request.rrc_handover_preparation_information = rrc_handover_preparation_information.copy();
   request.ue_context_info_ho_request.location_report_info                 = location_report_cfg;

@@ -70,7 +70,9 @@ inline bool asn1_to_ue_context_info_ho_request(xnap_ue_context_info_ho_request& 
 
     request.pdu_session_res_to_be_setup_list.emplace(pdu_session_id, pdu_session_item);
 
-    // Fill source DRB-to-QoS-flow mapping, if the source proposed data forwarding for this PDU session.
+    // Fill the source's DRB-to-QoS-flow mapping, if the peer signalled it in the Data Forwarding and Offloading Info
+    // from source NG-RAN node IE (TS 38.423 Section 9.2.1.17). This node reports the mapping through AS-Config in the
+    // RRC container instead, but peers may use this XnAP-native IE, so both are accepted and merged at the target.
     if (asn1_pdu_session.dataforwardinginfofrom_source_present) {
       cu_cp_pdu_session_res_info_item pdu_session_res_info_item;
       pdu_session_res_info_item.pdu_session_id = pdu_session_id;

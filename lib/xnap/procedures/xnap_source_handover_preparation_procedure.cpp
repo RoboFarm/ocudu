@@ -249,43 +249,6 @@ void xnap_source_handover_preparation_procedure::fill_asn1_pdu_session_res_list(
     pdu_session_res_to_be_setup_item_s asn1_pdu_session_item;
     asn1_pdu_session_item.pdu_session_id = pdu_session_id_to_uint(pdu_session_item.pdu_session_id);
 
-    // Report this source's own DRB-to-QoS-flow mapping, so the target can prefer the same DRB numbering
-    // (TS 38.423 Section 9.2.1.17, Data Forwarding and Offloading Info from source NG-RAN node).
-    for (const auto& pdu_session_res_info_item : request.ue_context_info_ho_request.pdu_session_res_info_list) {
-      if (pdu_session_res_info_item.pdu_session_id != pdu_session_item.pdu_session_id ||
-          pdu_session_res_info_item.drbs_to_qos_flows_map_list.empty()) {
-        continue;
-      }
-      asn1_pdu_session_item.dataforwardinginfofrom_source_present = true;
-      for (const auto& drb_item : pdu_session_res_info_item.drbs_to_qos_flows_map_list) {
-        drb_to_qos_flow_map_item_s asn1_drb_item;
-        asn1_drb_item.drb_id = drb_id_to_uint(drb_item.drb_id);
-        for (const auto& assoc_qos_flow : drb_item.associated_qos_flow_list) {
-          qos_flow_item_s asn1_qos_flow_item;
-          asn1_qos_flow_item.qfi = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
-          if (assoc_qos_flow.qos_flow_map_ind.has_value()) {
-            asn1_qos_flow_item.qos_flow_map_ind_present = true;
-            asn1_qos_flow_item.qos_flow_map_ind =
-                assoc_qos_flow.qos_flow_map_ind.value() == cu_cp_qos_flow_map_indication::ul
-                    ? qos_flow_map_ind_opts::options::ul
-                    : qos_flow_map_ind_opts::options::dl;
-          }
-          asn1_drb_item.qos_flows_list.push_back(asn1_qos_flow_item);
-
-          // Data Forwarding and Offloading Info from source NG-RAN node (TS 38.423 Section 9.2.1.17) mandates a
-          // non-empty QoS Flows To Be Forwarded List whenever present, so this IE cannot carry the DRB-to-QoS-flow
-          // mapping hint without also proposing DL forwarding for the same flows. The target may decline it.
-          qos_f_lows_to_be_forwarded_item_s forwarded_item;
-          forwarded_item.qos_flow_id       = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
-          forwarded_item.dl_dataforwarding = dl_forwarding_opts::dl_forwarding_proposed;
-          forwarded_item.ul_dataforwarding = ul_forwarding_opts::ul_forwarding_proposed;
-          asn1_pdu_session_item.dataforwardinginfofrom_source.qos_flows_to_be_forwarded.push_back(forwarded_item);
-        }
-        asn1_pdu_session_item.dataforwardinginfofrom_source.source_drb_to_qos_flow_map.push_back(asn1_drb_item);
-      }
-      break;
-    }
-
     // Fill S-NSSAI.
     asn1_pdu_session_item.s_nssai = s_nssai_to_asn1(pdu_session_item.s_nssai);
     // Fill UL NGU TNL at UPF.
