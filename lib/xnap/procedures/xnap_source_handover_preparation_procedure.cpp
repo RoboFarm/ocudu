@@ -276,7 +276,9 @@ void xnap_source_handover_preparation_procedure::fill_asn1_pdu_session_res_list(
           // non-empty QoS Flows To Be Forwarded List whenever present, so this IE cannot carry the DRB-to-QoS-flow
           // mapping hint without also proposing DL forwarding for the same flows. The target may decline it.
           qos_f_lows_to_be_forwarded_item_s forwarded_item;
-          forwarded_item.qos_flow_id = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
+          forwarded_item.qos_flow_id       = qos_flow_id_to_uint(assoc_qos_flow.qos_flow_id);
+          forwarded_item.dl_dataforwarding = dl_forwarding_opts::dl_forwarding_proposed;
+          forwarded_item.ul_dataforwarding = ul_forwarding_opts::ul_forwarding_proposed;
           asn1_pdu_session_item.dataforwardinginfofrom_source.qos_flows_to_be_forwarded.push_back(forwarded_item);
         }
         asn1_pdu_session_item.dataforwardinginfofrom_source.source_drb_to_qos_flow_map.push_back(asn1_drb_item);
