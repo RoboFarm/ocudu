@@ -7,8 +7,7 @@
 #include "ocudu/ran/nr_cgi.h"
 #include "ocudu/support/async/async_task.h"
 
-namespace ocudu {
-namespace ocucp {
+namespace ocudu::ocucp {
 
 /// Result of a cell-level command issued via cu_cp_cell_command_handler.
 struct cu_cp_cell_command_response {
@@ -30,8 +29,9 @@ public:
   /// \brief Deactivate a single cell identified by its NR CGI.
   ///
   /// Dispatches an F1AP gNB-CU Configuration Update to the DU that serves the cell, listing the cell in
-  /// cells_to_be_deactivated_list. Connected UEs on the cell are released by the DU (via its own UE drain
-  /// procedure) before the MAC and PHY are stopped.
+  /// cells_to_be_deactivated_list. Connected UEs on the cell are released by the CU-CP before the update is sent,
+  /// since the gNB-CU Configuration Update procedure itself does not affect existing UE-related contexts
+  /// (TS 38.473 section 8.2.5.1).
   /// \param[in] cgi NR Cell Global ID of the cell to deactivate.
   virtual async_task<cu_cp_cell_command_response> deactivate_cell(const nr_cell_global_id_t& cgi) = 0;
 
@@ -43,5 +43,4 @@ public:
   virtual async_task<cu_cp_cell_command_response> activate_cell(const nr_cell_global_id_t& cgi) = 0;
 };
 
-} // namespace ocucp
-} // namespace ocudu
+} // namespace ocudu::ocucp
