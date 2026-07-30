@@ -347,32 +347,38 @@ void du_ue_controller_impl::handle_crnti_ce_detection()
 
 async_task<void> du_ue_controller_impl::run_in_ue_executor(unique_task task)
 {
-  auto log_dispatch_retry = [this]() {
-    logger.warning("ue={}: Postpone dispatching of control task to executor. Cause: Task queue is full",
-                   fmt::underlying(ue_index));
+  auto log_dispatch_retry = [this](const char* exec_name) {
+    return [this, exec_name]() {
+      logger.warning("ue={}: Postpone dispatching of control task to \"{}\" executor. Cause: Task queue is full",
+                     fmt::underlying(ue_index),
+                     exec_name);
+    };
   };
 
   return launch_async([this, task = std::move(task), log_dispatch_retry](coro_context<async_task<void>>& ctx) {
     CORO_BEGIN(ctx);
 
     // Sync with UE control executor to run provided task.
-    CORO_AWAIT(
-        defer_on_blocking(cfg.services.ue_execs.ctrl_executor(ue_index), cfg.services.timers, log_dispatch_retry));
+    CORO_AWAIT(defer_on_blocking(
+        cfg.services.ue_execs.ctrl_executor(ue_index), cfg.services.timers, log_dispatch_retry("ctrl_executor")));
     task();
 
     // Sync with remaining UE executors, as there might be still pending tasks dispatched to those.
     // TODO: use when_all awaiter
-    CORO_AWAIT(defer_on_blocking(
-        cfg.services.ue_execs.mac_ul_pdu_executor(ue_index), cfg.services.timers, log_dispatch_retry));
-    CORO_AWAIT(defer_on_blocking(
-        cfg.services.ue_execs.f1u_dl_pdu_executor(ue_index), cfg.services.timers, log_dispatch_retry));
+    CORO_AWAIT(defer_on_blocking(cfg.services.ue_execs.mac_ul_pdu_executor(ue_index),
+                                 cfg.services.timers,
+                                 log_dispatch_retry("mac_ul_pdu_executor")));
+    CORO_AWAIT(defer_on_blocking(cfg.services.ue_execs.f1u_dl_pdu_executor(ue_index),
+                                 cfg.services.timers,
+                                 log_dispatch_retry("f1u_dl_pdu_executor")));
 
     // Sync with rlc-lower executor, as there might be some timer stop pending.
-    CORO_AWAIT(defer_on_blocking(
-        cfg.services.cell_execs.rlc_lower_executor(pcell_index), cfg.services.timers, log_dispatch_retry));
+    CORO_AWAIT(defer_on_blocking(cfg.services.cell_execs.rlc_lower_executor(pcell_index),
+                                 cfg.services.timers,
+                                 log_dispatch_retry("rlc_lower_executor")));
 
     // Return back to DU manager executor.
-    CORO_AWAIT(defer_on_blocking(cfg.services.du_mng_exec, cfg.services.timers, log_dispatch_retry));
+    CORO_AWAIT(defer_on_blocking(cfg.services.du_mng_exec, cfg.services.timers, log_dispatch_retry("du_mng_exec")));
 
     CORO_RETURN();
   });
