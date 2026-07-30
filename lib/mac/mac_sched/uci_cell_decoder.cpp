@@ -75,6 +75,12 @@ static std::optional<csi_report_data> decode_csi_bits(const mac_uci_pdu::pucch_f
   return decode_pucch_csi(pucch.csi_part1_info->payload, csi_rep_cfg);
 }
 
+/// Returns true if a CSI Part 2 report is expected on PUSCH for the given CSI report configuration.
+static bool is_csi_part2_expected(const csi_report_configuration& csi_rep_cfg)
+{
+  return get_csi_report_pusch_size(csi_rep_cfg).part2_max_size.value() != 0;
+}
+
 static std::optional<csi_report_data>
 decode_csi_bits(const mac_uci_pdu::pusch_type& pusch, const csi_report_configuration& csi_rep_cfg, bool is_aperiodic)
 {
@@ -83,12 +89,21 @@ decode_csi_bits(const mac_uci_pdu::pusch_type& pusch, const csi_report_configura
     return decode_pucch_csi(pusch.csi_part1_info->payload, csi_rep_cfg);
   }
 
+  // The PHY does not report a CSI Part 2 payload if the field is not multiplexed in the PUSCH or if its detection
+  // failed - e.g. the short block detector may declare DTX for a small CSI Part 2 payload even when CSI Part 1 is
+  // correctly detected. Discard the report if CSI Part 2 is expected but not available, as its fields (PMI, LI) cannot
+  // be recovered.
+  const bool has_csi_part2 = pusch.csi_part2_info.has_value() and pusch.csi_part2_info->is_valid;
+  if (not has_csi_part2 and is_csi_part2_expected(csi_rep_cfg)) {
+    return csi_report_data{.valid = false};
+  }
+
   // Convert UCI CSI1 and CSI2 bits to "csi_report_packed".
   csi_report_packed csi1_bits(pusch.csi_part1_info->payload.size());
   for (unsigned k = 0; k != csi1_bits.size(); ++k) {
     csi1_bits.set(k, pusch.csi_part1_info->payload.test(k));
   }
-  csi_report_packed csi2_bits(pusch.csi_part2_info->payload.size());
+  csi_report_packed csi2_bits(has_csi_part2 ? pusch.csi_part2_info->payload.size() : 0);
   for (unsigned k = 0; k != csi2_bits.size(); ++k) {
     csi2_bits.set(k, pusch.csi_part2_info->payload.test(k));
   }
