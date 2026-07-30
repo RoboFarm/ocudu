@@ -186,30 +186,7 @@ async_task<void> cu_up_manager_impl::handle_e1_reset(const e1ap_reset& msg)
     });
   }
 
-  return launch_async([this, msg, ue_it = std::vector<cu_up_ue_index_t>::const_iterator{}](
-                          coro_context<async_task<void>>& ctx) mutable {
-    CORO_BEGIN(ctx);
-    ue_it = msg.ues.begin();
-    while (ue_it != msg.ues.end()) {
-      {
-        ue_context* ue_ctxt = ue_mng->find_ue(*ue_it);
-        if (ue_ctxt == nullptr) {
-          logger.warning("ue={}: Non-existent UE in partial E1 reset.", fmt::underlying(*ue_it));
-          ++ue_it;
-          continue;
-        }
-        if (ue_ctxt->remove_pending()) {
-          logger.info("ue={}: Skipped E1 reset removal, UE removal is already pending.", fmt::underlying(*ue_it));
-          ++ue_it;
-          continue;
-        }
-        ue_ctxt->request_removal();
-      }
-      CORO_AWAIT(ue_mng->remove_ue(*ue_it));
-      ++ue_it;
-    }
-    CORO_RETURN();
-  });
+  return ue_mng->remove_ues(msg.ues);
 }
 
 //

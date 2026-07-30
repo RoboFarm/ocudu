@@ -46,40 +46,63 @@ async_task<void> ue_manager::stop()
   return remove_all_ues();
 }
 
+std::vector<cu_up_ue_index_t> ue_manager::get_ue_indexes(std::optional<cu_up_e1_index_t> e1_index) const
+{
+  std::vector<cu_up_ue_index_t> ue_indexes;
+  ue_indexes.reserve(ue_db.size());
+  for (const std::pair<const cu_up_ue_index_t, std::unique_ptr<ue_context>>& ue : ue_db) {
+    if (not e1_index.has_value() or ue.second->get_e1_index() == e1_index.value()) {
+      ue_indexes.push_back(ue.first);
+    }
+  }
+  return ue_indexes;
+}
+
 async_task<void> ue_manager::remove_all_ues()
 {
-  // Routine to stop all UEs
-  auto ue_it = ue_db.begin();
-  return launch_async([this, ue_it](coro_context<async_task<void>>& ctx) mutable {
-    CORO_BEGIN(ctx);
-
-    // Remove all UEs.
-    while (ue_it != ue_db.end()) {
-      CORO_AWAIT(schedule_and_wait_ue_removal((ue_it++)->first));
-    }
-
-    CORO_RETURN();
-  });
+  // Routine to stop all UEs.
+  return remove_ues(get_ue_indexes());
 }
 
 async_task<void> ue_manager::remove_e1_ues(cu_up_e1_index_t e1_index)
 {
-  // Routine to stop all UEs
-  auto ue_it = ue_db.begin();
-  return launch_async([this, ue_it, e1_index](coro_context<async_task<void>>& ctx) mutable {
-    CORO_BEGIN(ctx);
+  // Routine to stop all UEs of the given E1 interface.
+  return remove_ues(get_ue_indexes(e1_index));
+}
 
-    // Remove all UEs.
-    while (ue_it != ue_db.end()) {
-      if (ue_it->second->get_e1_index() == e1_index) {
-        CORO_AWAIT(schedule_and_wait_ue_removal((ue_it++)->first));
-      } else {
-        ue_it++;
-      }
+async_task<void> ue_manager::remove_ues(const std::vector<cu_up_ue_index_t>& ue_indexes)
+{
+  // Flag all listed UEs for removal upfront, so that no other trigger releases them, and thus frees their UE index,
+  // while this routine is in flight. Skip the UEs that are gone or already flagged by another removal routine.
+  std::vector<cu_up_ue_index_t> ues_to_remove;
+  ues_to_remove.reserve(ue_indexes.size());
+  for (cu_up_ue_index_t ue_index : ue_indexes) {
+    ue_context* ue_ctx = find_ue(ue_index);
+    if (ue_ctx == nullptr) {
+      logger.info("ue={}: Discarding UE removal. UE context not found", fmt::underlying(ue_index));
+      continue;
     }
+    if (ue_ctx->remove_pending()) {
+      logger.info("ue={}: Discarding UE removal. UE removal is already pending", fmt::underlying(ue_index));
+      continue;
+    }
+    ue_ctx->request_removal();
+    ues_to_remove.push_back(ue_index);
+  }
 
-    CORO_RETURN();
-  });
+  // Routine to stop the flagged UEs. Removals are serialized, so that each UE context is only torn down once all
+  // procedures pending in its own task scheduler completed.
+  return launch_async(
+      [this, ues_to_remove = std::move(ues_to_remove), i = size_t{0}](coro_context<async_task<void>>& ctx) mutable {
+        CORO_BEGIN(ctx);
+
+        while (i < ues_to_remove.size()) {
+          CORO_AWAIT(schedule_and_wait_ue_removal(ues_to_remove[i]));
+          i++;
+        }
+
+        CORO_RETURN();
+      });
 }
 
 ue_context* ue_manager::find_ue(cu_up_ue_index_t ue_index)
@@ -186,21 +209,12 @@ void ue_manager::schedule_ue_async_task(cu_up_ue_index_t ue_index, async_task<vo
 
 async_task<expected<>> ue_manager::schedule_and_wait_ue_removal(cu_up_ue_index_t ue_index)
 {
+  // The UE is flagged for removal by the caller, so it cannot have been released by another trigger in the meantime.
   ue_context* ue_ctx = find_ue(ue_index);
   if (ue_ctx == nullptr) {
     logger.error("Cannot schedule UE removal, could not find UE. ue_index={}", fmt::underlying(ue_index));
-    return launch_async([](coro_context<async_task<expected<>>>& ctx) mutable {
-      CORO_BEGIN(ctx);
-      CORO_RETURN(make_unexpected(default_error_t{}));
-    });
+    return launch_no_op_task(expected<>{make_unexpected(default_error_t{})});
   }
-
-  // Skip if UE is already flagged for removal; flag it for removal otherwise.
-  if (ue_ctx->remove_pending()) {
-    logger.info("ue={}: Skipped scheduling UE removal, UE removal is already pending.", fmt::underlying(ue_index));
-    return launch_no_op_task(expected<>{});
-  }
-  ue_ctx->request_removal();
 
   auto t = launch_async([this, ue_index](coro_context<async_task<void>>& ctx) mutable {
     CORO_BEGIN(ctx);
