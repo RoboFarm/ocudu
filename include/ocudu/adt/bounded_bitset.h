@@ -73,30 +73,89 @@ struct word_mask_functor {
   }
 };
 
-/// \brief Returns a range that enumerates, for a bit interval [start, stop), the indices of the words that
-/// intersect the interval, together with the mask of bits (within each word) that fall inside it.
+/// \brief Base class of \c bounded_bitset holding the current bitset size and the operations that depend solely on
+/// it and/or on the bit index order (\c LowestInfoBitIsMSB), but not on the bitset capacity.
 ///
 /// \tparam LowestInfoBitIsMSB Bit index order in memory. See \c bounded_bitset for more details.
-/// \param start first bit index of the bounded_bitset.
-/// \param stop end bit index of the bounded_bitset.
-/// \param bitset_size current size, in bits, of the bounded_bitset the range is computed for.
 template <bool LowestInfoBitIsMSB>
-auto make_word_mask_range(size_t start, size_t stop, size_t bitset_size) noexcept
+class base_bounded_bitset
 {
-  ocudu_assert(start <= stop and stop <= bitset_size,
-               "ERROR: range ['{}', '{}') out-of-bounds for bitsize of size='{}'",
-               start,
-               stop,
-               bitset_size);
-  const size_t start_word  = get_word_idx(start);
-  const size_t end_word    = start == stop ? start_word : get_word_idx(stop - 1) + 1;
-  const size_t startmod    = start % bits_per_word;
-  const size_t stopmod     = stop % bits_per_word;
-  const size_t tail_unused = stopmod == 0 ? 0 : bits_per_word - stopmod;
+public:
+  constexpr base_bounded_bitset() = default;
+  constexpr explicit base_bounded_bitset(size_t cur_size_) noexcept : cur_size(cur_size_) {}
 
-  return views::transform(views::iota(start_word, end_word),
-                          word_mask_functor<LowestInfoBitIsMSB>{start_word, end_word, startmod, stopmod, tail_unused});
-}
+  static constexpr bool bit_order() noexcept { return LowestInfoBitIsMSB; }
+
+  /// Current size of the bounded_bitset in bits.
+  OCUDU_FORCE_INLINE constexpr size_t size() const noexcept { return cur_size; }
+
+  /// Returns true if the bounded_bitset size is 0.
+  OCUDU_FORCE_INLINE constexpr bool empty() const noexcept { return size() == 0; }
+
+protected:
+  /// Number of words currently in use.
+  OCUDU_FORCE_INLINE constexpr size_t nof_words_() const noexcept { return divide_ceil(size(), bits_per_word); }
+
+  constexpr void assert_within_bounds_(size_t pos, bool strict) const noexcept
+  {
+    ocudu_assert(pos < size() or (not strict and pos == size()),
+                 "ERROR: index='{}' is out-of-bounds for bitset of size='{}'",
+                 pos,
+                 size());
+  }
+
+  constexpr void assert_range_bounds_(size_t startpos, size_t endpos) const noexcept
+  {
+    ocudu_assert(startpos <= endpos and endpos <= size(),
+                 "ERROR: range ['{}', '{}') out-of-bounds for bitsize of size='{}'",
+                 startpos,
+                 endpos,
+                 size());
+  }
+
+  OCUDU_FORCE_INLINE size_t convert_bitpos_(size_t bitpos) const noexcept
+  {
+    if constexpr (LowestInfoBitIsMSB) {
+      return bits_per_word - 1 - (bitpos % bits_per_word);
+    } else {
+      return bitpos;
+    }
+  }
+
+  OCUDU_FORCE_INLINE static constexpr uint64_t maskbit(size_t pos) noexcept
+  {
+    if constexpr (LowestInfoBitIsMSB) {
+      return static_cast<uint64_t>(1U) << (bits_per_word - 1 - (pos % bits_per_word));
+    } else {
+      return static_cast<uint64_t>(1U) << (pos % bits_per_word);
+    }
+  }
+
+  /// \brief Returns a range that enumerates, for a bit interval [start, stop), the indices of the words that
+  /// intersect the interval, together with the mask of bits (within each word) that fall inside it.
+  ///
+  /// \param start first bit index of the bounded_bitset.
+  /// \param stop end bit index of the bounded_bitset.
+  auto make_word_mask_range(size_t start, size_t stop) const noexcept
+  {
+    ocudu_assert(start <= stop and stop <= size(),
+                 "ERROR: range ['{}', '{}') out-of-bounds for bitsize of size='{}'",
+                 start,
+                 stop,
+                 size());
+    const size_t start_word  = get_word_idx(start);
+    const size_t end_word    = start == stop ? start_word : get_word_idx(stop - 1) + 1;
+    const size_t startmod    = start % bits_per_word;
+    const size_t stopmod     = stop % bits_per_word;
+    const size_t tail_unused = stopmod == 0 ? 0 : bits_per_word - stopmod;
+
+    return views::transform(
+        views::iota(start_word, end_word),
+        word_mask_functor<LowestInfoBitIsMSB>{start_word, end_word, startmod, stopmod, tail_unused});
+  }
+
+  size_t cur_size = 0;
+};
 
 } // namespace bounded_bitset_detail
 
@@ -131,21 +190,26 @@ auto make_word_mask_range(size_t start, size_t stop, size_t bitset_size) noexcep
 /// Bit) corresponds to either the LSB or MSB of the bitset. Note that this argument has an effect on the underlying
 /// bitset memory layout.
 template <size_t N, bool LowestInfoBitIsMSB = false, typename Tag = detail::default_bounded_bitset_tag>
-class bounded_bitset
+class bounded_bitset : public bounded_bitset_detail::base_bounded_bitset<LowestInfoBitIsMSB>
 {
   using word_t                          = uint64_t;
   static constexpr size_t bits_per_word = bounded_bitset_detail::bits_per_word;
+  using base_t                          = bounded_bitset_detail::base_bounded_bitset<LowestInfoBitIsMSB>;
 
 public:
+  using base_t::bit_order;
+  using base_t::empty;
+  using base_t::size;
+
   constexpr bounded_bitset() = default;
 
-  constexpr explicit bounded_bitset(size_t cur_size_) noexcept : cur_size(cur_size_)
+  constexpr explicit bounded_bitset(size_t cur_size_) noexcept : base_t(cur_size_)
   {
     report_fatal_error_if_not(cur_size_ <= max_size(),
                               "The bounded_bitset current size cannot exceed its maximum size");
   }
 
-  constexpr bounded_bitset(const bounded_bitset& other) noexcept : cur_size(other.cur_size)
+  constexpr bounded_bitset(const bounded_bitset& other) noexcept : base_t(other.cur_size)
   {
     std::copy(other.buffer.begin(), other.buffer.begin() + nof_words_(), buffer.begin());
   }
@@ -214,16 +278,8 @@ public:
     return ret;
   }
 
-  static constexpr bool bit_order() noexcept { return LowestInfoBitIsMSB; }
-
   /// Capacity of the bounded_bitset in bits.
   static constexpr size_t max_size() noexcept { return N; }
-
-  /// Current size of the bounded_bitset in bits.
-  OCUDU_FORCE_INLINE constexpr size_t size() const noexcept { return cur_size; }
-
-  /// Returns true if the bounded_bitset size is 0.
-  OCUDU_FORCE_INLINE constexpr bool empty() const noexcept { return size() == 0; }
 
   /// \brief Resize of the bounded_bitset. If <tt> new_size > max_size() </tt>, an assertion is triggered. The newly
   /// created are set to zero.
@@ -460,8 +516,7 @@ public:
   /// \return Returns a reference to this object.
   bounded_bitset& fill(size_t startpos, size_t endpos, bool value = true) noexcept
   {
-    for (const auto& [word_idx, mask] :
-         bounded_bitset_detail::make_word_mask_range<LowestInfoBitIsMSB>(startpos, endpos, size())) {
+    for (const auto& [word_idx, mask] : make_word_mask_range(startpos, endpos)) {
       if (value) {
         buffer[word_idx] |= mask;
       } else {
@@ -526,8 +581,7 @@ public:
   /// \return Returns the lowest found bit index or -1 in case no bit was found with the provided value argument.
   int find_lowest(size_t startpos, size_t endpos, bool value = true) const noexcept
   {
-    for (const auto& [word_idx, mask] :
-         bounded_bitset_detail::make_word_mask_range<LowestInfoBitIsMSB>(startpos, endpos, size())) {
+    for (const auto& [word_idx, mask] : make_word_mask_range(startpos, endpos)) {
       word_t w = value ? buffer[word_idx] : ~buffer[word_idx];
       w &= mask;
       if (w != 0) {
@@ -690,8 +744,7 @@ public:
   /// \return Returns true if all the bits within the range are 1.
   bool all(size_t start, size_t stop) const noexcept
   {
-    for (const auto& [word_idx, mask] :
-         bounded_bitset_detail::make_word_mask_range<LowestInfoBitIsMSB>(start, stop, size())) {
+    for (const auto& [word_idx, mask] : make_word_mask_range(start, stop)) {
       if ((buffer[word_idx] | ~mask) != ~static_cast<word_t>(0)) {
         return false;
       }
@@ -767,8 +820,7 @@ public:
   /// \return Returns true if at least one bit equal to 1 was found within the range.
   bool any(size_t start, size_t stop) const noexcept
   {
-    for (const auto& [word_idx, mask] :
-         bounded_bitset_detail::make_word_mask_range<LowestInfoBitIsMSB>(start, stop, size())) {
+    for (const auto& [word_idx, mask] : make_word_mask_range(start, stop)) {
       if ((buffer[word_idx] & mask) != static_cast<word_t>(0)) {
         return true;
       }
@@ -788,8 +840,7 @@ public:
                  size(),
                  other.size());
     // A bit set in "this" but not in "other" (within the mask) breaks the subset relation.
-    for (const auto& [word_idx, mask] :
-         bounded_bitset_detail::make_word_mask_range<LowestInfoBitIsMSB>(start, stop, size())) {
+    for (const auto& [word_idx, mask] : make_word_mask_range(start, stop)) {
       if ((buffer[word_idx] & ~other.buffer[word_idx] & mask) != static_cast<word_t>(0)) {
         return false;
       }
@@ -1043,11 +1094,18 @@ private:
   friend class bounded_bitset;
   friend struct fmt::formatter<bounded_bitset<N, LowestInfoBitIsMSB, Tag>>;
 
+  using base_t::assert_range_bounds_;
+  using base_t::assert_within_bounds_;
+  using base_t::convert_bitpos_;
+  using base_t::cur_size;
+  using base_t::make_word_mask_range;
+  using base_t::maskbit;
+  using base_t::nof_words_;
+
   // Capacity of the underlying array in number of words.
   static constexpr size_t max_nof_words_() noexcept { return (N + bits_per_word - 1) / bits_per_word; }
 
   std::array<word_t, max_nof_words_()> buffer{};
-  size_t                               cur_size = 0;
 
   constexpr void sanitize_() noexcept
   {
@@ -1059,15 +1117,6 @@ private:
       } else {
         buffer[nwords - 1] &= ~((~static_cast<word_t>(0)) << n);
       }
-    }
-  }
-
-  OCUDU_FORCE_INLINE size_t convert_bitpos_(size_t bitpos) const noexcept
-  {
-    if constexpr (LowestInfoBitIsMSB) {
-      return bits_per_word - 1 - (bitpos % bits_per_word);
-    } else {
-      return bitpos;
     }
   }
 
@@ -1099,35 +1148,6 @@ private:
     const size_t word_idx = bitpos / bits_per_word;
     ocudu_assume(word_idx < buffer.size());
     buffer[word_idx] &= ~maskbit(bitpos);
-  }
-
-  /// Number of words currently in use.
-  OCUDU_FORCE_INLINE constexpr size_t nof_words_() const noexcept { return divide_ceil(size(), bits_per_word); }
-
-  constexpr void assert_within_bounds_(size_t pos, bool strict) const noexcept
-  {
-    ocudu_assert(pos < size() or (not strict and pos == size()),
-                 "ERROR: index='{}' is out-of-bounds for bitset of size='{}'",
-                 pos,
-                 size());
-  }
-
-  constexpr void assert_range_bounds_(size_t startpos, size_t endpos) const noexcept
-  {
-    ocudu_assert(startpos <= endpos and endpos <= size(),
-                 "ERROR: range ['{}', '{}') out-of-bounds for bitsize of size='{}'",
-                 startpos,
-                 endpos,
-                 size());
-  }
-
-  OCUDU_FORCE_INLINE static constexpr word_t maskbit(size_t pos) noexcept
-  {
-    if constexpr (LowestInfoBitIsMSB) {
-      return static_cast<word_t>(1U) << (bits_per_word - 1 - (pos % bits_per_word));
-    } else {
-      return static_cast<word_t>(1U) << (pos % bits_per_word);
-    }
   }
 
   /// \brief Formatting helper to convert bitset to string of bits.
