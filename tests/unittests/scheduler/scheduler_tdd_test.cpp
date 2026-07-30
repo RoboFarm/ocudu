@@ -582,7 +582,7 @@ protected:
   // confirmed.
   async_task<void> launch_transient_ue_task(du_ue_index_t idx, rnti_t rnti)
   {
-    auto req = build_ue_request(idx, rnti, {});
+    auto req               = build_ue_request(idx, rnti, {});
     req.starts_in_fallback = true;
 
     return launch_async([this, idx, rnti, req = std::move(req), ce_ok = false, msg3_ok = false](
