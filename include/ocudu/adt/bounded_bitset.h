@@ -59,7 +59,7 @@ class bounded_bitset
 public:
   constexpr bounded_bitset() = default;
 
-  constexpr explicit bounded_bitset(size_t cur_size_) : cur_size(cur_size_)
+  constexpr explicit bounded_bitset(size_t cur_size_) noexcept : cur_size(cur_size_)
   {
     report_fatal_error_if_not(cur_size_ <= max_size(),
                               "The bounded_bitset current size cannot exceed its maximum size");
@@ -95,7 +95,7 @@ public:
   /// The constructed bitset size is equal to \c values size. The values in the list are mapped one to one.
   ///
   /// \param[in] values Boolean initializer list.
-  constexpr bounded_bitset(const std::initializer_list<const bool>& values)
+  constexpr bounded_bitset(const std::initializer_list<const bool>& values) noexcept
   {
     resize(values.size());
     auto it = values.begin();
@@ -124,7 +124,7 @@ public:
   }
 
   template <typename BoundedBitSet>
-  BoundedBitSet convert_to() const
+  BoundedBitSet convert_to() const noexcept
   {
     static_assert(BoundedBitSet::max_size() == max_size() and BoundedBitSet::bit_order() == bit_order(),
                   "Conversion only supported for same N and LowestInfoBitIsMSB");
@@ -147,7 +147,7 @@ public:
 
   /// \brief Resize of the bounded_bitset. If <tt> new_size > max_size() </tt>, an assertion is triggered. The newly
   /// created are set to zero.
-  constexpr void resize(size_t new_size)
+  constexpr void resize(size_t new_size) noexcept
   {
     if (new_size == cur_size) {
       return;
@@ -171,7 +171,7 @@ public:
   /// \brief Set bit with provided index to either true or false. Assertion is triggered if pos >= max_size().
   /// \param[in] pos Position in bitset.
   /// \param[in] val Value to set the bit.
-  void set(size_t pos, bool val)
+  void set(size_t pos, bool val) noexcept
   {
     assert_within_bounds_(pos, true);
     set_(pos, val);
@@ -179,7 +179,7 @@ public:
 
   /// \brief Set bit with provided index to true. Assertion is triggered if pos >= N.
   /// \param[in] pos Position in bitset.
-  void set(size_t pos)
+  void set(size_t pos) noexcept
   {
     assert_within_bounds_(pos, true);
     set_(pos);
@@ -187,7 +187,7 @@ public:
 
   /// \brief Set bit with provided index to false. Assertion is triggered if pos >= N.
   /// \param[in] pos Position in bitset.
-  void reset(size_t pos)
+  void reset(size_t pos) noexcept
   {
     assert_within_bounds_(pos, true);
     reset_(pos);
@@ -217,7 +217,7 @@ public:
   /// \brief Appends a bit with value \c val to the set.
   ///
   /// Assertion is triggered if the resultant size exceeds the maximum size of the bitset.
-  void push_back(bool val)
+  void push_back(bool val) noexcept
   {
     size_t bitpos = size();
     resize(bitpos + 1);
@@ -231,7 +231,7 @@ public:
   ///
   /// Assertion is triggered if the resultant size exceeds the maximum size of the bitset.
   template <typename Integer>
-  void push_back(Integer val, unsigned nof_bits)
+  void push_back(Integer val, unsigned nof_bits) noexcept
   {
     static_assert(std::is_unsigned_v<Integer>, "push_back only works for unsigned integers");
     unsigned bitpos = size();
@@ -247,7 +247,7 @@ public:
   /// finishing with the most significant bit.
   /// \remark An assertion is triggered if the bit range exceed the set size.
   template <typename Integer = unsigned>
-  Integer extract(unsigned startpos, unsigned nof_bits) const
+  Integer extract(unsigned startpos, unsigned nof_bits) const noexcept
   {
     static_assert(std::is_unsigned_v<Integer>, "Extract only works for unsigned integers");
     ocudu_assert(nof_bits <= sizeof(Integer) * 8,
@@ -282,7 +282,7 @@ public:
   /// \remark The current implementation supports only a bitset containing one word. An assertion is triggered if \c
   /// other contains more than one word.
   template <unsigned long Factor>
-  bounded_bitset<Factor * N> kronecker_product(const bounded_bitset<Factor>& other) const
+  bounded_bitset<Factor * N> kronecker_product(const bounded_bitset<Factor>& other) const noexcept
   {
     static_assert(Factor <= bits_per_word,
                   "The current algorithm does not support a filter containing more than one word.");
@@ -344,7 +344,7 @@ public:
   /// \brief Check if bit with provided index is set to true.
   /// \param[in] pos Position in bitset.
   /// \return Returns true if bit at position pos is set.
-  [[nodiscard]] constexpr bool test(size_t pos) const
+  [[nodiscard]] constexpr bool test(size_t pos) const noexcept
   {
     assert_within_bounds_(pos, true);
     return test_(pos);
@@ -352,7 +352,7 @@ public:
 
   /// \brief Toggle the value at position pos. Assertion is triggered if pos >= N.
   /// \param[in] pos Position in bitset.
-  void flip(size_t pos)
+  void flip(size_t pos) noexcept
   {
     assert_within_bounds_(pos, true);
     if (test(pos)) {
@@ -378,7 +378,7 @@ public:
   /// \param[in] endpos End bit index (excluding) where the bits stop being set.
   /// \param[in] value Set bit range values to either true or false.
   /// \return Returns a reference to this object.
-  bounded_bitset& fill(size_t startpos, size_t endpos, bool value = true)
+  bounded_bitset& fill(size_t startpos, size_t endpos, bool value = true) noexcept
   {
     find_first_word_(*this, startpos, endpos, [value](word_t& w, const word_t& mask) {
       if (value) {
@@ -397,7 +397,7 @@ public:
   /// \param[in] startpos The bit index where the subview starts.
   /// \param[in] endpos The bit index where the subview stops.
   template <size_t N2 = N, typename NewTag = Tag>
-  bounded_bitset<N2, LowestInfoBitIsMSB, NewTag> slice(size_t startpos, size_t endpos) const
+  bounded_bitset<N2, LowestInfoBitIsMSB, NewTag> slice(size_t startpos, size_t endpos) const noexcept
   {
     bounded_bitset<N2, LowestInfoBitIsMSB, NewTag> sliced(endpos - startpos);
     const unsigned                                 start_word = startpos / bits_per_word;
@@ -609,7 +609,7 @@ public:
 
   /// \brief Checks if all bits within a bit index range are set to 1.
   /// \return Returns true if all the bits within the range are 1.
-  bool all(size_t start, size_t stop) const
+  bool all(size_t start, size_t stop) const noexcept
   {
     bool not_all_found = find_first_word_(*this, start, stop, [](const word_t& word, const word_t& mask) {
       return (word | ~mask) != ~static_cast<word_t>(0);
@@ -683,7 +683,7 @@ public:
 
   /// \brief Checks if at least one bit in the bitset is set to 1 within a bit index range.
   /// \return Returns true if at least one bit equal to 1 was found within the range.
-  bool any(size_t start, size_t stop) const
+  bool any(size_t start, size_t stop) const noexcept
   {
     bool any_found = find_first_word_(
         *this, start, stop, [](const word_t& w, const word_t& mask) { return (w & mask) != static_cast<word_t>(0); });
@@ -695,7 +695,7 @@ public:
   /// \param[in] start Starting bit index of the range (included).
   /// \param[in] stop End bit index of the range (excluded).
   /// \return Returns true if this bitset restricted to [start, stop) is a subset of "other", false otherwise.
-  bool is_subset_of(const bounded_bitset& other, size_t start, size_t stop) const
+  bool is_subset_of(const bounded_bitset& other, size_t start, size_t stop) const noexcept
   {
     ocudu_assert(other.size() == size(),
                  "ERROR: is_subset_of called for bitsets of different sizes ('{}'!='{}')",
@@ -787,7 +787,7 @@ public:
   /// \brief Applies bitwise OR operation lhs |= rhs.
   /// \param[in] other Bitset which corresponds to the rhs of the operation.
   /// \return This object updated after the bitwise OR operation.
-  bounded_bitset& operator|=(const bounded_bitset& other)
+  bounded_bitset& operator|=(const bounded_bitset& other) noexcept
   {
     ocudu_assert(other.size() == size(),
                  "ERROR: operator|= called for bitsets of different sizes ('{}'!='{}')",
@@ -802,7 +802,7 @@ public:
   /// \brief Applies bitwise AND operation lhs &= rhs.
   /// \param[in] other Bitset which corresponds to the rhs of the operation.
   /// \return This object updated after the bitwise AND operation.
-  bounded_bitset& operator&=(const bounded_bitset& other)
+  bounded_bitset& operator&=(const bounded_bitset& other) noexcept
   {
     ocudu_assert(other.size() == size(),
                  "ERROR: operator&= called for bitsets of different sizes ('{}'!='{}')",
@@ -826,7 +826,7 @@ public:
   /// \brief Conversion of bounded_bitset to unsigned integer of 64 bits. If bitset size is larger than 64 bits, an
   /// assertion is triggered.
   /// \return Unsigned integer representation of the bounded_bitset.
-  uint64_t to_uint64() const
+  uint64_t to_uint64() const noexcept
   {
     ocudu_assert(nof_words_() == 1, "ERROR: cannot convert bitset of size='{}' to uint64_t", size());
     if constexpr (LowestInfoBitIsMSB) {
@@ -839,7 +839,7 @@ public:
   /// \brief Conversion of unsigned integer of 64 bits to bounded_bitset. If passed bitmap doesn't fit in the bitset,
   /// an assertion is triggered.
   /// \param[in] v Integer bitmap that is going to be stored in the bitset.
-  void from_uint64(uint64_t v)
+  void from_uint64(uint64_t v) noexcept
   {
     ocudu_assert(nof_words_() == 1, "ERROR: cannot convert bitset of size='{}' to uint64_t", size());
     ocudu_assert((size() == 64U) || (v < (static_cast<uint64_t>(1U) << size())),
@@ -861,7 +861,7 @@ public:
   /// bitset size (in bits) divided by \c sizeof(UnsignedInteger) * 8U (the number of bits per integer).
   /// \return Returns the number of positions of \c packed_bits that were written during the function call.
   template <typename UnsignedInteger>
-  size_t to_packed_bits(span<UnsignedInteger> packed_bits) const
+  size_t to_packed_bits(span<UnsignedInteger> packed_bits) const noexcept
   {
     static_assert(sizeof(UnsignedInteger) <= sizeof(word_t), "ERROR: provided array type is too large");
     static_assert(std::is_unsigned_v<UnsignedInteger>, "Only unsigned integers are supported");
@@ -909,7 +909,7 @@ public:
   /// unsigned integer. \param[in] unpacked_bits Array where the unpacked bits will be stored. The array size must be
   /// equal or larger than the bitset size (in bits). \return Returns the number of bits packed.
   template <typename UnsignedInteger>
-  void to_unpacked_bits(span<UnsignedInteger> unpacked_bits) const
+  void to_unpacked_bits(span<UnsignedInteger> unpacked_bits) const noexcept
   {
     static_assert(std::is_unsigned_v<UnsignedInteger>, "Only unsigned integers are supported");
     ocudu_assert(size() == unpacked_bits.size(),
@@ -929,7 +929,7 @@ public:
   ///
   /// \param[in] value Selects the bits whose positions are returned. Set to \c true to find ones, \c false for zeros.
   /// \return A list containing the bit positions.
-  static_vector<size_t, N> get_bit_positions(bool value = true) const
+  static_vector<size_t, N> get_bit_positions(bool value = true) const noexcept
   {
     static_vector<size_t, N> positions;
 
@@ -961,7 +961,7 @@ private:
   std::array<word_t, max_nof_words_()> buffer{};
   size_t                               cur_size = 0;
 
-  constexpr void sanitize_()
+  constexpr void sanitize_() noexcept
   {
     const size_t n = size() % bits_per_word;
     if (n != 0) {
@@ -1016,7 +1016,7 @@ private:
   /// Number of words currently in use.
   OCUDU_FORCE_INLINE constexpr size_t nof_words_() const noexcept { return divide_ceil(size(), bits_per_word); }
 
-  constexpr size_t word_idx_(size_t bitidx) const { return bitidx / bits_per_word; }
+  constexpr size_t word_idx_(size_t bitidx) const noexcept { return bitidx / bits_per_word; }
 
   constexpr void assert_within_bounds_(size_t pos, bool strict) const noexcept
   {
@@ -1058,7 +1058,7 @@ private:
   /// each word of the bitset. When this callback returns true, the iteration is stopped.
   /// \return true if the provided callback returns true for a given word. False otherwise.
   template <typename Self, typename C>
-  static bool find_first_word_(Self& self, size_t start, size_t stop, const C& pred)
+  static bool find_first_word_(Self& self, size_t start, size_t stop, const C& pred) noexcept
   {
     self.assert_range_bounds_(start, stop);
     if (start == stop) {
