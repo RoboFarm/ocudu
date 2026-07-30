@@ -170,7 +170,7 @@ TYPED_TEST(bounded_bitset_tester, set_bit)
       bitmap.set(i);
     }
   }
-  ASSERT_EQ(bitmap, expected_bitmap) << fmt::format("failed {} != {}", bitmap, expected_bitmap);
+  ASSERT_EQ(bitmap, expected_bitmap);
 }
 
 TYPED_TEST(bounded_bitset_tester, bitwise_or)
@@ -219,8 +219,7 @@ TYPED_TEST(bounded_bitset_tester, any_range)
           break;
         }
       }
-      ASSERT_EQ(expected_val, bitmap.any(i, i + l))
-          << fmt::format("For bitmap={:x} of size={} in [{}, {})", bitmap, bitmap.size(), i, i + l);
+      ASSERT_EQ(expected_val, bitmap.any(i, i + l)) << "l=" << l << " i=" << i;
     }
   }
 }
@@ -239,8 +238,7 @@ TYPED_TEST(bounded_bitset_tester, all_range)
           break;
         }
       }
-      ASSERT_EQ(expected_val, bitmap.all(i, i + l))
-          << fmt::format("For bitmap={:x} of size={} in [{}, {})", bitmap, bitmap.size(), i, i + l);
+      ASSERT_EQ(expected_val, bitmap.all(i, i + l)) << "l=" << l << " i=" << i;
     }
   }
 }
@@ -261,8 +259,7 @@ TYPED_TEST(bounded_bitset_tester, is_subset_of)
           break;
         }
       }
-      ASSERT_EQ(expected_val, bitmap1.is_subset_of(bitmap2, i, i + l)) << fmt::format(
-          "For bitmap1={:x} and bitmap2={:x} of size={} in [{}, {})", bitmap1, bitmap2, bitmap1.size(), i, i + l);
+      ASSERT_EQ(expected_val, bitmap1.is_subset_of(bitmap2, i, i + l)) << "l=" << l << " i=" << i;
     }
   }
 
@@ -287,8 +284,7 @@ TYPED_TEST(bounded_bitset_tester, fill_ones)
       auto bitmap = zeros_bitmap;
       bitmap.fill(i, i + l);
       ASSERT_FALSE(bitmap.any(0, i));
-      ASSERT_TRUE(bitmap.all(i, i + l)) << fmt::format(
-          "For bitmap={:x} of size={} in [{}, {})", bitmap, bitmap.size(), i, i + l);
+      ASSERT_TRUE(bitmap.all(i, i + l)) << "l=" << l << " i=" << i;
       ASSERT_FALSE(bitmap.any(i + l, bitset_size));
     }
   }
@@ -303,11 +299,9 @@ TYPED_TEST(bounded_bitset_tester, fill_zeros)
     for (unsigned i = 0; i < bitset_size - l; ++i) {
       auto bitmap = ones_bitmap;
       bitmap.fill(i, i + l, false);
-      ASSERT_TRUE(bitmap.all(0, i)) << fmt::format(
-          "For bitmap={:x} of size={} in [{}, {})", bitmap, bitmap.size(), i, i + l);
+      ASSERT_TRUE(bitmap.all(0, i)) << "l=" << l << " i=" << i;
       ASSERT_FALSE(bitmap.any(i, i + l));
-      ASSERT_TRUE(bitmap.all(i + l, bitset_size))
-          << fmt::format("For bitmap={:x} of size={} in [{}, {})", bitmap, bitmap.size(), i, i + l);
+      ASSERT_TRUE(bitmap.all(i + l, bitset_size)) << "l=" << l << " i=" << i;
     }
   }
 }
@@ -398,13 +392,8 @@ TYPED_TEST(bounded_bitset_tester, hex_format_is_mirror_of_hex_format_reverse)
   bounded_bitset<N, BitOrder>     bitmap(vec.begin(), vec.end());
   bounded_bitset<N, not BitOrder> bitmap_reversed(vec.begin(), vec.end());
 
-  std::string str          = fmt::format("{:b}", bitmap);
-  std::string str_reverse  = fmt::format("{:br}", bitmap);
-  std::string str2         = fmt::format("{:b}", bitmap_reversed);
-  std::string str2_reverse = fmt::format("{:br}", bitmap_reversed);
-
-  ASSERT_EQ(str_reverse, str_reverse);
-  ASSERT_EQ(str, str2_reverse);
+  ASSERT_EQ(fmt::format("{:x}", bitmap), fmt::format("{:xr}", bitmap_reversed));
+  ASSERT_EQ(fmt::format("{:xr}", bitmap), fmt::format("{:x}", bitmap_reversed));
 }
 
 TYPED_TEST(bounded_bitset_tester, push_back)
