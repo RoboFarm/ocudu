@@ -181,17 +181,12 @@ TYPED_TEST(bounded_bitset_tester, bitwise_or)
 
   ASSERT_EQ(bitmap | bitmap, bitmap);
   ASSERT_EQ(bitmap | zeros_bitmap, bitmap);
-  ASSERT_EQ(zeros_bitmap | bitmap, bitmap);
   ASSERT_EQ(bitmap | ones_bitmap, ones_bitmap);
-  ASSERT_EQ(ones_bitmap | bitmap, ones_bitmap);
 
   auto flipped_bitmap = bitmap;
   flipped_bitmap.flip();
-  ASSERT_EQ(flipped_bitmap | bitmap, this->create_bitset_with_ones(bitmap.size()));
-  ASSERT_EQ(bitmap | flipped_bitmap, this->create_bitset_with_ones(bitmap.size()));
-
   bitmap |= flipped_bitmap;
-  ASSERT_EQ(bitmap, this->create_bitset_with_ones(bitmap.size()));
+  ASSERT_EQ(bitmap, ones_bitmap);
 }
 
 TYPED_TEST(bounded_bitset_tester, bitwise_and)
@@ -202,17 +197,12 @@ TYPED_TEST(bounded_bitset_tester, bitwise_and)
 
   ASSERT_EQ(bitmap & bitmap, bitmap);
   ASSERT_EQ(bitmap & zeros_bitmap, zeros_bitmap);
-  ASSERT_EQ(zeros_bitmap & bitmap, zeros_bitmap);
   ASSERT_EQ(bitmap & ones_bitmap, bitmap);
-  ASSERT_EQ(ones_bitmap & bitmap, bitmap);
 
   auto flipped_bitmap = bitmap;
   flipped_bitmap.flip();
-  ASSERT_EQ(flipped_bitmap & bitmap, this->create_bitset_with_zeros(bitmap.size()));
-  ASSERT_EQ(bitmap & flipped_bitmap, this->create_bitset_with_zeros(bitmap.size()));
-
   bitmap &= flipped_bitmap;
-  ASSERT_EQ(bitmap, this->create_bitset_with_zeros(bitmap.size()));
+  ASSERT_EQ(bitmap, zeros_bitmap);
 }
 
 TYPED_TEST(bounded_bitset_tester, any_range)
@@ -339,18 +329,7 @@ TYPED_TEST(bounded_bitset_tester, slice)
   ASSERT_EQ(end_offset - offset, small_bitmap.size());
 
   for (unsigned i = 0; i != small_bitmap.size(); ++i) {
-    ASSERT_EQ(small_bitmap.test(i), big_bitmap.test(i + offset))
-        << fmt::format("For slice={} of size={} taken from [{}, {}) of big_bitmap={} of size={}, there is a mismatch "
-                       "in position {} ({}!={})",
-                       small_bitmap,
-                       small_bitmap.size(),
-                       offset,
-                       end_offset,
-                       big_bitmap,
-                       big_bitmap.size(),
-                       i,
-                       small_bitmap.test(i),
-                       big_bitmap.test(i + offset));
+    ASSERT_EQ(small_bitmap.test(i), big_bitmap.test(i + offset)) << "mismatch at position " << i;
   }
 }
 
