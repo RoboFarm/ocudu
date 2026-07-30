@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (C) 2021-2026 Software Radio Systems Limited
 # SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 
-
 set_directory_properties(PROPERTIES LABELS "support")
 
 include_directories(../../..)
@@ -109,3 +108,7 @@ add_test(resource_usage_test resource_usage_test)
 add_executable(math_test math/mod_math_utils_test.cpp math/curve_fitting_find_max_test.cpp)
 target_link_libraries(math_test ocudu_support_math ocuduvec gtest ocudu_gtest_main)
 add_test(math_test math_test)
+
+add_executable(bit_opts_test math/bit_opts_test.cpp)
+target_link_libraries(bit_opts_test ocudu_support_math gtest ocudu_gtest_main)
+add_test(bit_opts_test bit_opts_test)
