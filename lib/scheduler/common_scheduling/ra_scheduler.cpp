@@ -182,7 +182,7 @@ ra_scheduler::ra_scheduler(const cell_configuration& cellcfg_,
   pending_crcs(CRC_IND_QUEUE_SIZE),
   ra_ue_repo(ra_ue_repo_),
   pending_cfra_ues(
-      ra_helper::get_msg1_cf_preambles_per_ssb(*cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common) > 0
+      ra_helper::get_msg1_cfra_preambles_per_ssb(*cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common) > 0
           ? MAX_NOF_DU_UES
           : 0)
 {

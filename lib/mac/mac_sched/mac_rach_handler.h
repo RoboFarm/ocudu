@@ -109,7 +109,7 @@ private:
   /// Number of slots a MsgA TC-RNTI mapping entry remains valid for, before being treated as expired.
   const unsigned msga_tc_rnti_ttl_slots;
 
-  std::vector<std::atomic<rnti_t>> msg1_cf_preambles;
+  std::vector<std::atomic<rnti_t>> msg1_cfra_preambles;
 
   /// \brief Pending RAPID -> (RA-RNTI, TC-RNTI) mappings for ongoing 2-step RACH attempts, indexed by
   /// get_msga_cb_index(rapid).

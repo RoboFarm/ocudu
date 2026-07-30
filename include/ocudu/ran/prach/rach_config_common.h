@@ -172,7 +172,7 @@ inline uint8_t get_msga_cb_preambles_per_ssb(const rach_config_common& rach_cfg)
 }
 
 /// Determines the number of 4-step RACH (Msg1) contention-free preambles per SSB.
-inline uint8_t get_msg1_cf_preambles_per_ssb(const rach_config_common& rach_cfg)
+inline uint8_t get_msg1_cfra_preambles_per_ssb(const rach_config_common& rach_cfg)
 {
   return get_preambles_per_ssb(rach_cfg) - rach_cfg.nof_cb_preambles_per_ssb - get_msga_cb_preambles_per_ssb(rach_cfg);
 }

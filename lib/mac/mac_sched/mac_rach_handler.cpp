@@ -31,9 +31,9 @@ static unsigned get_total_msga_cb_preambles(const rach_config_common& rach_cfg)
   return ra_helper::get_msga_cb_preambles_per_ssb(rach_cfg) * get_nof_ssbs_per_ro(rach_cfg);
 }
 
-static unsigned get_total_msg1_cf_preambles(const rach_config_common& rach_cfg)
+static unsigned get_total_msg1_cfra_preambles(const rach_config_common& rach_cfg)
 {
-  return ra_helper::get_msg1_cf_preambles_per_ssb(rach_cfg) * get_nof_ssbs_per_ro(rach_cfg);
+  return ra_helper::get_msg1_cfra_preambles_per_ssb(rach_cfg) * get_nof_ssbs_per_ro(rach_cfg);
 }
 
 mac_cell_rach_handler_impl::mac_cell_rach_handler_impl(mac_rach_handler&                               parent_,
@@ -49,11 +49,11 @@ mac_cell_rach_handler_impl::mac_cell_rach_handler_impl(mac_rach_handler&        
                 sched_cfg.ran.ul_cfg_common.init_ul_bwp.rach_cfg_common->two_step_rach_cfg->pusch.td_offset) +
                 sched_cfg.ran.ul_cfg_common.init_ul_bwp.rach_cfg_common->two_step_rach_cfg->msgB_response_window_slots
           : 0U),
-  msg1_cf_preambles(get_total_msg1_cf_preambles(rach_cfg_common)),
+  msg1_cfra_preambles(get_total_msg1_cfra_preambles(rach_cfg_common)),
   msga_tc_rntis(get_total_msga_cb_preambles(rach_cfg_common)),
   msga_con_res_ids(get_total_msga_cb_preambles(rach_cfg_common))
 {
-  for (auto& preamble : msg1_cf_preambles) {
+  for (auto& preamble : msg1_cfra_preambles) {
     preamble.store(rnti_t::INVALID_RNTI, std::memory_order_relaxed);
   }
   for (auto& entry : msga_tc_rntis) {
@@ -72,7 +72,7 @@ unsigned mac_cell_rach_handler_impl::get_cfra_index(unsigned ra_preamble_id) con
 {
   ocudu_assert(ra_helper::is_msg1_cf_preamble(rach_cfg_common, ra_preamble_id), "Invalid CFRA preamble");
   const uint8_t  preambles_per_ssb    = ra_helper::get_preambles_per_ssb(rach_cfg_common);
-  const uint8_t  cf_preambles_per_ssb = ra_helper::get_msg1_cf_preambles_per_ssb(rach_cfg_common);
+  const uint8_t  cf_preambles_per_ssb = ra_helper::get_msg1_cfra_preambles_per_ssb(rach_cfg_common);
   const uint8_t  win_start            = preambles_per_ssb - cf_preambles_per_ssb;
   const uint8_t  local_idx            = (ra_preamble_id % preambles_per_ssb) - win_start;
   const unsigned ssb_idx              = ra_preamble_id / preambles_per_ssb;
@@ -109,7 +109,7 @@ void mac_cell_rach_handler_impl::handle_rach_indication(const mac_rach_indicatio
       rnti_t selected_rnti = rnti_t::INVALID_RNTI;
       if (ra_helper::is_msg1_cf_preamble(rach_cfg_common, preamble.index)) {
         // Fetch C-RNTI if it is Contention-free RACH (CFRA) preamble.
-        selected_rnti = msg1_cf_preambles[get_cfra_index(preamble.index)].load(std::memory_order_acquire);
+        selected_rnti = msg1_cfra_preambles[get_cfra_index(preamble.index)].load(std::memory_order_acquire);
         if (selected_rnti == rnti_t::INVALID_RNTI) {
           parent.logger.info("cell={} preamble id={}: Ignoring detected contention-free PRACH preamble. Cause: No "
                              "C-RNTI was allocated this preamble.",
@@ -246,7 +246,7 @@ bool mac_cell_rach_handler_impl::handle_cfra_allocation(uint8_t preamble_id, du_
   }
   const unsigned idx           = get_cfra_index(preamble_id);
   rnti_t         expected_rnti = rnti_t::INVALID_RNTI;
-  if (msg1_cf_preambles[idx].compare_exchange_strong(expected_rnti, crnti, std::memory_order_acq_rel)) {
+  if (msg1_cfra_preambles[idx].compare_exchange_strong(expected_rnti, crnti, std::memory_order_acq_rel)) {
     parent.ue_map[ue_idx].preamble_id = preamble_id;
     parent.ue_map[ue_idx].cell_index  = cell_index;
     return true;
@@ -260,7 +260,7 @@ void mac_cell_rach_handler_impl::handle_cfra_deallocation(du_ue_index_t ue_idx)
   const uint8_t preamble_id = ue_entry.preamble_id;
   if (preamble_id != MAX_NOF_RA_PREAMBLES_PER_OCCASION) {
     ue_entry.preamble_id = MAX_NOF_RA_PREAMBLES_PER_OCCASION;
-    msg1_cf_preambles[get_cfra_index(preamble_id)].store(rnti_t::INVALID_RNTI, std::memory_order_release);
+    msg1_cfra_preambles[get_cfra_index(preamble_id)].store(rnti_t::INVALID_RNTI, std::memory_order_release);
   }
 }
 

@@ -51,7 +51,7 @@ struct ra_ue_context {
 
 /// \brief Repository of in-flight Random Access attempts, indexed by TC-RNTI in a circular hashing fashion (the
 /// UE index is not yet assigned at this stage of the RA procedure). Also owns the pool of HARQ processes backing
-/// each attempt's \c harq_ent, so that the two share a single lifetime.
+/// each attempt's \c harq_ent, so that the attempt and its backing HARQ process share a single lifetime.
 ///
 /// Shared between the RA scheduler, which owns the RA procedure and is the sole writer, and the UE-dedicated
 /// scheduler (fallback scheduler, UE event manager).
