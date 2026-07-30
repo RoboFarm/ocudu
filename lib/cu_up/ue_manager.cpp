@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_manager.h"
+#include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/async/execute_on_blocking.h"
 
 using namespace ocudu;
@@ -193,6 +194,13 @@ async_task<expected<>> ue_manager::schedule_and_wait_ue_removal(cu_up_ue_index_t
       CORO_RETURN(make_unexpected(default_error_t{}));
     });
   }
+
+  // Skip if UE is already flagged for removal; flag it for removal otherwise.
+  if (ue_ctx->remove_pending()) {
+    logger.info("ue={}: Skipped scheduling UE removal, UE removal is already pending.", fmt::underlying(ue_index));
+    return launch_no_op_task(expected<>{});
+  }
+  ue_ctx->request_removal();
 
   auto t = launch_async([this, ue_index](coro_context<async_task<void>>& ctx) mutable {
     CORO_BEGIN(ctx);

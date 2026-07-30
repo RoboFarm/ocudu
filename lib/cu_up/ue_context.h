@@ -181,6 +181,9 @@ public:
 
   bool resume_pending() const { return resume_requested; }
 
+  /// \brief Checks whether the removal of this UE context is pending to avoid duplication.
+  bool remove_pending() const { return remove_requested; }
+
   void suspend()
   {
     ocudu_assert(st != bearer_context_state_t::suspended, "Trying to suspend already suspended bearer context");
@@ -195,6 +198,9 @@ public:
     pdu_session_manager.resume();
     resume_requested = false;
   }
+
+  /// \brief Flags the removal of this UE context as pending to avoid duplication.
+  void request_removal() { remove_requested = true; }
 
   cu_up_e1_index_t get_e1_index() { return e1ap.get_e1_index(); }
 
@@ -214,6 +220,7 @@ private:
   unique_timer           ue_inactivity_timer;
   bearer_context_state_t st{bearer_context_state_t::active};
   bool                   resume_requested{false};
+  bool                   remove_requested{false};
 
   /// Handle expired UE inactivity timer. This function is called from a timer that is run in UE executor,
   /// therefore it handovers the handling to control executor.

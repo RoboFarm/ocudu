@@ -7,6 +7,7 @@
 #include "routines/cu_up_bearer_context_modification_routine.h"
 #include "routines/cu_up_e1_connection_loss_routine.h"
 #include "routines/cu_up_test_mode_routines.h"
+#include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/async/execute_on_blocking.h"
 
 using namespace ocudu;
@@ -148,6 +149,13 @@ cu_up_manager_impl::handle_bearer_context_release_command(const e1ap_bearer_cont
 
   ue_ctxt->get_logger().log_debug("Received E1 Bearer Context Release Command");
 
+  // Skip if UE is already flagged for removal; flag it for removal otherwise.
+  if (ue_ctxt->remove_pending()) {
+    logger.info("ue={}: Skipped scheduling UE removal, UE removal is already pending.", fmt::underlying(msg.ue_index));
+    return launch_no_op_task();
+  }
+  ue_ctxt->request_removal();
+
   return ue_mng->remove_ue(msg.ue_index);
 }
 
@@ -183,8 +191,22 @@ async_task<void> cu_up_manager_impl::handle_e1_reset(const e1ap_reset& msg)
     CORO_BEGIN(ctx);
     ue_it = msg.ues.begin();
     while (ue_it != msg.ues.end()) {
+      {
+        ue_context* ue_ctxt = ue_mng->find_ue(*ue_it);
+        if (ue_ctxt == nullptr) {
+          logger.warning("ue={}: Non-existent UE in partial E1 reset.", fmt::underlying(*ue_it));
+          ++ue_it;
+          continue;
+        }
+        if (ue_ctxt->remove_pending()) {
+          logger.info("ue={}: Skipped E1 reset removal, UE removal is already pending.", fmt::underlying(*ue_it));
+          ++ue_it;
+          continue;
+        }
+        ue_ctxt->request_removal();
+      }
       CORO_AWAIT(ue_mng->remove_ue(*ue_it));
-      ue_it++;
+      ++ue_it;
     }
     CORO_RETURN();
   });
