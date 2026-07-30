@@ -13,7 +13,6 @@
 #include "fmt/format.h"
 #include <algorithm>
 #include <cinttypes>
-#include <string>
 
 namespace ocudu {
 
@@ -209,11 +208,6 @@ public:
                               "The bounded_bitset current size cannot exceed its maximum size");
   }
 
-  constexpr bounded_bitset(const bounded_bitset& other) noexcept : base_t(other.cur_size)
-  {
-    std::copy(other.buffer.begin(), other.buffer.begin() + nof_words_(), buffer.begin());
-  }
-
   /// \brief Constructs a bitset using iterators.
   ///
   /// The constructed bitset size is equal to <tt> end - begin </tt> size. The values in the list are mapped one to one
@@ -247,24 +241,6 @@ public:
       set_(count, *it);
       ++it;
     }
-  }
-
-  constexpr bounded_bitset& operator=(const bounded_bitset& other) noexcept
-  {
-    if (this != &other) {
-      // In case of shrink, reset erased bits.
-      const size_t other_nof_words = other.nof_words_();
-      const size_t this_nof_words  = nof_words_();
-      ocudu_assume(other_nof_words <= buffer.size());
-      ocudu_assume(this_nof_words <= buffer.size());
-      // Note: We use < comparison because other can be larger than this.
-      for (size_t i = other_nof_words; i < this_nof_words; ++i) {
-        buffer[i] = static_cast<word_t>(0);
-      }
-      cur_size = other.cur_size;
-      std::copy(other.buffer.begin(), other.buffer.begin() + other_nof_words, buffer.begin());
-    }
-    return *this;
   }
 
   template <typename BoundedBitSet>
@@ -1163,8 +1139,6 @@ private:
 
     reverse = reverse ^ LowestInfoBitIsMSB;
 
-    std::string s;
-    s.assign(size(), '0');
     if (!reverse) {
       for (size_t i = size(); i != 0; --i) {
         fmt::format_to(mem_buffer, "{}", test(i - 1) ? '1' : '0');
