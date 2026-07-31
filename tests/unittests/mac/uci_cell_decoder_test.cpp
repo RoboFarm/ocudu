@@ -39,8 +39,8 @@ protected:
 
     // Store the expected CSI report configuration for the slot under test.
     ul_sched_info pusch{};
-    pusch.pusch_cfg.rnti                          = test_rnti;
-    pusch.uci.emplace().csi.emplace().csi_rep_cfg = make_csi_rep_cfg();
+    pusch.pusch_cfg.rnti = test_rnti;
+    pusch.uci.emplace().csi.emplace(uci_info::csi_info{.csi_rep_cfg = make_csi_rep_cfg()});
     decoder.store_uci(sl_rx, {}, {&pusch, 1});
   }
   ~uci_cell_decoder_aperiodic_csi_test() override { ocudulog::flush(); }
