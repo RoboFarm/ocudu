@@ -727,7 +727,9 @@ TEST_F(du_high_cg_tester, when_all_drbs_removed_then_cs_rnti_is_deallocated)
     asn1::rrc_nr::cell_group_cfg_s cell_grp_cfg;
     ASSERT_EQ(cell_grp_cfg.unpack(bref), asn1::OCUDUASN_SUCCESS);
     ASSERT_TRUE(cell_grp_cfg.phys_cell_group_cfg_present) << "PhysCellGroupConfig should be present";
-    ASSERT_FALSE(cell_grp_cfg.phys_cell_group_cfg.cs_rnti_present)
-        << "CS-RNTI should be deallocated when all DRBs are removed";
+    ASSERT_TRUE(cell_grp_cfg.phys_cell_group_cfg.cs_rnti_present)
+        << "CS-RNTI field should be present when CS-RNTI is deallocated";
+    ASSERT_EQ(cell_grp_cfg.phys_cell_group_cfg.cs_rnti.type(), asn1::setup_release_opts::release)
+        << "CS-RNTI should be released when all DRBs are removed";
   }
 }

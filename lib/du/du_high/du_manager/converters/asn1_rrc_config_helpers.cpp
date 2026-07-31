@@ -3742,9 +3742,13 @@ void ocudu::odu::calculate_cell_group_config_diff(asn1::rrc_nr::cell_group_cfg_s
     out.phys_cell_group_cfg.p_nr_fr1_present = true;
     out.phys_cell_group_cfg.p_nr_fr1         = dest.cell_group.pcg_cfg.p_nr_fr1.value();
   }
-  if (dest.cell_group.pcg_cfg.cs_rnti.has_value()) {
-    out.phys_cell_group_cfg.cs_rnti_present     = true;
-    out.phys_cell_group_cfg.cs_rnti.set_setup() = to_value(dest.cell_group.pcg_cfg.cs_rnti.value());
+  if (dest.cell_group.pcg_cfg.cs_rnti.has_value() or src.cell_group.pcg_cfg.cs_rnti.has_value()) {
+    out.phys_cell_group_cfg.cs_rnti_present = true;
+    if (dest.cell_group.pcg_cfg.cs_rnti.has_value()) {
+      out.phys_cell_group_cfg.cs_rnti.set_setup() = to_value(dest.cell_group.pcg_cfg.cs_rnti.value());
+    } else {
+      out.phys_cell_group_cfg.cs_rnti.set_release();
+    }
   }
   out.phys_cell_group_cfg.pdsch_harq_ack_codebook.value =
       dest.cell_group.pcg_cfg.pdsch_harq_codebook == pdsch_harq_ack_codebook::dynamic
