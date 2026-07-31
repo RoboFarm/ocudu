@@ -54,7 +54,10 @@ public:
     rlc_tx->handle_sdu(std::move(sdu), is_retx);
   }
 
-  void on_discard_sdu(uint32_t pdcp_sn) override { rlc_tx->discard_sdu(pdcp_sn); }
+  void on_discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size) override
+  {
+    rlc_tx->discard_sdu(pdcp_sn_start, block_size);
+  }
 
 private:
   rlc_tx_upper_layer_data_interface* rlc_tx = nullptr;

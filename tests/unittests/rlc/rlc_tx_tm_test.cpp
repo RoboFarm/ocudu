@@ -285,7 +285,7 @@ TEST_F(rlc_tx_tm_test, discard_sdu_increments_discard_failure_counter)
   EXPECT_EQ(tester->bsr_count, 1);
 
   // Try discard of valid SDU - but TM does not support any discard, discard failures are counted
-  rlc->discard_sdu(0);
+  rlc->discard_sdu(0, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(tester->bsr.pending_bytes, sdu_size);
   EXPECT_EQ(tester->bsr_count, 1);
@@ -470,9 +470,9 @@ TEST_F(rlc_tx_tm_test, multiple_discard_failures_accumulate)
   rlc->handle_sdu(sdu_buf.deep_copy().value(), false);
   pcell_worker.run_pending_tasks();
 
-  rlc->discard_sdu(0);
-  rlc->discard_sdu(1);
-  rlc->discard_sdu(2);
+  rlc->discard_sdu(0, 1);
+  rlc->discard_sdu(1, 1);
+  rlc->discard_sdu(2, 1);
 
   rlc_tx_metrics m = rlc->get_metrics();
   EXPECT_EQ(m.tx_high.num_discard_failures, 3);

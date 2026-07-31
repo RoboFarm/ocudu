@@ -91,7 +91,7 @@ public:
 
   // Interfaces for higher layers
   void handle_sdu(byte_buffer sdu_buf, bool is_retx) override;
-  void discard_sdu(uint32_t pdcp_sn) override;
+  void discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size) override;
 
   // Interfaces for lower layers
   size_t           pull_pdu(span<uint8_t> mac_sdu_buf) noexcept override;

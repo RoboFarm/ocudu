@@ -111,15 +111,31 @@ void rlc_tx_am_entity::handle_sdu(byte_buffer sdu_buf, bool is_retx)
 }
 
 // TS 38.322 v16.2.0 Sec. 5.4
-void rlc_tx_am_entity::discard_sdu(uint32_t pdcp_sn)
+void rlc_tx_am_entity::discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size)
 {
-  if (sdu_queue.try_discard(pdcp_sn)) {
-    logger.log_info("Discarded SDU. pdcp_sn={}", pdcp_sn);
-    metrics_high.metrics_add_discard(1);
-    handle_changed_buffer_state();
-  } else {
-    logger.log_info("Could not discard SDU. pdcp_sn={}", pdcp_sn);
+  if (OCUDU_UNLIKELY(block_size == 0)) {
+    logger.log_warning(
+        "Ignoring discard of empty SDU block. pdcp_sn_start={} block_size={}", pdcp_sn_start, block_size);
     metrics_high.metrics_add_discard_failure(1);
+    return;
+  }
+
+  uint32_t pdcp_sn_end = pdcp_sn_start + block_size;
+  uint32_t nof_ok      = 0;
+  uint32_t nof_fail    = 0;
+  logger.log_info("Discarding SDUs. pdcp_sn={}..{}", pdcp_sn_start, pdcp_sn_end - 1);
+  for (uint32_t pdcp_sn = pdcp_sn_start; pdcp_sn < pdcp_sn_end; pdcp_sn++) {
+    if (sdu_queue.try_discard(pdcp_sn)) {
+      nof_ok++;
+    } else {
+      nof_fail++;
+      logger.log_info("Could not discard SDU. pdcp_sn={}", pdcp_sn);
+    }
+  }
+  metrics_high.metrics_add_discard(nof_ok);
+  metrics_high.metrics_add_discard_failure(nof_fail);
+  if (nof_ok > 0) {
+    handle_changed_buffer_state();
   }
 }
 

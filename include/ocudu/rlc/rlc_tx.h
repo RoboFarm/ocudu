@@ -73,9 +73,10 @@ public:
   /// \param is_retx Determines wheter the SDU is a PDCP retransmission or not
   virtual void handle_sdu(byte_buffer sdu_buf, bool is_retx) = 0;
 
-  /// \brief Interface for higher layers to discard SDUs from RLC queue
-  /// \param pdcp_sn PDCP sequence number (SN) of the SDU that is to be discarded
-  virtual void discard_sdu(uint32_t pdcp_sn) = 0;
+  /// \brief Interface for higher layers to discard a block of SDUs from RLC queue.
+  /// \param pdcp_sn_start PDCP sequence number (SN) of the first SDU in of the block that is to be discarded.
+  /// \param block_size Number of consecutive PDCP SNs to be discarded.
+  virtual void discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size) = 0;
 };
 
 /// This interface represents the data upper layer that the TX RLC bearer must notify on transmission and/or delivery of

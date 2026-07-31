@@ -57,7 +57,7 @@ struct dummy_f1u_du_rx_sdu_notifier final : public odu::f1u_rx_sdu_notifier {
     last_sdu         = std::move(sdu);
     last_sdu_is_retx = is_retx;
   }
-  void        on_discard_sdu(uint32_t pdcp_sn) override {}
+  void        on_discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size) override {}
   byte_buffer last_sdu;
   bool        last_sdu_is_retx;
 

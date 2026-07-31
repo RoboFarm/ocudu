@@ -247,9 +247,8 @@ public:
 class dummy_f1u_rx_sdu_notifier : public f1u_rx_sdu_notifier
 {
 public:
-  byte_buffer             last_pdu;
-  bool                    last_pdu_is_retx;
-  std::optional<uint32_t> last_discard_sn;
+  byte_buffer last_pdu;
+  bool        last_pdu_is_retx;
 
   void on_new_sdu(byte_buffer sdu, bool is_retx) override
   {
@@ -257,7 +256,7 @@ public:
     last_pdu_is_retx = is_retx;
   }
 
-  void on_discard_sdu(uint32_t pdcp_sn) override { last_discard_sn = pdcp_sn; }
+  void on_discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size) override {}
 };
 
 class dummy_mac_f1ap_paging_handler : public f1ap_du_paging_notifier

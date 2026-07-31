@@ -552,9 +552,9 @@ TEST_P(rlc_tx_am_test, sdu_discard)
   n_bsr             = 0;
 
   // Discard valid SDUs
-  rlc->discard_sdu(0);
-  rlc->discard_sdu(4); // out-of-order discard
-  rlc->discard_sdu(3);
+  rlc->discard_sdu(0, 1);
+  rlc->discard_sdu(4, 1); // out-of-order discard
+  rlc->discard_sdu(3, 1);
 
   // Compute expected buffer state
   uint32_t header_size         = sn_size == rlc_am_sn_size::size12bits ? 2 : 3;
@@ -569,7 +569,7 @@ TEST_P(rlc_tx_am_test, sdu_discard)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 0);
 
   // Try discard of invalid SDU
-  rlc->discard_sdu(999);
+  rlc->discard_sdu(999, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -578,7 +578,7 @@ TEST_P(rlc_tx_am_test, sdu_discard)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 1);
 
   // Try discard of already discarded SDU
-  rlc->discard_sdu(0);
+  rlc->discard_sdu(0, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -604,7 +604,7 @@ TEST_P(rlc_tx_am_test, sdu_discard)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 2);
 
   // Try discard of already transmitted SDU
-  rlc->discard_sdu(1);
+  rlc->discard_sdu(1, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -628,7 +628,7 @@ TEST_P(rlc_tx_am_test, sdu_discard)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 3);
 
   // Discard remaining SDU
-  rlc->discard_sdu(5);
+  rlc->discard_sdu(5, 1);
   expect_buffer_state = 0;
   expect_mac_bsr      = 0;
   pcell_worker.run_pending_tasks();
@@ -665,9 +665,9 @@ TEST_P(rlc_tx_am_test, sdu_discard_with_pdcp_sn_wraparound)
   n_bsr             = 0;
 
   // Discard valid SDUs
-  rlc->discard_sdu((pdcp_sn_start + 0) % pdcp_sn_mod);
-  rlc->discard_sdu((pdcp_sn_start + 4) % pdcp_sn_mod); // post-wraparound discard
-  rlc->discard_sdu((pdcp_sn_start + 3) % pdcp_sn_mod); // out-of-order discard (pre-wraparound)
+  rlc->discard_sdu((pdcp_sn_start + 0) % pdcp_sn_mod, 1);
+  rlc->discard_sdu((pdcp_sn_start + 4) % pdcp_sn_mod, 1); // post-wraparound discard
+  rlc->discard_sdu((pdcp_sn_start + 3) % pdcp_sn_mod, 1); // out-of-order discard (pre-wraparound)
 
   // Compute expected buffer state
   uint32_t header_size         = sn_size == rlc_am_sn_size::size12bits ? 2 : 3;
@@ -682,7 +682,7 @@ TEST_P(rlc_tx_am_test, sdu_discard_with_pdcp_sn_wraparound)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 0);
 
   // Try discard of invalid SDU
-  rlc->discard_sdu((pdcp_sn_start + 999) % pdcp_sn_mod);
+  rlc->discard_sdu((pdcp_sn_start + 999) % pdcp_sn_mod, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -691,7 +691,7 @@ TEST_P(rlc_tx_am_test, sdu_discard_with_pdcp_sn_wraparound)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 1);
 
   // Try discard of already discarded SDU
-  rlc->discard_sdu((pdcp_sn_start + 0) % pdcp_sn_mod);
+  rlc->discard_sdu((pdcp_sn_start + 0) % pdcp_sn_mod, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -717,7 +717,7 @@ TEST_P(rlc_tx_am_test, sdu_discard_with_pdcp_sn_wraparound)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 2);
 
   // Try discard of already transmitted SDU
-  rlc->discard_sdu((pdcp_sn_start + 1) % pdcp_sn_mod);
+  rlc->discard_sdu((pdcp_sn_start + 1) % pdcp_sn_mod, 1);
   pcell_worker.run_pending_tasks();
   EXPECT_EQ(rlc->get_buffer_state().pending_bytes, expect_buffer_state);
   EXPECT_EQ(tester->bsr.pending_bytes, expect_mac_bsr);
@@ -741,7 +741,7 @@ TEST_P(rlc_tx_am_test, sdu_discard_with_pdcp_sn_wraparound)
   EXPECT_EQ(rlc->get_metrics().tx_high.num_discard_failures, 3);
 
   // Discard remaining SDU
-  rlc->discard_sdu((pdcp_sn_start + 5) % pdcp_sn_mod);
+  rlc->discard_sdu((pdcp_sn_start + 5) % pdcp_sn_mod, 1);
   expect_buffer_state = 0;
   expect_mac_bsr      = 0;
   pcell_worker.run_pending_tasks();
