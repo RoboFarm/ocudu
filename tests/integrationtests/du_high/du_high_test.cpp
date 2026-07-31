@@ -5,11 +5,10 @@
 /// \file
 /// \brief Tests that check the setup/teardown, addition/removal of UEs in the DU-high class.
 
-#include "apps/units/flexible_o_du/o_du_high/du_high/commands/du_high_remote_commands.h"
 #include "lib/du/du_high/du_manager/procedures/du_cell_stop_procedure.h"
 #include "lib/f1ap/du/procedures/f1ap_du_ue_context_release_procedure.h"
-#include "nlohmann/json.hpp"
 #include "tests/integrationtests/du_high/test_utils/du_high_env_simulator.h"
+#include "tests/test_doubles/du_high/rrm_policy_remote_command_helpers.h"
 #include "tests/test_doubles/f1ap/f1ap_test_message_validators.h"
 #include "tests/test_doubles/f1ap/f1ap_test_messages.h"
 #include "tests/test_doubles/mac/mac_test_messages.h"
@@ -546,43 +545,8 @@ public:
 
   void apply_rrm_reconfiguration(unsigned max_rbs, unsigned min_rbs)
   {
-    nlohmann::json req;
-
-    /*
-      {
-        "cmd": "rrm_policy_ratio_set",
-        "policies": {
-          "resourceType": "PRB",
-          "rRMPolicyMemberList": [
-            {
-              "plmn": "00101",
-              "sst": 1,
-              "sd": 0xffffff
-            }
-          ],
-          "min_prb_policy_ratio": min_rbs,
-          "max_prb_policy_ratio": max_rbs,
-          "dedicated_ratio": 0
-        }
-      }
-    */
-
-    req["cmd"]                             = "rrm_policy_ratio_set";
-    req["policies"]["resourceType"]        = "PRB";
-    req["policies"]["rRMPolicyMemberList"] = nlohmann::json::array();
-    nlohmann::json policy;
-    policy["plmn"] = plmn_id.to_string();
-    policy["sst"]  = s_nssai.sst.value();
-    policy["sd"]   = s_nssai.sd.value();
-    req["policies"]["rRMPolicyMemberList"].push_back(policy);
-    req["policies"]["min_prb_policy_ratio"] = min_rbs;
-    req["policies"]["max_prb_policy_ratio"] = max_rbs;
-    req["policies"]["dedicated_ratio"]      = 0;
-
-    std::unique_ptr<app_services::remote_command> remote =
-        std::make_unique<rrm_policy_ratio_remote_command>(this->du_hi->get_du_configurator());
-
-    error_type<std::string> cmd_exec_res = remote->execute(req);
+    error_type<std::string> cmd_exec_res = test_helpers::apply_rrm_policy_reconfiguration(
+        this->du_hi->get_du_configurator(), plmn_id, s_nssai, min_rbs, max_rbs);
     ASSERT_TRUE(cmd_exec_res.has_value()) << cmd_exec_res.error();
   }
 
