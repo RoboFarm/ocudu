@@ -24,6 +24,7 @@ static_assert(bounded_bitset<4>{}.empty(), "invalid empty() method");
 static_assert(bounded_bitset<4>{{false, true, true}}.size() == 3, "invalid size() method");
 static_assert(bounded_bitset<4>{{false, true, true}}.test(2), "invalid test() method");
 static_assert(not bounded_bitset<4>{{false, true, true}}.test(0), "invalid test() method");
+static_assert(std::is_trivially_copyable_v<bounded_bitset<4>>, "bounded_bitset should be trivially copyable");
 
 // ** bounded_bitset runtime tests
 

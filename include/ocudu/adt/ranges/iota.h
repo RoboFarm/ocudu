@@ -6,9 +6,7 @@
 #include <cstddef>
 #include <iterator>
 
-namespace ocudu {
-
-namespace views {
+namespace ocudu::views {
 
 /// Range over the sequence of consecutive values [from, to).
 template <typename T>
@@ -60,6 +58,4 @@ iota_view<T> iota(T from, T to)
   return {from, to};
 }
 
-} // namespace views
-
-} // namespace ocudu
+} // namespace ocudu::views
