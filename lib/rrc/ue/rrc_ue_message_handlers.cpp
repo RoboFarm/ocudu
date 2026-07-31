@@ -771,18 +771,20 @@ async_task<bool> rrc_ue_impl::handle_handover_reconfiguration_complete_expected(
       metrics_notifier.on_new_rrc_connection();
 
     } else {
-      std::string cause_str = transaction.failure_cause() == protocol_transaction_failure::timeout
-                                  ? fmt::format("timeout ({}ms)", timeout_ms.count())
-                                  : "canceled";
+      // A cancellation is an expected outcome of a higher layer aborting the procedure, so it is not logged as a
+      // warning.
+      const bool        timed_out = transaction.failure_cause() == protocol_transaction_failure::timeout;
+      const auto        level     = timed_out ? ocudulog::basic_levels::warning : ocudulog::basic_levels::info;
+      const std::string cause_str = timed_out ? fmt::format("timeout ({}ms)", timeout_ms.count()) : "canceled";
       if (release_on_failure) {
-        logger.log_warning(
-            "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. Requesting target UE release",
-            cause_str);
+        logger.log(level,
+                   "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. Requesting target UE release",
+                   cause_str);
         on_ue_release_required(ngap_cause_radio_network_t::ho_fail_in_target_5_gc_ngran_node_or_target_sys);
       } else {
-        logger.log_warning(
-            "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. UE release handled externally",
-            cause_str);
+        logger.log(level,
+                   "Did not receive RRC Reconfiguration Complete after HO. Cause: {}. UE release handled externally",
+                   cause_str);
       }
     }
 
