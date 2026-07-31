@@ -4,6 +4,7 @@
 
 #include "ue_cell_grid_allocator.h"
 #include "../support/dci_builder.h"
+#include "../support/repetition_helpers.h"
 #include "../ue_context/ue_drx_controller.h"
 #include "grant_params_selector.h"
 #include "ocudu/scheduler/result/dci_info.h"
@@ -153,11 +154,10 @@ ue_cell_grid_allocator::allocate_dl_grant(const ue_newtx_dl_grant_request& reque
   // transmission; if the bundle cannot start in this slot, the allocation is deferred.
   std::optional<dl_repetition_info> reps;
   if (sched_ctxt->nof_repetitions.has_value()) {
-    dl_repetition_selection rep_sel = select_pdsch_repetitions(ue_cc, ss_info, sched_ctxt->pdsch_td_res_index);
-    if (rep_sel.defer) {
+    reps = select_pdsch_repetitions(ue_cc, ss_info, sched_ctxt->pdsch_td_res_index);
+    if (not reps.has_value()) {
       return make_unexpected(dl_alloc_failure_cause::other);
     }
-    reps = std::move(rep_sel.reps);
   }
 
   // Set up a DL grant.
@@ -171,7 +171,7 @@ ue_cell_grid_allocator::allocate_dl_grant(const ue_newtx_dl_grant_request& reque
   return dl_newtx_grant_builder{*this, static_cast<unsigned>(dl_grants.size()) - 1};
 }
 
-ue_cell_grid_allocator::dl_repetition_selection
+std::optional<ue_cell_grid_allocator::dl_repetition_info>
 ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
                                                  const search_space_info& ss_info,
                                                  uint8_t                  pdsch_td_res_index) const
@@ -186,7 +186,7 @@ ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
   // All occasions must fit the DL allocation window of the resource grid. This can only fail for pathological
   // configurations (k0 close to the ring limit); defer, as the repetition row cannot carry a single transmission.
   if (static_cast<unsigned>(td_res.k0 + nof_repetitions - 1) > cell_alloc.max_dl_slot_alloc_delay) {
-    return {.reps = std::nullopt, .defer = true};
+    return std::nullopt;
   }
 
   const cell_configuration& cell_cfg   = cell_alloc.cfg;
@@ -209,7 +209,7 @@ ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
                      pdsch_slot,
                      pdsch_slot + i);
       }
-      return {.reps = std::nullopt, .defer = true};
+      return std::nullopt;
     }
     reps.tx_offsets.push_back(i);
   }
@@ -223,7 +223,7 @@ ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
                    ue_cc.rnti(),
                    pdsch_slot);
     }
-    return {.reps = std::nullopt, .defer = true};
+    return std::nullopt;
   }
 
   if (logger.debug.enabled()) {
@@ -236,7 +236,7 @@ ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
                  pdsch_td_res_index);
   }
 
-  return {.reps = std::move(reps), .defer = false};
+  return reps;
 }
 
 expected<ue_cell_grid_allocator::dl_grant_info, dl_alloc_failure_cause>
@@ -547,7 +547,7 @@ ue_cell_grid_allocator::set_pdsch_params(dl_grant_info&                        g
       rep_msg.context.buffer_occupancy        = 0;
       rep_msg.pdsch_cfg                       = msg.pdsch_cfg;
       rep_msg.pdsch_cfg.codewords[0].new_data = false;
-      rep_msg.pdsch_cfg.codewords[0].rv_index = ue_cc.get_pdsch_repetition_rv(rv, offset);
+      rep_msg.pdsch_cfg.codewords[0].rv_index = get_repetition_rv(rv, offset);
       committed_repetition_slots.push_back(rep_alloc.slot);
     }
   }
@@ -585,12 +585,11 @@ ue_cell_grid_allocator::allocate_dl_grant(const ue_retx_dl_grant_request& reques
   // Build the repetition bundle when a repetition row was selected.
   std::optional<dl_repetition_info> reps;
   if (sched_ctxt->nof_repetitions.has_value()) {
-    dl_repetition_selection rep_sel = select_pdsch_repetitions(ue_cc, ss_info, sched_ctxt->pdsch_td_res_index);
-    if (rep_sel.defer) {
+    reps = select_pdsch_repetitions(ue_cc, ss_info, sched_ctxt->pdsch_td_res_index);
+    if (not reps.has_value()) {
       // The bundle cannot start in this slot. Defer the reTx to a later slot instead of a single transmission.
       return make_unexpected(dl_alloc_failure_cause::other);
     }
-    reps = std::move(rep_sel.reps);
   }
 
   // Select DL CRBs.

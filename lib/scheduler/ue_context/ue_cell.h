@@ -14,8 +14,6 @@
 #include "ue_link_adaptation_controller.h"
 #include "ocudu/scheduler/config/scheduler_expert_config.h"
 #include "ocudu/scheduler/scheduler_feedback_handler.h"
-#include <algorithm>
-#include <array>
 
 namespace ocudu {
 
@@ -140,17 +138,6 @@ public:
   uint8_t get_pusch_rv(unsigned nof_retxs) const
   {
     return cell_cfg.expert_cfg.ue.pusch_rv_sequence[nof_retxs % cell_cfg.expert_cfg.ue.pusch_rv_sequence.size()];
-  }
-
-  /// \brief RV of a PDSCH repetition occasion, as per TS 38.214 Table 5.1.2.1-2.
-  /// The UE assumes the fixed cycle {0, 2, 3, 1}, starting at the RV signalled in the DCI and indexed by the nominal
-  /// occasion position (dropped occasions consume RVs).
-  static uint8_t get_pdsch_repetition_rv(uint8_t dci_rv, unsigned occasion_idx)
-  {
-    static constexpr std::array<uint8_t, 4> rv_cycle = {0, 2, 3, 1};
-    const auto*                             it       = std::find(rv_cycle.begin(), rv_cycle.end(), dci_rv);
-    ocudu_assert(it != rv_cycle.end(), "Invalid RV value={}", dci_rv);
-    return rv_cycle[(std::distance(rv_cycle.begin(), it) + occasion_idx) % rv_cycle.size()];
   }
 
   /// \brief Handle CRC PDU indication.

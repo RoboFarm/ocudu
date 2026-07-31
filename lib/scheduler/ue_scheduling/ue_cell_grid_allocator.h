@@ -252,20 +252,11 @@ private:
                          std::optional<dl_harq_process_handle> h_dl,
                          std::optional<dl_repetition_info>     reps = std::nullopt) const;
 
-  // Outcome of the PDSCH repetition selection for a newTx grant.
-  struct dl_repetition_selection {
-    // When set, the grant uses PDSCH repetitions with these parameters.
-    std::optional<dl_repetition_info> reps;
-    // When true, the UE qualifies for repetitions but a bundle cannot start in this slot (e.g. less than 2 slots to
-    // the special slot); the allocation shall be deferred to a later slot instead of falling back to a single
-    // transmission.
-    bool defer = false;
-  };
-
   // Builds the PDSCH repetition bundle for a grant whose selected TDRA row is a repetition row: computes the
-  // transmitted occasions within the window and decides whether the bundle can start in this slot. Returns a deferral
-  // when it cannot (a repetition grant is never downgraded to a single transmission).
-  dl_repetition_selection
+  // transmitted occasions within the window and decides whether the bundle can start in this slot. Returns nullopt
+  // when it cannot, meaning the allocation shall be deferred to a later slot (a repetition grant is never downgraded
+  // to a single transmission).
+  std::optional<dl_repetition_info>
   select_pdsch_repetitions(const ue_cell& ue_cc, const search_space_info& ss_info, uint8_t pdsch_td_res_index) const;
 
   // Setup UL grant builder.
