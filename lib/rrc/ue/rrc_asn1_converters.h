@@ -9,6 +9,7 @@
 #include "ocudu/asn1/rrc_nr/radio_bearer_cfg.h"
 #include "ocudu/asn1/rrc_nr/serving_cell.h"
 #include "ocudu/asn1/rrc_nr/ul_ccch_msg_ies.h"
+#include "ocudu/asn1/rrc_nr/ul_dcch_msg_ies.h"
 #include "ocudu/pdcp/pdcp_config.h"
 #include "ocudu/ran/cause/common.h"
 #include "ocudu/ran/cu_cp_types.h"
@@ -16,6 +17,7 @@
 #include "ocudu/ran/five_g_s_tmsi.h"
 #include "ocudu/rrc/rrc_setup.h"
 #include "ocudu/rrc/rrc_types.h"
+#include "ocudu/rrc/rrc_ue_capabilities.h"
 #include "ocudu/security/security.h"
 
 namespace ocudu::ocucp {
@@ -135,5 +137,17 @@ ran_notification_area_info_to_asn1(const rrc_ran_notification_area_info_t& ran_n
 /// \param[out] asn1_radio_bearer_cfg The RRC NR ASN.
 void radio_bearer_config_to_asn1(const rrc_radio_bearer_config&    radio_bearer_cfg,
                                  asn1::rrc_nr::radio_bearer_cfg_s& asn1_radio_bearer_cfg);
+
+/// \brief Converts an RRC NR ASN.1 UE-CapabilityRAT-ContainerList to type \c rrc_ue_cap_rat_container_list_t.
+/// \param[in] asn1_capabilities_list The RRC NR ASN.1 UE capability RAT container list.
+/// \return The UE capability RAT container list where the result of the conversion is stored.
+rrc_ue_cap_rat_container_list_t
+asn1_to_ue_cap_rat_container_list(const asn1::rrc_nr::ue_cap_rat_container_list_l& asn1_capabilities_list);
+
+/// \brief Converts type \c rrc_ue_cap_rat_container_list_t to an RRC NR ASN.1 type.
+/// \param[in] capabilities_list UE capability RAT container list object.
+/// \return The RRC NR ASN.1 object where the result of the conversion is stored.
+asn1::rrc_nr::ue_cap_rat_container_list_l
+ue_cap_rat_container_list_to_asn1(const rrc_ue_cap_rat_container_list_t& capabilities_list);
 
 } // namespace ocudu::ocucp

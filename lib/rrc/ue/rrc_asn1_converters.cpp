@@ -570,3 +570,32 @@ void ocudu::ocucp::radio_bearer_config_to_asn1(const rrc_radio_bearer_config&   
   // Fill SRB3 to release present.
   asn1_radio_bearer_cfg.srb3_to_release_present = radio_bearer_cfg.srb3_to_release_present;
 }
+
+rrc_ue_cap_rat_container_list_t
+ocudu::ocucp::asn1_to_ue_cap_rat_container_list(const asn1::rrc_nr::ue_cap_rat_container_list_l& asn1_capabilities_list)
+{
+  rrc_ue_cap_rat_container_list_t capabilities_list;
+  for (const auto& asn1_container : asn1_capabilities_list) {
+    if (capabilities_list.size() == capabilities_list.capacity()) {
+      break;
+    }
+    rrc_ue_cap_rat_container_t container;
+    container.rat_type             = static_cast<rat_type_t>(asn1_container.rat_type.value);
+    container.ue_cap_rat_container = asn1_container.ue_cap_rat_container.copy();
+    capabilities_list.push_back(std::move(container));
+  }
+  return capabilities_list;
+}
+
+asn1::rrc_nr::ue_cap_rat_container_list_l
+ocudu::ocucp::ue_cap_rat_container_list_to_asn1(const rrc_ue_cap_rat_container_list_t& capabilities_list)
+{
+  asn1::rrc_nr::ue_cap_rat_container_list_l asn1_capabilities_list;
+  asn1_capabilities_list.resize(capabilities_list.size());
+  for (unsigned i = 0, e = capabilities_list.size(); i != e; ++i) {
+    asn1_capabilities_list[i].rat_type.value =
+        static_cast<asn1::rrc_nr::rat_type_opts::options>(capabilities_list[i].rat_type);
+    asn1_capabilities_list[i].ue_cap_rat_container = capabilities_list[i].ue_cap_rat_container.copy();
+  }
+  return asn1_capabilities_list;
+}
