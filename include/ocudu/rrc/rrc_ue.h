@@ -7,7 +7,6 @@
 #include "ocudu/adt/byte_buffer.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/adt/static_vector.h"
-#include "ocudu/asn1/rrc_nr/ul_dcch_msg_ies.h"
 #include "ocudu/cu_cp/cu_cp_ue_messages.h"
 #include "ocudu/ran/cause/ngap_cause.h"
 #include "ocudu/ran/cu_cp_types.h"
@@ -19,6 +18,7 @@
 #include "ocudu/rrc/rrc_cell_context.h"
 #include "ocudu/rrc/rrc_resume.h"
 #include "ocudu/rrc/rrc_types.h"
+#include "ocudu/rrc/rrc_ue_capabilities.h"
 #include "ocudu/rrc/rrc_ue_config.h"
 #include "ocudu/security/security.h"
 #include "ocudu/support/async/async_task.h"
@@ -400,12 +400,12 @@ public:
 
 /// Struct containing all information needed from the old RRC UE for Reestablishment.
 struct rrc_ue_reestablishment_context_response {
-  cu_cp_ue_index_t                                         ue_index = cu_cp_ue_index_t::invalid;
-  security::security_context                               sec_context;
-  std::optional<asn1::rrc_nr::ue_cap_rat_container_list_l> capabilities_list;
-  up_context                                               up_ctx;
-  bool                                                     old_ue_fully_attached   = false;
-  bool                                                     reestablishment_ongoing = false;
+  cu_cp_ue_index_t                               ue_index = cu_cp_ue_index_t::invalid;
+  security::security_context                     sec_context;
+  std::optional<rrc_ue_cap_rat_container_list_t> capabilities_list;
+  up_context                                     up_ctx;
+  bool                                           old_ue_fully_attached   = false;
+  bool                                           reestablishment_ongoing = false;
 };
 
 /// Interface to notify about UE context updates.

@@ -4,6 +4,7 @@
 
 #include "rrc_reestablishment_procedure.h"
 #include "rrc_setup_procedure.h"
+#include "ue/rrc_asn1_converters.h"
 #include "ue/rrc_ue_helpers.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg.h"
 #include "ocudu/asn1/rrc_nr/nr_ue_variables.h"
@@ -240,11 +241,10 @@ void rrc_reestablishment_procedure::transfer_reestablishment_context_and_update_
 {
   // Store capabilities if available.
   if (old_ue_reest_context.capabilities_list.has_value()) {
-    context.capabilities_list = old_ue_reest_context.capabilities_list.value();
+    context.capabilities_list = ue_cap_rat_container_list_to_asn1(old_ue_reest_context.capabilities_list.value());
 
     // Store parsed capabilities.
-    std::optional<rrc_ue_capabilities_t> caps =
-        get_capabilities(old_ue_reest_context.capabilities_list.value(), logger);
+    std::optional<rrc_ue_capabilities_t> caps = get_capabilities(context.capabilities_list.value(), logger);
     if (caps.has_value()) {
       context.capabilities = caps.value();
     }
