@@ -140,6 +140,11 @@ private:
   /// Log event when UE does not have a carrier for this cell.
   void log_invalid_cc(du_ue_index_t ue_idx, const char* event_name, bool warn_if_ignored = true) const;
 
+  /// Whether the given rnti/slot pair identifies the successRAR's own HARQ-ACK PUCCH (2-step RACH), allocated by the
+  /// RA scheduler against a common PUCCH resource rather than tracked as a per-UE DL HARQ. Only meant to be checked
+  /// as a fallback, once the UE/HARQ lookup it would otherwise explain has already failed.
+  bool is_msgb_harq_ack_slot(rnti_t rnti, slot_point uci_sl) const;
+
   void         handle_harq_ind(ue_cell&                             ue_cc,
                                slot_point                           uci_sl,
                                bool                                 uci_valid,

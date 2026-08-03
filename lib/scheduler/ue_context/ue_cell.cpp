@@ -91,10 +91,6 @@ std::optional<dl_harq_process_handle> ue_cell::handle_dl_ack_info(slot_point    
 {
   std::optional<dl_harq_process_handle> h_dl = harqs.find_dl_harq_waiting_ack(uci_slot, harq_bit_idx);
   if (not h_dl.has_value()) {
-    logger.warning("rnti={}: Discarding ACK info. Cause: DL HARQ for uci slot={} and HARQ-ACK bit={} not found.",
-                   rnti(),
-                   uci_slot,
-                   harq_bit_idx);
     return h_dl;
   }
 

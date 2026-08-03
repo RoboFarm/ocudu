@@ -575,12 +575,14 @@ ue_cell_event_manager::event_result ue_cell_event_manager::handle_uci_pdu(slot_p
 {
   // Fetch UE objects.
   if (not ue_db.contains(uci_pdu.ue_index)) {
-    return event_result::invalid_ue;
+    // The UE context may not exist yet if this is the successRAR's own HARQ-ACK PUCCH (2-step RACH), whose common
+    // PUCCH resource is allocated by the RA scheduler before UE creation completes.
+    return is_msgb_harq_ack_slot(uci_pdu.crnti, uci_sl) ? event_result::processed : event_result::invalid_ue;
   }
   ue&      u     = ue_db[uci_pdu.ue_index];
   ue_cell* ue_cc = u.find_cell(cfg.cell_index);
   if (ue_cc == nullptr) {
-    return event_result::invalid_ue_cc;
+    return is_msgb_harq_ack_slot(uci_pdu.crnti, uci_sl) ? event_result::processed : event_result::invalid_ue_cc;
   }
 
   // Process the PDU and determine resulting action.
@@ -954,6 +956,12 @@ void ue_cell_event_manager::handle_slice_reconfiguration_request(const du_cell_s
   push_event(cfg.cell_index, event_t{"slice_reconf", std::move(handle_slice_reconfig_impl)});
 }
 
+bool ue_cell_event_manager::is_msgb_harq_ack_slot(rnti_t rnti, slot_point uci_sl) const
+{
+  auto ra_it = ra_ue_repo.find(rnti);
+  return ra_it != ra_ue_repo.end() and ra_it->msgb_ack_slot_tx.has_value() and *ra_it->msgb_ack_slot_tx == uci_sl;
+}
+
 void ue_cell_event_manager::handle_harq_ind(ue_cell&                             ue_cc,
                                             slot_point                           uci_sl,
                                             bool                                 uci_valid,
@@ -973,7 +981,15 @@ void ue_cell_event_manager::handle_harq_ind(ue_cell&                            
     // Update UE HARQ state with received HARQ-ACK.
     std::optional<dl_harq_process_handle> h_dl = ue_cc.handle_dl_ack_info(uci_sl, status, harq_idx, pucch_snr);
     if (not h_dl.has_value()) {
-      // HARQ process was not found or in invalid state. Move on to next HARQ bit.
+      // HARQ process was not found or in invalid state. This is expected for the successRAR's own HARQ-ACK PUCCH
+      // (2-step RACH), allocated by the RA scheduler against a common PUCCH resource rather than tracked here; only
+      // warn when that fallback explanation doesn't hold.
+      if (not is_msgb_harq_ack_slot(ue_cc.rnti(), uci_sl)) {
+        logger.warning("rnti={}: Discarding ACK info. Cause: DL HARQ for uci slot={} and HARQ-ACK bit={} not found.",
+                       ue_cc.rnti(),
+                       uci_sl,
+                       harq_idx);
+      }
       continue;
     }
     const units::bytes tbs{h_dl->get_grant_params().tbs};
@@ -1011,16 +1027,22 @@ void ue_cell_event_manager::handle_uci_indication_timeout(slot_point uci_slot, r
   // Notify respective DL HARQ that the UCI went missing.
   ue* u = parent.ue_db.find_by_rnti(crnti);
   if (u == nullptr) {
-    parent.logger.warning("rnti={}: UCI timeout detected for unknown UE at UCI slot={}", crnti, uci_slot);
+    // The UE context may not exist yet if this is the successRAR's own HARQ-ACK PUCCH (2-step RACH), whose common
+    // PUCCH resource is allocated by the RA scheduler before UE creation completes.
+    if (not is_msgb_harq_ack_slot(crnti, uci_slot)) {
+      parent.logger.warning("rnti={}: UCI timeout detected for unknown UE at UCI slot={}", crnti, uci_slot);
+    }
     return;
   }
   ue_cell* ue_cc = u->find_cell(cfg.cell_index);
   if (ue_cc == nullptr) {
-    parent.logger.warning("cell={} rnti={} ue={}: UCI timeout detected for unknown UE carrier at UCI slot={}",
-                          cfg.cell_index,
-                          crnti,
-                          u->ue_index,
-                          uci_slot);
+    if (not is_msgb_harq_ack_slot(crnti, uci_slot)) {
+      parent.logger.warning("cell={} rnti={} ue={}: UCI timeout detected for unknown UE carrier at UCI slot={}",
+                            cfg.cell_index,
+                            crnti,
+                            u->ue_index,
+                            uci_slot);
+    }
     return;
   }
 
