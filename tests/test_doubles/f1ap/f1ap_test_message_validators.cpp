@@ -492,3 +492,11 @@ bool test_helpers::is_valid_gnb_cu_configuration_update(const f1ap_message& msg)
                  asn1::f1ap::f1ap_elem_procs_o::init_msg_c::types_opts::gnb_cu_cfg_upd);
   return true;
 }
+
+bool test_helpers::is_valid_gnb_cu_configuration_update_acknowledge(const f1ap_message& msg)
+{
+  TRUE_OR_RETURN(msg.pdu.type().value == asn1::f1ap::f1ap_pdu_c::types_opts::successful_outcome);
+  TRUE_OR_RETURN(msg.pdu.successful_outcome().proc_code == ASN1_F1AP_ID_GNB_CU_CFG_UPD);
+  TRUE_OR_RETURN(is_packable(msg));
+  return true;
+}

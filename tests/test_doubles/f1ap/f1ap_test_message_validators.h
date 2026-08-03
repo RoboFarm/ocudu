@@ -94,5 +94,7 @@ bool is_valid_f1ap_positioning_measurement_failure(const f1ap_message& msg);
 
 bool is_valid_gnb_cu_configuration_update(const f1ap_message& msg);
 
+bool is_valid_gnb_cu_configuration_update_acknowledge(const f1ap_message& msg);
+
 } // namespace test_helpers
 } // namespace ocudu
