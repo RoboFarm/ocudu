@@ -20,6 +20,7 @@ static bool handle_bearer_context_setup_response(
     const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_list,
     const e1ap_bearer_context_setup_response&                                    bearer_context_setup_resp,
     up_resource_manager&                                                         up_resource_mng,
+    const security_indication_t&                                                 default_sec_ind,
     ocudulog::basic_logger&                                                      logger);
 
 // This free function takes the F1AP UE Context Setup Response and pre-fills the subsequent E1AP Bearer Context
@@ -192,6 +193,7 @@ void inter_cu_handover_target_routine::operator()(
                                               request.pdu_session_res_setup_list,
                                               bearer_context_setup_response,
                                               ue->get_up_resource_manager(),
+                                              default_security_indication,
                                               logger)) {
       logger.warning("ue={}: \"{}\" failed. Cause: Could not setup bearer at CU-UP", request.ue_index, name());
       CORO_EARLY_RETURN(generate_handover_resource_allocation_response(false));
@@ -377,6 +379,7 @@ static bool update_setup_list_with_bearer_ctxt_setup_response(
     const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& ngap_setup_list,
     const e1ap_bearer_context_setup_response&                                    bearer_context_setup_resp,
     up_resource_manager&                                                         up_resource_mng,
+    const security_indication_t&                                                 default_sec_ind,
     const ocudulog::basic_logger&                                                logger)
 {
   // Set up SRB1 and SRB2 (this is for inter CU handover, so no SRBs are setup yet).
@@ -401,13 +404,43 @@ static bool update_setup_list_with_bearer_ctxt_setup_response(
       return false;
     }
 
+    // Determine the security settings applied to this PDU session. The Handover Request carries the Security
+    // Indication in the PDU Session Resource Setup Request Transfer, so the result is derived the same way as during
+    // PDU session setup.
+    const security_indication_t& sec_ind =
+        ngap_setup_list[psi].security_ind.has_value() ? ngap_setup_list[psi].security_ind.value() : default_sec_ind;
+    bool integrity_enabled = sec_ind.integrity_protection_ind == integrity_protection_indication_t::required;
+    bool ciphering_enabled =
+        sec_ind.confidentiality_protection_ind == confidentiality_protection_indication_t::required;
+    if (security_result_required(sec_ind)) {
+      // Apply the security settings decided by the CU-UP.
+      if (!e1ap_item.security_result.has_value()) {
+        logger.warning("Missing security result in E1AP response for {}", psi);
+        return false;
+      }
+      const auto& sec_res = e1ap_item.security_result.value();
+      integrity_enabled   = sec_res.integrity_protection_result == integrity_protection_result_t::performed;
+      ciphering_enabled   = sec_res.confidentiality_protection_result == confidentiality_protection_result_t::performed;
+    }
+
+    up_pdu_session_context_update& next_cfg_pdu_session = next_config.pdu_sessions_to_setup_list.at(psi);
+    next_cfg_pdu_session.integrity_protection_result =
+        integrity_enabled ? integrity_protection_result_t::performed : integrity_protection_result_t::not_performed;
+    next_cfg_pdu_session.confidentiality_protection_result = ciphering_enabled
+                                                                 ? confidentiality_protection_result_t::performed
+                                                                 : confidentiality_protection_result_t::not_performed;
+
     for (const auto& e1ap_drb_item : e1ap_item.drb_setup_list_ng_ran) {
       const auto& drb_id = e1ap_drb_item.drb_id;
-      if (next_config.pdu_sessions_to_setup_list.at(psi).drb_to_add.find(drb_id) ==
-          next_config.pdu_sessions_to_setup_list.at(psi).drb_to_add.end()) {
+      if (next_cfg_pdu_session.drb_to_add.find(drb_id) == next_cfg_pdu_session.drb_to_add.end()) {
         logger.warning("{} not part of next configuration", drb_id);
         return false;
       }
+
+      // Update security settings of each DRB.
+      up_drb_context& drb_ctxt                        = next_cfg_pdu_session.drb_to_add.at(drb_id);
+      drb_ctxt.pdcp_cfg.integrity_protection_required = integrity_enabled;
+      drb_ctxt.pdcp_cfg.ciphering_required            = ciphering_enabled;
 
       // Prepare DRB item for DU.
       f1ap_drb_to_setup drb_setup_mod_item;
@@ -415,7 +448,7 @@ static bool update_setup_list_with_bearer_ctxt_setup_response(
                                         {},
                                         e1ap_item.pdu_session_id,
                                         drb_id,
-                                        next_config.pdu_sessions_to_setup_list.at(psi).drb_to_add.at(drb_id),
+                                        drb_ctxt,
                                         e1ap_drb_item,
                                         ngap_setup_list[e1ap_item.pdu_session_id].qos_flow_setup_request_items,
                                         logger)) {
@@ -442,6 +475,7 @@ bool handle_bearer_context_setup_response(
     const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& setup_list,
     const e1ap_bearer_context_setup_response&                                    bearer_context_setup_resp,
     up_resource_manager&                                                         up_resource_mng,
+    const security_indication_t&                                                 default_sec_ind,
     ocudulog::basic_logger&                                                      logger)
 {
   // Traverse setup list.
@@ -451,6 +485,7 @@ bool handle_bearer_context_setup_response(
                                                          setup_list,
                                                          bearer_context_setup_resp,
                                                          up_resource_mng,
+                                                         default_sec_ind,
                                                          logger)) {
     return false;
   }
