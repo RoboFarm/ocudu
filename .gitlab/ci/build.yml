@@ -226,13 +226,17 @@ variables:
   extends: .build_and_unit
   stage: extended
   variables:
-    OS: ubuntu-24.04-rtsan
+    OS: ubuntu-26.04
     COMPILER: clang
-    CMAKE_BUILD_TYPE: Debug
-    ASSERT_LEVEL: PARANOID
+    CMAKE_BUILD_TYPE: Release
+    FORCE_DEBUG_INFO: "True"
+    ASSERT_LEVEL: AUTO
     ENABLE_FFTW: "True"
+    ENABLE_UHD: "False"
+    ENABLE_ZEROMQ: "False"
+    ENABLE_DPDK: "True"
     ENABLE_RTSAN: "True"
-    ENABLE_WERROR: "False"
+    DPDK_VERSION: "25.11_avx2"
     TEST_MODE: rtsan
     MARCH: x86-64-v3
     LINKER: mold
@@ -503,30 +507,14 @@ smoke coverage:
     - if: $ON_PROTECTED_BRANCH
 
 smoke asan:
-  extends: .build_and_unit
+  extends: .smoke asan
   rules:
     - if: $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /Nightly/
-  variables:
-    OS: ubuntu-24.04
-    COMPILER: clang
-    CMAKE_BUILD_TYPE: Debug
-    ASSERT_LEVEL: PARANOID
-    ENABLE_ASAN: "True"
-    MARCH: x86-64-v3
 
 smoke rtsan:
-  extends: .build_and_unit
+  extends: .smoke rtsan
   rules:
     - if: $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /Nightly/
-  variables:
-    OS: ubuntu-24.04-rtsan
-    COMPILER: clang
-    CMAKE_BUILD_TYPE: Debug
-    ASSERT_LEVEL: PARANOID
-    ENABLE_RTSAN: "True"
-    ENABLE_WERROR: "False"
-    TEST_MODE: rtsan
-    MARCH: x86-64-v3
 
 # Packaging
 
