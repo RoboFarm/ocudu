@@ -87,6 +87,7 @@ include:
 
 .dco:
   extends: .static
+  stage: ci
   script:
     - |
       git config advice.detachedHead false
