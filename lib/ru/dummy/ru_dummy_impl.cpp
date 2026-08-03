@@ -89,7 +89,7 @@ void ru_dummy_impl::stop()
   stop_control.stop();
 }
 
-void ru_dummy_impl::radio_loop(const rt_stop_event_token& tk) OCUDU_RTSAN_NONBLOCKING
+void ru_dummy_impl::radio_loop(const rt_stop_event_token& tk) noexcept OCUDU_RTSAN_NONBLOCKING
 {
   while (OCUDU_LIKELY(!tk.is_stop_requested())) {
     run_slot();

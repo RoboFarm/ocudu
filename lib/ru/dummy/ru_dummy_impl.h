@@ -116,7 +116,7 @@ private:
   }
 
   /// Main radio dummy loop.
-  void radio_loop(const rt_stop_event_token& tk);
+  void radio_loop(const rt_stop_event_token& tk) noexcept;
 
   /// Run the execution of each slot.
   void run_slot();
