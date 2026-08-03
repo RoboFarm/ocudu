@@ -4,10 +4,23 @@
 
 #include "apps/units/flexible_o_du/o_du_high/du_high/commands/du_high_remote_commands.h"
 #include "nlohmann/json.hpp"
+#include "ocudu/ran/arfcn.h"
+#include "ocudu/ran/pci.h"
+#include "ocudu/ran/sib/cell_reselection.h"
+#include "ocudu/ran/ssb/ssb_configuration.h"
+#include <limits>
 
 using namespace ocudu;
 
 namespace {
+
+/// nlohmann::json keeps integers in an int64 and a uint64 slot; a value above this cannot be read losslessly as int64
+/// (it would wrap to a negative number). Every bound parsed here fits in int64, so any uint64 above it is out of range.
+constexpr uint64_t max_int64_as_uint64 = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+
+/// Min/max percentage of a cell's PRBs allocatable to one RRM policy ratio group.
+constexpr int64_t prb_policy_ratio_min_percent = 0;
+constexpr int64_t prb_policy_ratio_max_percent = 100;
 
 /// Reads a JSON integer and range-checks it against [lo, hi] before narrowing to T. nlohmann stores integers in two
 /// slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can silently narrow and even
@@ -20,7 +33,7 @@ parse_int_in_range(const nlohmann::json& value, int64_t lo, int64_t hi, std::str
   if (!value.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' object value type should be an integer", field));
   }
-  if (value.is_number_unsigned() && value.get<uint64_t>() > 0x7fffffffffffffffULL) {
+  if (value.is_number_unsigned() && value.get<uint64_t>() > max_int64_as_uint64) {
     return make_unexpected(fmt::format("'{}' value out of range, valid range is from {} to {}", field, lo, hi));
   }
   const int64_t parsed = value.get<int64_t>();
@@ -84,7 +97,11 @@ error_type<std::string> ssb_modify_remote_command::execute(const nlohmann::json&
       return make_unexpected("'ssb_block_power_dbm' object is missing and it is mandatory");
     }
     int ssb_block_power_value = 0;
-    if (auto res = parse_int_in_range(*ssb_block_power_key, -60, 50, "ssb_block_power_dbm", ssb_block_power_value);
+    if (auto res = parse_int_in_range(*ssb_block_power_key,
+                                      MIN_SS_PBCH_BLOCK_POWER,
+                                      MAX_SS_PBCH_BLOCK_POWER,
+                                      "ssb_block_power_dbm",
+                                      ssb_block_power_value);
         !res) {
       return res;
     }
@@ -152,7 +169,8 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
       return make_unexpected("'sst' object is missing and it is mandatory");
     }
     uint8_t sst = 0;
-    if (auto res = parse_int_in_range(*sst_key, 0, 255, "sst", sst); !res) {
+    // SST is an 8-bit field (TS 23.003); the full uint8 domain is valid.
+    if (auto res = parse_int_in_range(*sst_key, 0, std::numeric_limits<uint8_t>::max(), "sst", sst); !res) {
       return res;
     }
 
@@ -164,7 +182,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
       // create() validates the 24-bit SD domain below; parse_int_in_range first keeps a crafted value from truncating
       // into uint32 (e.g. 2^32 -> 0), which create() would otherwise accept.
       uint32_t sd_int = 0;
-      if (auto res = parse_int_in_range(*sd_key, 0, 0xffffffffLL, "sd", sd_int); !res) {
+      if (auto res = parse_int_in_range(*sd_key, 0, std::numeric_limits<uint32_t>::max(), "sd", sd_int); !res) {
         return res;
       }
       sd = slice_differentiator::create(sd_int);
@@ -186,7 +204,12 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> min_prb_policy_ratio_value = std::nullopt;
   if (min_prb_policy_ratio != policies_key.value().end()) {
     unsigned min_prb = 0;
-    if (auto res = parse_int_in_range(*min_prb_policy_ratio, 0, 100, "min_prb_policy_ratio", min_prb); !res) {
+    if (auto res = parse_int_in_range(*min_prb_policy_ratio,
+                                      prb_policy_ratio_min_percent,
+                                      prb_policy_ratio_max_percent,
+                                      "min_prb_policy_ratio",
+                                      min_prb);
+        !res) {
       return res;
     }
     min_prb_policy_ratio_value = min_prb;
@@ -197,7 +220,12 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> max_prb_policy_ratio_value = std::nullopt;
   if (max_prb_policy_ratio != policies_key.value().end()) {
     unsigned max_prb = 0;
-    if (auto res = parse_int_in_range(*max_prb_policy_ratio, 0, 100, "max_prb_policy_ratio", max_prb); !res) {
+    if (auto res = parse_int_in_range(*max_prb_policy_ratio,
+                                      prb_policy_ratio_min_percent,
+                                      prb_policy_ratio_max_percent,
+                                      "max_prb_policy_ratio",
+                                      max_prb);
+        !res) {
       return res;
     }
     max_prb_policy_ratio_value = max_prb;
@@ -208,7 +236,9 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> dedicated_ratio_value = std::nullopt;
   if (dedicated_ratio != policies_key.value().end()) {
     unsigned dedicated = 0;
-    if (auto res = parse_int_in_range(*dedicated_ratio, 0, 100, "dedicated_ratio", dedicated); !res) {
+    if (auto res = parse_int_in_range(
+            *dedicated_ratio, prb_policy_ratio_min_percent, prb_policy_ratio_max_percent, "dedicated_ratio", dedicated);
+        !res) {
       return res;
     }
     dedicated_ratio_value = dedicated;
@@ -273,7 +303,7 @@ static expected<q_hyst_t, std::string> parse_q_hyst_db(const nlohmann::json& obj
   if (!key->is_number_integer()) {
     return make_unexpected("'q_hyst_db' value type should be an integer");
   }
-  if (key->is_number_unsigned() && key->get<uint64_t>() > 0x7fffffffffffffffULL) {
+  if (key->is_number_unsigned() && key->get<uint64_t>() > max_int64_as_uint64) {
     return make_unexpected("'q_hyst_db' value out of range");
   }
   const int64_t v = key->get<int64_t>();
@@ -308,10 +338,13 @@ static expected<q_hyst_t, std::string> parse_q_hyst_db(const nlohmann::json& obj
 static expected<q_offset_range_t, std::string> parse_q_offset_range(const nlohmann::json& val,
                                                                     std::string_view      field_name)
 {
-  // Full-width range parse first (rejects the uint64 wrap where e.g. UINT64_MAX -> -1 lands on a valid negative dB
-  // offset), then validate the discrete set.
-  int64_t v = 0;
-  if (auto res = parse_int_in_range(val, -24, 24, field_name, v); !res) {
+  // Outer bounds of q_offset_range_t; the discrete switch below still enforces the valid subset (odd-value gaps above
+  // +/-5). A full-width range parse first rejects the uint64 wrap where e.g. UINT64_MAX -> -1 lands on a valid dB
+  // offset.
+  static constexpr int64_t q_offset_range_min_db = static_cast<int64_t>(q_offset_range_t::db_24);
+  static constexpr int64_t q_offset_range_max_db = static_cast<int64_t>(q_offset_range_t::db24);
+  int64_t                  v                     = 0;
+  if (auto res = parse_int_in_range(val, q_offset_range_min_db, q_offset_range_max_db, field_name, v); !res) {
     return make_unexpected(res.error());
   }
   switch (v) {
@@ -364,7 +397,7 @@ static expected<subcarrier_spacing, std::string> parse_scs_khz(const nlohmann::j
   if (!val.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be a non-negative integer", field_name));
   }
-  if (val.is_number_unsigned() && val.get<uint64_t>() > 0x7fffffffffffffffULL) {
+  if (val.is_number_unsigned() && val.get<uint64_t>() > max_int64_as_uint64) {
     return make_unexpected(fmt::format("'{}' value type should be a non-negative integer", field_name));
   }
   const auto v = val.get<int64_t>();
@@ -398,7 +431,7 @@ static expected<bounded_integer<T, MIN, MAX>, std::string> parse_bounded_int(con
   }
   // A uint64 above INT64_MAX would wrap to a negative int64 that could land inside a signed range (e.g. q_rx_lev_min's
   // [-70,-22]); every bound fits in int64, so reject it before the now-lossless int64 read.
-  if (val.is_number_unsigned() && val.get<uint64_t>() > 0x7fffffffffffffffULL) {
+  if (val.is_number_unsigned() && val.get<uint64_t>() > max_int64_as_uint64) {
     return make_unexpected(fmt::format(
         "'{}' value out of range [{},{}]", field_name, static_cast<int64_t>(MIN), static_cast<int64_t>(MAX)));
   }
@@ -422,6 +455,14 @@ static expected<bounded_integer<T, MIN, MAX>, std::string> find_and_parse_bounde
   return parse_bounded_int<T, MIN, MAX>(*it, field);
 }
 
+/// Looks up a mandatory field and parses it into a named bounded_integer type, taking the range from the type itself
+/// (e.g. reselection_threshold_t) so the bounds are not duplicated here.
+template <typename Bounded>
+static expected<Bounded, std::string> find_and_parse_bounded(const nlohmann::json& obj, std::string_view field)
+{
+  return find_and_parse_bounded_int<decltype(Bounded::min()), Bounded::min(), Bounded::max()>(obj, field);
+}
+
 /// Looks up a mandatory PCI field (range 0..1007) in an object.
 static expected<pci_t, std::string> find_and_parse_pci(const nlohmann::json& obj, std::string_view field)
 {
@@ -432,12 +473,12 @@ static expected<pci_t, std::string> find_and_parse_pci(const nlohmann::json& obj
   if (!it->is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be an integer", field));
   }
-  if (it->is_number_unsigned() && it->get<uint64_t>() > 0x7fffffffffffffffULL) {
-    return make_unexpected(fmt::format("'{}' value out of range [0, 1007]", field));
+  if (it->is_number_unsigned() && it->get<uint64_t>() > max_int64_as_uint64) {
+    return make_unexpected(fmt::format("'{}' value out of range [{}, {}]", field, MIN_PCI, MAX_PCI));
   }
   const int64_t v = it->get<int64_t>();
-  if (v < 0 || v > 1007) {
-    return make_unexpected(fmt::format("'{}' value '{}' out of range [0, 1007]", field, v));
+  if (v < MIN_PCI || v > MAX_PCI) {
+    return make_unexpected(fmt::format("'{}' value '{}' out of range [{}, {}]", field, v, MIN_PCI, MAX_PCI));
   }
   return static_cast<pci_t>(v);
 }
@@ -453,31 +494,31 @@ static expected<sib2_info, std::string> parse_sib2(const nlohmann::json& content
   }
   sib2.q_hyst = q_hyst_exp.value();
 
-  auto thresh_serv_exp = find_and_parse_bounded_int<uint8_t, 0, 31>(content, "thresh_serving_low_p");
+  auto thresh_serv_exp = find_and_parse_bounded<reselection_threshold_t>(content, "thresh_serving_low_p");
   if (!thresh_serv_exp) {
     return make_unexpected(thresh_serv_exp.error());
   }
   sib2.thresh_serving_low_p = thresh_serv_exp.value();
 
-  auto reselect_prio_exp = find_and_parse_bounded_int<uint8_t, 0, 7>(content, "cell_reselection_priority");
+  auto reselect_prio_exp = find_and_parse_bounded<cell_reselection_priority_t>(content, "cell_reselection_priority");
   if (!reselect_prio_exp) {
     return make_unexpected(reselect_prio_exp.error());
   }
   sib2.cell_reselection_priority = reselect_prio_exp.value();
 
-  auto q_rx_lev_min_exp = find_and_parse_bounded_int<int8_t, -70, -22>(content, "q_rx_lev_min");
+  auto q_rx_lev_min_exp = find_and_parse_bounded<q_rx_lev_min_t>(content, "q_rx_lev_min");
   if (!q_rx_lev_min_exp) {
     return make_unexpected(q_rx_lev_min_exp.error());
   }
   sib2.q_rx_lev_min = q_rx_lev_min_exp.value();
 
-  auto s_intra_search_exp = find_and_parse_bounded_int<uint8_t, 0, 31>(content, "s_intra_search_p");
+  auto s_intra_search_exp = find_and_parse_bounded<reselection_threshold_t>(content, "s_intra_search_p");
   if (!s_intra_search_exp) {
     return make_unexpected(s_intra_search_exp.error());
   }
   sib2.s_intra_search_p = s_intra_search_exp.value();
 
-  auto t_reselection_exp = find_and_parse_bounded_int<uint8_t, 0, 7>(content, "t_reselection_nr");
+  auto t_reselection_exp = find_and_parse_bounded<t_reselection_t>(content, "t_reselection_nr");
   if (!t_reselection_exp) {
     return make_unexpected(t_reselection_exp.error());
   }
@@ -550,7 +591,7 @@ static expected<sib3_info, std::string> parse_sib3(const nlohmann::json& content
       if (range_it == excl_obj.end() || !range_it->is_number_integer()) {
         return make_unexpected("'range' missing or not a non-negative integer in excluded list entry");
       }
-      if (range_it->is_number_unsigned() && range_it->get<uint64_t>() > 0x7fffffffffffffffULL) {
+      if (range_it->is_number_unsigned() && range_it->get<uint64_t>() > max_int64_as_uint64) {
         return make_unexpected("'range' missing or not a non-negative integer in excluded list entry");
       }
       const int64_t range_val = range_it->get<int64_t>();
@@ -619,7 +660,7 @@ static expected<sib4_info, std::string> parse_sib4(const nlohmann::json& content
       return make_unexpected("'inter_freq_carrier_freq_list' entries should be objects");
     }
 
-    // NR-ARFCN, TS 38.101-1 Table 5.4.2.1-1: max value 3279165.
+    // NR-ARFCN, TS 38.101-1 Table 5.4.2.1-1: ARFCN-ValueNR ::= INTEGER (0..3279165); bounds carried by arfcn_t.
     auto arfcn_it = carrier_obj.find("arfcn");
     if (arfcn_it == carrier_obj.end()) {
       return make_unexpected("'arfcn' field is missing in carrier list entry");
@@ -627,12 +668,13 @@ static expected<sib4_info, std::string> parse_sib4(const nlohmann::json& content
     if (!arfcn_it->is_number_integer()) {
       return make_unexpected("'arfcn' value type should be an integer");
     }
-    if (arfcn_it->is_number_unsigned() && arfcn_it->get<uint64_t>() > 0x7fffffffffffffffULL) {
-      return make_unexpected("'arfcn' value out of range [0, 3279165]");
+    if (arfcn_it->is_number_unsigned() && arfcn_it->get<uint64_t>() > max_int64_as_uint64) {
+      return make_unexpected(fmt::format("'arfcn' value out of range [{}, {}]", arfcn_t::min(), arfcn_t::max()));
     }
     const int64_t arfcn_val = arfcn_it->get<int64_t>();
-    if (arfcn_val < 0 || arfcn_val > 3279165) {
-      return make_unexpected(fmt::format("'arfcn' value '{}' out of range [0, 3279165]", arfcn_val));
+    if (arfcn_val < static_cast<int64_t>(arfcn_t::min()) || arfcn_val > static_cast<int64_t>(arfcn_t::max())) {
+      return make_unexpected(
+          fmt::format("'arfcn' value '{}' out of range [{}, {}]", arfcn_val, arfcn_t::min(), arfcn_t::max()));
     }
 
     auto scs_it = carrier_obj.find("ssb_scs");
@@ -649,17 +691,17 @@ static expected<sib4_info, std::string> parse_sib4(const nlohmann::json& content
       return make_unexpected("'derive_ssb_index_from_cell' missing or non-boolean in carrier list entry");
     }
 
-    auto q_rx_lev_min_exp = find_and_parse_bounded_int<int8_t, -70, -22>(carrier_obj, "q_rx_lev_min");
+    auto q_rx_lev_min_exp = find_and_parse_bounded<q_rx_lev_min_t>(carrier_obj, "q_rx_lev_min");
     if (!q_rx_lev_min_exp) {
       return make_unexpected(q_rx_lev_min_exp.error());
     }
 
-    auto thresh_high_exp = find_and_parse_bounded_int<uint8_t, 0, 31>(carrier_obj, "thresh_x_high_p");
+    auto thresh_high_exp = find_and_parse_bounded<reselection_threshold_t>(carrier_obj, "thresh_x_high_p");
     if (!thresh_high_exp) {
       return make_unexpected(thresh_high_exp.error());
     }
 
-    auto thresh_low_exp = find_and_parse_bounded_int<uint8_t, 0, 31>(carrier_obj, "thresh_x_low_p");
+    auto thresh_low_exp = find_and_parse_bounded<reselection_threshold_t>(carrier_obj, "thresh_x_low_p");
     if (!thresh_low_exp) {
       return make_unexpected(thresh_low_exp.error());
     }
