@@ -4,6 +4,7 @@
 
 #include "lib/scheduler/config/time_domain_mapper.h"
 #include "lib/scheduler/slicing/inter_slice_scheduler.h"
+#include "tests/test_doubles/scheduler/scheduler_config_helper.h"
 #include "tests/unittests/scheduler/test_utils/config_generators.h"
 #include "tests/unittests/scheduler/test_utils/dummy_test_components.h"
 #include "ocudu/ocudulog/ocudulog.h"
@@ -58,7 +59,7 @@ protected:
   const ue_configuration* add_ue(const sched_ue_creation_request_message& req)
   {
     const ue_configuration* ue_cfg = test_cfg.add_ue(req);
-    ues.add_ue(*ue_cfg, {req.starts_in_fallback, req.ul_ccch_slot_rx, req.cfra_enabled});
+    ues.add_ue(*ue_cfg, {sched_config_helper::to_ue_creation_mode(req), req.ul_ccch_slot_rx});
     slice_sched.add_ue(req.ue_index);
     return ue_cfg;
   }

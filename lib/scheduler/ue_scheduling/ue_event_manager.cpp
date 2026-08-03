@@ -302,13 +302,26 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
     auto                      ra_it = ra_ue_repo.find(crnti);
     std::optional<slot_point> prach_slot_rx =
         ra_it != ra_ue_repo.end() ? std::optional<slot_point>(ra_it->prach_slot_rx) : std::nullopt;
-    bool skip_conres_ce = ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar();
+
+    bool             is_in_fallback = ev.get_fallback_command().has_value() and ev.get_fallback_command().value();
+    ue_creation_mode creation_mode  = ue_creation_mode::skip_fallback;
+    if (is_in_fallback) {
+      if (ev.get_ul_ccch_slot_rx().has_value()) {
+        // RACH-created UE. A 2-step RACH successRAR completion already resolved contention (TS38.321 6.2.3a), so
+        // no MAC ConRes CE is needed; any other RACH path (native 4-step, or 2-step fallback) still needs one.
+        creation_mode = ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar()
+                            ? ue_creation_mode::two_step_success_rar
+                            : ue_creation_mode::msg3_rach;
+      } else if (ev.get_cfra_enabled()) {
+        creation_mode = ue_creation_mode::cfra;
+      } else {
+        creation_mode = ue_creation_mode::high_layers;
+      }
+    }
 
     // Insert UE in UE repository.
-    const du_cell_index_t pcell_index    = ev.next_config().pcell_common_cfg().cell_index;
-    bool                  is_in_fallback = ev.get_fallback_command().has_value() and ev.get_fallback_command().value();
-    ue_db.add_ue(ev.next_config(),
-                 {is_in_fallback, ev.get_ul_ccch_slot_rx(), ev.get_cfra_enabled(), prach_slot_rx, skip_conres_ce});
+    const du_cell_index_t pcell_index = ev.next_config().pcell_common_cfg().cell_index;
+    ue_db.add_ue(ev.next_config(), {creation_mode, ev.get_ul_ccch_slot_rx(), prach_slot_rx});
 
     auto& u     = ue_db[ue_index];
     auto& ue_cc = u.get_pcell();

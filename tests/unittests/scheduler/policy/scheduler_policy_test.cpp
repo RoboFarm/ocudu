@@ -116,7 +116,8 @@ protected:
   {
     ue_ded_cell_cfg_list.push_back(cfg_mng.add_ue(ue_req));
     ocudu_assert(ue_ded_cell_cfg_list.back() != nullptr, "Failed to create UE configuration");
-    ues.add_ue(*ue_ded_cell_cfg_list.back(), {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+    ues.add_ue(*ue_ded_cell_cfg_list.back(),
+               {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
     slice_sched.add_ue(ue_req.ue_index);
     return ues[ue_req.ue_index];
   }

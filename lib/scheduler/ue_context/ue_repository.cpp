@@ -121,30 +121,40 @@ void ue_repository::add_ue(const ue_configuration& ue_cfg, const ue_creation_con
   // Create UE components.
   const du_ue_index_t ue_index = ue_cfg.ue_index;
 
+  const bool starts_in_fallback = creation_ctx.creation_mode != ue_creation_mode::skip_fallback;
+
   ue_pcell_state st;
   st.msg3_rx_slot  = creation_ctx.ul_ccch_slot_rx.value_or(slot_point{});
   st.prach_slot_rx = creation_ctx.prach_slot_rx.value_or(slot_point{});
-  if (creation_ctx.starts_in_fallback) {
-    if (st.msg3_rx_slot.valid()) {
-      // RACH-created UE: RRC Setup/Reestablishment/Resume pending. ConRes CE is also pending, unless contention
-      // resolution was already completed by other means (e.g. 2-step RACH successRAR, TS38.321 6.2.3a).
+  switch (creation_ctx.creation_mode) {
+    case ue_creation_mode::skip_fallback:
+      // UE does not start in fallback mode; config_st/conres_st keep their config_applied/conres_completed defaults.
+      break;
+    case ue_creation_mode::msg3_rach:
+      // RACH-created UE (native 4-step or 2-step fallback): RRC Setup/Reestablishment/Resume + ConRes CE pending.
       st.config_st = ue_config_state::pending_initial_conf;
-      st.conres_st =
-          creation_ctx.skip_conres_ce ? ue_conres_state::conres_completed : ue_conres_state::pending_conres_ce;
-    } else if (creation_ctx.cfra_enabled) {
+      st.conres_st = ue_conres_state::pending_conres_ce;
+      break;
+    case ue_creation_mode::two_step_success_rar:
+      // 2-step RACH successRAR: contention already resolved (TS38.321, 6.2.3a); RRC Setup still pending.
+      st.config_st = ue_config_state::pending_initial_conf;
+      st.conres_st = ue_conres_state::conres_completed;
+      break;
+    case ue_creation_mode::cfra:
       // F1AP-created UE that is expecting a CFRA. Defer UCI/SRS scheduling until Msg3 is ACKed.
       st.conres_st = ue_conres_state::pending_cfra;
-    } else {
+      break;
+    case ue_creation_mode::high_layers:
       // F1AP-created UE: already RRC connected but waiting for C-RNTI CE.
       st.conres_st = ue_conres_state::pending_conres_crnti_ce;
-    }
+      break;
   }
   ue_fsms.emplace(ue_index, st);
 
   const rnti_t             rnti      = ue_cfg.crnti;
   const auto&              pcell_cmn = ue_cfg.pcell_common_cfg();
   const subcarrier_spacing scs       = pcell_cmn.params.dl_cfg_common.init_dl_bwp.generic_params.scs;
-  auto ue_lc_mng = lc_ch_sys.create_ue(ue_index, scs, creation_ctx.starts_in_fallback, ue_cfg.logical_channels());
+  auto ue_lc_mng = lc_ch_sys.create_ue(ue_index, scs, starts_in_fallback, ue_cfg.logical_channels());
   ue_drx_controllers.emplace(ue_index,
                              pcell_cmn.params.ul_cfg_common.init_ul_bwp.generic_params.scs,
                              pcell_cmn.params.ul_cfg_common.init_ul_bwp.rach_cfg_common->ra_con_res_timer,

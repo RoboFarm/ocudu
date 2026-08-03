@@ -7,6 +7,7 @@
 #include "../test_utils/config_generators.h"
 #include "lib/scheduler/config/du_cell_group_config_pool.h"
 #include "lib/scheduler/ue_context/ue_repository.h"
+#include "tests/test_doubles/scheduler/scheduler_config_helper.h"
 #include "tests/unittests/scheduler/test_utils/scheduler_test_suite.h"
 #include <gtest/gtest.h>
 
@@ -67,7 +68,7 @@ public:
   {
     ue_ded_cfgs.emplace_back(cfg_mng.add_ue(ue_req));
     report_error_if_not(ue_ded_cfgs.back() != nullptr, "Failed to create UE configuration");
-    ues.add_ue(*ue_ded_cfgs.back(), {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+    ues.add_ue(*ue_ded_cfgs.back(), {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
   }
 
   void slot_indication(slot_point slot_tx)

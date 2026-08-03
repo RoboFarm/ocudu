@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "lib/scheduler/ue_context/ue_fsm_states.h"
 #include "ocudu/scheduler/config/cell_config_builder_params.h"
 #include "ocudu/scheduler/config/ran_cell_config.h"
 #include "ocudu/scheduler/scheduler_configurator.h"
@@ -23,5 +24,9 @@ create_default_sched_ue_creation_request(const ran_cell_config&               ce
 
 /// Create a UE creation request with no UE-dedicated config.
 sched_ue_creation_request_message create_empty_spcell_cfg_sched_ue_creation_request(const ran_cell_config& cell_cfg);
+
+/// \brief Derive the \c ue_creation_mode matching a request's starts_in_fallback/ul_ccch_slot_rx/cfra_enabled
+/// fields, for tests that don't exercise the 2-step RACH successRAR path.
+ue_creation_mode to_ue_creation_mode(const sched_ue_creation_request_message& req);
 
 } // namespace ocudu::sched_config_helper

@@ -17,19 +17,13 @@ namespace ocudu {
 
 /// \brief Context describing how a UE is being created, passed to \c ue_repository::add_ue.
 struct ue_creation_context {
-  /// Whether the UE starts in fallback mode, i.e. without using its dedicated configuration.
-  bool starts_in_fallback = false;
+  /// How this UE is being created; \c ue_creation_mode::skip_fallback means it does not start in fallback mode.
+  ue_creation_mode creation_mode = ue_creation_mode::skip_fallback;
   /// Slot at which UL-CCCH message was received, in case of RA-based UE creation. \c std::nullopt, otherwise.
   std::optional<slot_point> ul_ccch_slot_rx;
-  /// Whether the UE is expecting a CFRA.
-  bool cfra_enabled = false;
   /// Slot at which the PRACH preamble was received, if this UE was created following a RACH tracked by the RA
   /// scheduler. \c std::nullopt, otherwise.
   std::optional<slot_point> prach_slot_rx;
-  /// \brief Set when contention resolution was already completed by other means before this UE creation (e.g. a
-  /// 2-step RACH successRAR, which embeds the UE Contention Resolution Identity directly, TS38.321 6.2.3a), so no
-  /// MAC Contention Resolution CE needs to be scheduled for this UE.
-  bool skip_conres_ce = false;
 };
 
 /// Container that stores all scheduler UEs.

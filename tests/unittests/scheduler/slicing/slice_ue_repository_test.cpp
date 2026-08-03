@@ -5,6 +5,7 @@
 #include "lib/scheduler/config/sched_config_manager.h"
 #include "lib/scheduler/slicing/slice_ue_repository.h"
 #include "lib/scheduler/ue_context/ue_repository.h"
+#include "tests/test_doubles/scheduler/scheduler_config_helper.h"
 #include "tests/unittests/scheduler/test_utils/config_generators.h"
 #include "tests/unittests/scheduler/test_utils/dummy_test_components.h"
 #include <gtest/gtest.h>
@@ -71,7 +72,7 @@ protected:
     }
     req.cfg.lc_config_list         = lc_cfg_list;
     const ue_configuration* ue_cfg = test_cfg.add_ue(req);
-    ue_db.add_ue(*ue_cfg, {req.starts_in_fallback, req.ul_ccch_slot_rx, req.cfra_enabled});
+    ue_db.add_ue(*ue_cfg, {sched_config_helper::to_ue_creation_mode(req), req.ul_ccch_slot_rx});
 
     for (const auto& lc_ch : lc_chs) {
       slices[lc_ch.slice_id.value()]->add_logical_channel(ue_db[ue_idx], lc_ch.lcid, lc_ch.lcg_id);

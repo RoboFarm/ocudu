@@ -8,6 +8,7 @@
 #include "lib/scheduler/logging/cell_metrics_handler.h"
 #include "lib/scheduler/ue_context/ue.h"
 #include "lib/scheduler/ue_context/ue_repository.h"
+#include "tests/test_doubles/scheduler/scheduler_config_helper.h"
 #include "ocudu/scheduler/config/logical_channel_config_factory.h"
 #include "ocudu/scheduler/config/scheduler_expert_config_factory.h"
 #include <gtest/gtest.h>
@@ -47,7 +48,7 @@ protected:
     ue_ded_cfg = cfg_mng.add_ue(ue_creation_req);
     report_error_if_not(ue_ded_cfg != nullptr, "Failed to create UE configuration");
     ues.add_ue(*ue_ded_cfg,
-               {ue_creation_req.starts_in_fallback, ue_creation_req.ul_ccch_slot_rx, ue_creation_req.cfra_enabled});
+               {sched_config_helper::to_ue_creation_mode(ue_creation_req), ue_creation_req.ul_ccch_slot_rx});
     ue_ptr = &ues[ue_creation_req.ue_index];
     ue_cc  = &ue_ptr->get_cell(SERVING_PCELL_IDX);
   }

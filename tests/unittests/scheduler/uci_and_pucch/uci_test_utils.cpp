@@ -269,7 +269,7 @@ void test_bench::add_ue()
   const ue_configuration* ue_cfg = cfg_mng.add_ue(ue_req);
   ocudu_assert(ue_cfg != nullptr, "Failed to create UE configuration");
   ue_ded_cfgs.push_back(ue_cfg);
-  ues.add_ue(*ue_ded_cfgs.back(), {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+  ues.add_ue(*ue_ded_cfgs.back(), {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
   uci_sched.add_ue(ues[ue_req.ue_index].get_pcell().cfg());
 
   last_added_ue_idx  = ue_req.ue_index;

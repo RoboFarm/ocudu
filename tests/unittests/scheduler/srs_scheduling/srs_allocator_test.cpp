@@ -7,6 +7,7 @@
 #include "lib/scheduler/srs/srs_allocator_impl.h"
 #include "lib/scheduler/srs/srs_scheduler_impl.h"
 #include "tests/test_doubles/scheduler/cell_config_builder_profiles.h"
+#include "tests/test_doubles/scheduler/scheduler_config_helper.h"
 #include "tests/test_doubles/utils/test_rng.h"
 #include "tests/unittests/scheduler/test_utils/scheduler_test_suite.h"
 #include "ocudu/ran/srs/srs_bandwidth_configuration.h"
@@ -136,7 +137,7 @@ public:
     ue_ded_cfgs.emplace_back(cfg_mng.add_ue(ue_req));
     test_logger.info("Checking ue rnti={}", ue_req.crnti);
     report_error_if_not(ue_ded_cfgs.back() != nullptr, "Failed to create UE configuration");
-    ues.add_ue(*ue_ded_cfgs.back(), {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+    ues.add_ue(*ue_ded_cfgs.back(), {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
     return ue_req.ue_index;
   }
 

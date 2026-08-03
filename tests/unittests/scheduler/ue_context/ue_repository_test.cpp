@@ -32,7 +32,7 @@ protected:
         cell_cfg.params, std::array<lcid_t, 3>{lcid_t::LCID_SRB1, lcid_t::LCID_SRB2, lcid_t::LCID_MIN_DRB});
     ue_config_update_event  ev     = cfg_mng.add_ue(ue_req);
     const ue_configuration& ue_cfg = ev.next_config();
-    ue_db.add_ue(ue_cfg, {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+    ue_db.add_ue(ue_cfg, {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
     ev.notify_completion();
   }
 
@@ -214,7 +214,7 @@ protected:
     ue_config_update_event  ev     = cfg_mng.add_ue(ue_req);
     const ue_configuration& ue_cfg = ev.next_config();
     du_ue_index_t           ue_idx = ue_req.ue_index;
-    ue_db.add_ue(ue_cfg, {ue_req.starts_in_fallback, ue_req.ul_ccch_slot_rx, ue_req.cfra_enabled});
+    ue_db.add_ue(ue_cfg, {sched_config_helper::to_ue_creation_mode(ue_req), ue_req.ul_ccch_slot_rx});
     ev.notify_completion();
     return ue_idx;
   }

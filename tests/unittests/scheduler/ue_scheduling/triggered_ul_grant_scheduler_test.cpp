@@ -279,7 +279,7 @@ protected:
       drb_lc.triggered_ul_grant->delay_ms   = std::chrono::milliseconds(DELAY_SLOTS);
       drb_lc.triggered_ul_grant->grant_size = units::bytes{GRANT_BYTES};
     }
-    ue_repo.add_ue(*cfg_mgr.add_ue(req), {false, {}, false});
+    ue_repo.add_ue(*cfg_mgr.add_ue(req), {});
     return *ue_repo.find(ue_idx);
   }
 
