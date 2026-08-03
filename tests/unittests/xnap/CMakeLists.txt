@@ -9,6 +9,7 @@ target_link_libraries(xnap_test_helpers ocudu_support xnap_asn1 ocudulog)
 
 set(SOURCES
         ngran_node_cfg_update_procedure_test.cpp
+        retrieve_ue_context_asn1_helpers_test.cpp
         xn_setup_procedure_test.cpp
         xnap_asn1_converters_test.cpp
         xnap_handover_preparation_procedure_test.cpp
