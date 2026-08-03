@@ -6,6 +6,7 @@
 
 #include "../cell/resource_grid.h"
 #include "../config/ue_configuration.h"
+#include "ocudu/ran/pucch/pucch_configuration.h"
 #include "ocudu/ran/rnti.h"
 #include "ocudu/ran/slot_point.h"
 #include <cstdint>
@@ -38,11 +39,14 @@ public:
   /// \param[in] ue_cell_cfg user configuration.
   /// \param[in] k0 k0 value, or delay (in slots) of PDSCH slot vs the corresponding PDCCH slot.
   /// \param[in] k1_list List of k1 candidates configured for UE.
+  /// \param[in] max_rep_factor Maximum PUCCH repetition factor to use for this grant. Defaults to n1 (no repetition).
   /// \return Returns the UCI allocation result if successful, std::nullopt otherwise.
-  virtual std::optional<uci_allocation> alloc_harq_ack(cell_resource_allocator&     res_alloc,
-                                                       const ue_cell_configuration& ue_cell_cfg,
-                                                       unsigned                     k0,
-                                                       span<const uint8_t>          k1_list) = 0;
+  virtual std::optional<uci_allocation>
+  alloc_harq_ack(cell_resource_allocator&     res_alloc,
+                 const ue_cell_configuration& ue_cell_cfg,
+                 unsigned                     k0,
+                 span<const uint8_t>          k1_list,
+                 pucch_repetition_factor      max_rep_factor = pucch_repetition_factor::n1) = 0;
 
   /// Allocates the SR opportunities for a given UE.
   /// \param[out,in] slot_alloc struct with scheduling results.
@@ -79,6 +83,16 @@ public:
   /// \param[in] sl_tx UCI slot.
   /// \return Returns true if a UCI HARQ-ACK allocated on common PUCCH resource exists. False, otherwise.
   virtual bool has_harq_ack_on_common_pucch_res(rnti_t crnti, slot_point sl_tx) = 0;
+
+  /// \brief Returns whether a given slot is part of an in-flight multi-slot PUCCH repetition burst of a UE.
+  ///
+  /// As per TS 38.213, Section 9.2.6, the UCI of a PUCCH with repetitions is never multiplexed on an overlapping PUSCH;
+  /// the UE transmits the PUCCH and drops the PUSCH in the overlapping slots instead. No PUSCH must therefore be
+  /// scheduled for this UE in such a slot.
+  ///
+  /// \param[in] crnti C-RNTI of the UE.
+  /// \param[in] sl_tx Slot to search PUCCH grants.
+  virtual bool has_pucch_repetition(rnti_t crnti, slot_point sl_tx) = 0;
 };
 
 } // namespace ocudu

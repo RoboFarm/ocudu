@@ -157,7 +157,8 @@ void ocudu::fapi_adaptor::convert_pucch_mac_to_fapi(fapi::ul_pucch_pdu_builder& 
       .set_time_allocation_parameters(mac_pdu.res->syms)
       .set_hopping_information_parameters(mac_pdu.res->second_hop_prb.has_value()
                                               ? std::optional<uint16_t>(*mac_pdu.res->second_hop_prb)
-                                              : std::nullopt);
+                                              : std::nullopt)
+      .set_multi_slot_tx_indicator(mac_pdu.slot_repetition);
 
   fill_format_parameters(builder, mac_pdu);
 }

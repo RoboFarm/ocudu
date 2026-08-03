@@ -281,6 +281,10 @@ void pucch_resource_manager::apply_rep_factor_capabilities(ue_cell_config&      
       res.rep_factor = pucch_repetition_factor::n1;
     }
   }
+
+  // Also record the UE's dynamic PUCCH repetition support directly on the UE's scheduler-facing PUCCH config.
+  cell_cfg.init_bwp().ul.pucch.rep_f1_3_4_supported = dynamic_rep_supported and f1_3_4_supported;
+  cell_cfg.init_bwp().ul.pucch.rep_f0_2_supported   = dynamic_rep_supported and f0_2_supported;
 }
 
 std::vector<pucch_resource_manager::periodic_pucch_config>::const_iterator

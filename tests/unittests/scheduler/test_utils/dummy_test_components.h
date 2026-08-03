@@ -105,10 +105,12 @@ public:
 
   void slot_indication(slot_point sl_tx) override { next_uci_allocation.reset(); }
 
-  std::optional<uci_allocation> alloc_harq_ack(cell_resource_allocator&     res_alloc,
-                                               const ue_cell_configuration& ue_cell_cfg,
-                                               unsigned                     k0,
-                                               span<const uint8_t>          k1_list) override
+  std::optional<uci_allocation>
+  alloc_harq_ack(cell_resource_allocator&     res_alloc,
+                 const ue_cell_configuration& ue_cell_cfg,
+                 unsigned                     k0,
+                 span<const uint8_t>          k1_list,
+                 pucch_repetition_factor      max_rep_factor = pucch_repetition_factor::n1) override
   {
     return next_uci_allocation;
   }
@@ -134,6 +136,8 @@ public:
   uint8_t get_scheduled_pdsch_counter_in_ue_uci(slot_point uci_slot, rnti_t crnti) override { return 0; }
 
   bool has_harq_ack_on_common_pucch_res(rnti_t crnti, slot_point sl_tx) override { return false; }
+
+  bool has_pucch_repetition(rnti_t crnti, slot_point sl_tx) override { return false; }
 };
 
 class sched_cfg_dummy_notifier : public sched_configuration_notifier

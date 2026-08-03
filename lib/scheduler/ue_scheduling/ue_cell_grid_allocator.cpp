@@ -117,8 +117,9 @@ std::optional<uci_allocation> ue_cell_grid_allocator::alloc_uci(const ue_cell&  
   span<const uint8_t> k1_list =
       cell_alloc.cfg.init_bwp.ul.td_mapper().k1_candidates(ss_info.get_dl_dci_format(), last_pdsch_slot.count());
 
-  std::optional<uci_allocation> uci =
-      uci_alloc.alloc_harq_ack(cell_alloc, ue_cc.cfg(), pdsch_td_cfg.k0 + last_occasion_offset, k1_list);
+  const pucch_repetition_factor max_rep_factor = ue_cc.link_adaptation_controller().get_recommended_pucch_rep_factor();
+  std::optional<uci_allocation> uci            = uci_alloc.alloc_harq_ack(
+      cell_alloc, ue_cc.cfg(), pdsch_td_cfg.k0 + last_occasion_offset, k1_list, max_rep_factor);
   if (not uci.has_value()) {
     logger.debug("ue={} rnti={}: Failed to allocate PDSCH. Cause: UCI allocation failed.",
                  fmt::underlying(ue_cc.ue_index),
@@ -704,6 +705,19 @@ ue_cell_grid_allocator::setup_ul_grant_builder(const slice_ue&                  
   if (uci_alloc.has_harq_ack_on_common_pucch_res(u.crnti, pusch_alloc.slot)) {
     logger.debug("ue={} rnti={}: Failed to allocate PUSCH in slot={}. Cause: UE has PUCCH grant using common PUCCH "
                  "resources scheduled",
+                 fmt::underlying(u.ue_index),
+                 u.crnti,
+                 pusch_alloc.slot);
+    return make_unexpected(alloc_status::skip_ue);
+  }
+
+  // As per TS 38.213, Section 9.2.6, if a PUCCH transmission with repetitions overlaps a PUSCH, the UE transmits the
+  // PUCCH and does not transmit the PUSCH in the overlapping slots. The UCI cannot be moved to the PUSCH either, as
+  // Section 9.2.5 scopes UCI multiplexing on PUSCH to PUCCHs "over a single slot without repetitions". So the PUSCH
+  // must not be scheduled in any slot of an in-flight repetition burst, or the UE would drop it.
+  if (uci_alloc.has_pucch_repetition(u.crnti, pusch_alloc.slot)) {
+    logger.debug("ue={} rnti={}: Failed to allocate PUSCH in slot={}. Cause: slot is part of a PUCCH repetition burst "
+                 "of this UE",
                  fmt::underlying(u.ue_index),
                  u.crnti,
                  pusch_alloc.slot);

@@ -134,7 +134,8 @@ void uci_allocator_impl::stop()
 std::optional<uci_allocation> uci_allocator_impl::alloc_harq_ack(cell_resource_allocator&     res_alloc,
                                                                  const ue_cell_configuration& ue_cell_cfg,
                                                                  unsigned                     k0,
-                                                                 span<const uint8_t>          k1_list)
+                                                                 span<const uint8_t>          k1_list,
+                                                                 pucch_repetition_factor      max_rep_factor)
 {
   // [Implementation-defined] We restrict the number of HARQ bits per PUCCH that are expected to carry CSI reporting to
   // 2 , until the PUCCH allocator supports more than this.
@@ -219,7 +220,7 @@ std::optional<uci_allocation> uci_allocator_impl::alloc_harq_ack(cell_resource_a
     }
 
     // Step 2: Try to allocate UCI HARQ ACK for UE.
-    auto d_pri = pucch_alloc.alloc_ded_harq_ack(res_alloc, ue_cell_cfg, k0, k1_candidate);
+    auto d_pri = pucch_alloc.alloc_ded_harq_ack(res_alloc, ue_cell_cfg, k0, k1_candidate, max_rep_factor);
 
     // Register new UCI allocation in the respective grid slot entry and derive DAI.
     if (d_pri.has_value()) {
@@ -331,4 +332,9 @@ uint8_t uci_allocator_impl::get_scheduled_pdsch_counter_in_ue_uci(slot_point uci
 bool uci_allocator_impl::has_harq_ack_on_common_pucch_res(rnti_t rnti, slot_point sl_tx)
 {
   return pucch_alloc.has_common_pucch_grant(rnti, sl_tx);
+}
+
+bool uci_allocator_impl::has_pucch_repetition(rnti_t rnti, slot_point sl_tx)
+{
+  return pucch_alloc.has_pucch_repetition_grant(rnti, sl_tx);
 }

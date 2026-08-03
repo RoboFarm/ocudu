@@ -82,6 +82,8 @@ void pucch_helper::fill_common_pdu(pucch_info&               pucch_pdu,
   pucch_pdu.crnti   = rnti;
   pucch_pdu.bwp_cfg = &cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params;
   pucch_pdu.res     = &common_res;
+  // [Implementation-defined] We do not configure slot repetition for common PUCCH resources.
+  pucch_pdu.slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
 
   const pucch_config_common& pucch_cmn = *cell_cfg.params.ul_cfg_common.init_ul_bwp.pucch_cfg_common;
   const unsigned             n_id_hop =
@@ -108,8 +110,6 @@ void pucch_helper::fill_common_pdu(pucch_info&               pucch_pdu,
       // [Implementation-defined] For the default PUCCH resources, we assume only 1 HARQ-ACK process needs to be
       // reported.
       pucch_pdu.uci_bits.harq_ack_nof_bits = 1;
-      // This option can be configured with Dedicated PUCCH resources.
-      format_1.slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
       break;
     }
     default:
@@ -122,7 +122,8 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
                                 const pucch_resource&           pucch_res,
                                 const pucch_uci_bits&           uci_bits,
                                 const csi_report_configuration* csi_cfg,
-                                rnti_t                          rnti)
+                                rnti_t                          rnti,
+                                pucch_repetition_tx_slot        rep_state)
 {
   pucch_pdu.crnti   = rnti;
   pucch_pdu.bwp_cfg = &cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params;
@@ -139,6 +140,7 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
   if (pucch_pdu.uci_bits.csi_part1_nof_bits != 0U) {
     pucch_pdu.csi_rep_cfg = *csi_cfg;
   }
+  pucch_pdu.slot_repetition = rep_state;
 
   // [Implementation-defined] We do not configure group or sequence hopping.
   constexpr auto group_hopping = pucch_group_hopping::NEITHER;
@@ -163,8 +165,6 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
       // \c pucch-GroupHopping and \c hoppingId are set as per TS 38.211, Section 6.3.2.2.1.
       format_1.group_hopping = group_hopping;
       format_1.n_id_hopping  = n_id_hopping;
-      // [Implementation-defined] We do not implement PUCCH over several slots.
-      format_1.slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
     } break;
     case pucch_format::FORMAT_2: {
       auto& f2 = pucch_pdu.format_params.emplace<pucch_info::f2_config>();
@@ -181,10 +181,8 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
       const auto& res_f3 = std::get<pucch_resource::f3_config>(pucch_res.format_params);
       auto&       f3     = pucch_pdu.format_params.emplace<pucch_info::f3_config>();
 
-      f3.group_hopping = group_hopping;
-      f3.n_id_hopping  = n_id_hopping;
-      // [Implementation-defined] We do not implement PUCCH over several slots.
-      f3.slot_repetition    = pucch_repetition_tx_slot::no_multi_slot;
+      f3.group_hopping      = group_hopping;
+      f3.n_id_hopping       = n_id_hopping;
       f3.n_id_scrambling    = n_id_scrambling;
       f3.n_id_0_scrambling  = n_id_0_scrambling;
       const auto max_c_rate = to_float(cell_cfg.params.init_bwp.pucch.resources.max_code_rate_234());
@@ -200,10 +198,8 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
     case pucch_format::FORMAT_4: {
       auto& f4 = pucch_pdu.format_params.emplace<pucch_info::f4_config>();
 
-      f4.group_hopping = group_hopping;
-      f4.n_id_hopping  = n_id_hopping;
-      // [Implementation-defined] We do not implement PUCCH over several slots.
-      f4.slot_repetition   = pucch_repetition_tx_slot::no_multi_slot;
+      f4.group_hopping     = group_hopping;
+      f4.n_id_hopping      = n_id_hopping;
       f4.n_id_scrambling   = n_id_scrambling;
       f4.n_id_0_scrambling = n_id_0_scrambling;
     } break;

@@ -33,13 +33,11 @@ struct pucch_info {
     /// \c pucch-GroupHopping, as per TS 38.331.
     pucch_group_hopping group_hopping;
     /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned                 n_id_hopping;
-    pucch_repetition_tx_slot slot_repetition;
+    unsigned n_id_hopping;
 
     bool operator==(const f1_config& rhs) const
     {
-      return group_hopping == rhs.group_hopping && n_id_hopping == rhs.n_id_hopping &&
-             slot_repetition == rhs.slot_repetition;
+      return group_hopping == rhs.group_hopping && n_id_hopping == rhs.n_id_hopping;
     }
   };
 
@@ -63,17 +61,16 @@ struct pucch_info {
     /// \c pucch-GroupHopping, as per TS 38.331
     pucch_group_hopping group_hopping;
     /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned                 n_id_hopping;
-    pucch_repetition_tx_slot slot_repetition;
-    uint16_t                 n_id_scrambling;
-    uint16_t                 n_id_0_scrambling;
-    uint8_t                  nof_prbs;
+    unsigned n_id_hopping;
+    uint16_t n_id_scrambling;
+    uint16_t n_id_0_scrambling;
+    uint8_t  nof_prbs;
 
     bool operator==(const f3_config& rhs) const
     {
       return group_hopping == rhs.group_hopping && n_id_hopping == rhs.n_id_hopping &&
-             slot_repetition == rhs.slot_repetition && n_id_scrambling == rhs.n_id_scrambling &&
-             n_id_0_scrambling == rhs.n_id_0_scrambling && nof_prbs == rhs.nof_prbs;
+             n_id_scrambling == rhs.n_id_scrambling && n_id_0_scrambling == rhs.n_id_0_scrambling &&
+             nof_prbs == rhs.nof_prbs;
     }
   };
 
@@ -82,16 +79,14 @@ struct pucch_info {
     /// \c pucch-GroupHopping, as per TS 38.331
     pucch_group_hopping group_hopping;
     /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned                 n_id_hopping;
-    pucch_repetition_tx_slot slot_repetition;
-    uint16_t                 n_id_scrambling;
-    uint16_t                 n_id_0_scrambling;
+    unsigned n_id_hopping;
+    uint16_t n_id_scrambling;
+    uint16_t n_id_0_scrambling;
 
     bool operator==(const f4_config& rhs) const
     {
       return group_hopping == rhs.group_hopping && n_id_hopping == rhs.n_id_hopping &&
-             slot_repetition == rhs.slot_repetition && n_id_scrambling == rhs.n_id_scrambling &&
-             n_id_0_scrambling == rhs.n_id_0_scrambling;
+             n_id_scrambling == rhs.n_id_scrambling && n_id_0_scrambling == rhs.n_id_0_scrambling;
     }
   };
 
@@ -102,6 +97,9 @@ struct pucch_info {
   pucch_uci_bits                                                      uci_bits;
   /// In case the PUCCH will contain CSI bits, this struct contains information how those bits are to be decoded.
   std::optional<csi_report_configuration> csi_rep_cfg;
+  /// Indicates whether this PUCCH transmission is part of a multi-slot PUCCH repetition burst, and its position
+  /// within it. Applicable to all PUCCH formats.
+  pucch_repetition_tx_slot slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
 
   /// Returns the format of the PUCCH.
   constexpr pucch_format format() const
