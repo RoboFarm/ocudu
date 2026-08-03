@@ -6,11 +6,10 @@
 #include "rrc_setup_procedure.h"
 #include "ue/rrc_asn1_converters.h"
 #include "ue/rrc_ue_helpers.h"
+#include "ue/rrc_ue_security_helpers.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg.h"
-#include "ocudu/asn1/rrc_nr/nr_ue_variables.h"
 #include "ocudu/ran/cu_cp_types.h"
-#include "ocudu/security/integrity.h"
 
 using namespace ocudu;
 using namespace ocudu::ocucp;
@@ -202,40 +201,18 @@ bool rrc_reestablishment_procedure::is_reestablishment_accepted()
 
 bool rrc_reestablishment_procedure::verify_security_context()
 {
-  bool valid = false;
-
-  // Get RX short MAC.
-  security::sec_short_mac_i short_mac = {};
-  uint16_t short_mac_int              = htons(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number());
-  std::memcpy(short_mac.data(), &short_mac_int, 2);
-
-  // Get packed varShortMAC-Input.
-  asn1::rrc_nr::var_short_mac_input_s var_short_mac_input = {};
-  var_short_mac_input.source_pci                          = reestablishment_request.rrc_reest_request.ue_id.pci;
-  var_short_mac_input.target_cell_id.from_number(context.cell.cgi.nci.value());
-  var_short_mac_input.source_c_rnti        = reestablishment_request.rrc_reest_request.ue_id.c_rnti;
-  byte_buffer   var_short_mac_input_packed = {};
-  asn1::bit_ref bref(var_short_mac_input_packed);
-  var_short_mac_input.pack(bref);
-
-  logger.log_debug(var_short_mac_input_packed.begin(),
-                   var_short_mac_input_packed.end(),
-                   "Packed varShortMAC-Input. Source PCI={}, Target Cell-Id={}, Source C-RNTI={}",
-                   var_short_mac_input.source_pci,
-                   var_short_mac_input.target_cell_id.to_number(),
-                   to_rnti(var_short_mac_input.source_c_rnti));
-
-  // Verify ShortMAC-I.
-  if (old_ue_reest_context.sec_context.sel_algos.algos_selected) {
-    security::sec_as_config source_as_config =
-        old_ue_reest_context.sec_context.get_as_config(security::sec_domain::rrc);
-    valid = security::verify_short_mac(short_mac, var_short_mac_input_packed, source_as_config);
-    logger.log_debug("Received RRC re-establishment request. short_mac_valid={}", valid);
-  } else {
+  if (!old_ue_reest_context.sec_context.sel_algos.algos_selected) {
     log_rejected_reestablishment("Old UE does not have valid security context");
+    return false;
   }
 
-  return valid;
+  return ocucp::verify_short_mac_i(
+      to_short_mac_i(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number()),
+      reestablishment_request.rrc_reest_request.ue_id.pci,
+      to_rnti(reestablishment_request.rrc_reest_request.ue_id.c_rnti),
+      context.cell.cgi.nci,
+      old_ue_reest_context.sec_context,
+      logger);
 }
 
 void rrc_reestablishment_procedure::transfer_reestablishment_context_and_update_keys()
