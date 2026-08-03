@@ -56,6 +56,16 @@ protected:
     drb_ctxt.drb_id               = drb_id;
     drb_ctxt.pdu_session_id       = psi;
     drb_ctxt.sdap_cfg.pdu_session = psi;
+    drb_ctxt.rlc_mod              = rlc_mode::am;
+    // PDCP configuration of a DRB.
+    drb_ctxt.pdcp_cfg                    = {};
+    drb_ctxt.pdcp_cfg.rb_type            = pdcp_rb_type::drb;
+    drb_ctxt.pdcp_cfg.rlc_mode           = pdcp_rlc_mode::am;
+    drb_ctxt.pdcp_cfg.ciphering_required = true;
+    drb_ctxt.pdcp_cfg.tx.sn_size         = pdcp_sn_size::size18bits;
+    drb_ctxt.pdcp_cfg.tx.discard_timer   = pdcp_discard_timer::ms100;
+    drb_ctxt.pdcp_cfg.rx.sn_size         = pdcp_sn_size::size18bits;
+    drb_ctxt.pdcp_cfg.rx.t_reordering    = pdcp_t_reordering::ms100;
     for (qos_flow_id_t qfi : qfis) {
       drb_ctxt.qos_flows.emplace(qfi, up_qos_flow_context{qfi, {}});
       drb_ctxt.sdap_cfg.mapped_qos_flows_to_add.push_back(qfi);
