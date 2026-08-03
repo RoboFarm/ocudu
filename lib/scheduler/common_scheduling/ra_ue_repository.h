@@ -30,12 +30,8 @@ struct ra_ue_context {
   bool pending_removal = false;
   /// Slot of the 2-step RACH successRAR MsgB PDSCH. Nullopt until \c set_msgb_scheduled commits it, only ever set
   /// for a successRAR completion.
-  /// \note Gates when contention is considered resolved (see \c is_msgb_success_rar_pending). Distinct from \c
-  /// msgb_ack_slot_tx, which gates the PUCCH resource instead.
   std::optional<slot_point> msgb_slot_tx;
   /// Slot of the successRAR's own HARQ-ACK PUCCH feedback. Set together with \c msgb_slot_tx.
-  /// \note PUCCH-allocator constraint, not a scheduling gate: any later PUCCH for this RNTI must land strictly
-  /// after this slot, or it collides with the still-pending ack.
   std::optional<slot_point> msgb_ack_slot_tx;
 
   /// TC-RNTI associated with this UE in RA.
@@ -45,10 +41,10 @@ struct ra_ue_context {
   /// false for a Msg3-tracking entry (native 4-step or 2-step fallback).
   bool is_msgb_success_rar() const { return harq_ent.empty(); }
 
-  /// True if this is a successRAR entry whose MsgB PDSCH slot is not yet committed or still in the future.
+  /// True if this is a successRAR entry whose MsgB HARQ-ACK PUCCH slot is not yet committed or still in the future.
   bool is_msgb_success_rar_pending(slot_point slot_tx) const
   {
-    return is_msgb_success_rar() and (not msgb_slot_tx.has_value() or *msgb_slot_tx >= slot_tx);
+    return is_msgb_success_rar() and (not msgb_ack_slot_tx.has_value() or *msgb_ack_slot_tx >= slot_tx);
   }
 };
 

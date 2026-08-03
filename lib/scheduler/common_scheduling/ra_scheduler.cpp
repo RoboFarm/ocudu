@@ -2011,8 +2011,6 @@ ra_scheduler::alloc_msgb_harq_ack_pucch(cell_resource_allocator&    res_alloc,
       const unsigned r_pucch =
           get_pucch_default_resource_index(pdcch.ctx.cces.ncce, pdcch.ctx.coreset_cfg->get_nof_cces(), *delta_pri);
 
-      // PDSCH slot gates contention resolution (is_msgb_success_rar_pending); ACK slot is a separate PUCCH
-      // constraint, so a later PUCCH for this RNTI can't land at or before it.
       const slot_point msgb_pdsch_slot = res_alloc.slot_tx() + pdsch_delay;
       const slot_point harq_ack_slot   = msgb_pdsch_slot + k1_candidates[k1_idx] + delta;
       if (not ra_ue_repo.set_msgb_scheduled(tc_rnti, msgb_pdsch_slot, harq_ack_slot)) {

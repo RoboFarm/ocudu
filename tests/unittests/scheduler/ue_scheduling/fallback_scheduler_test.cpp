@@ -687,19 +687,20 @@ TEST_P(fallback_scheduler_tester, when_ra_conres_timer_expires_ue_doesnt_get_all
   ASSERT_FALSE(conres_pdcch.has_value());
 }
 
-TEST_P(fallback_scheduler_tester, when_msgb_not_yet_sent_ue_doesnt_get_allocated_until_msgb_slot_passes)
+TEST_P(fallback_scheduler_tester, when_msgb_ack_not_yet_sent_ue_doesnt_get_allocated_until_msgb_ack_slot_passes)
 {
   setup_sched(create_expert_config(1), create_custom_cell_config_request(params.k0));
 
-  const rnti_t     tc_rnti      = to_rnti(0x4601);
-  const slot_point prach_slot   = current_slot;
-  const slot_point msgb_slot_tx = current_slot + 3;
+  const rnti_t     tc_rnti          = to_rnti(0x4601);
+  const slot_point prach_slot       = current_slot;
+  const slot_point msgb_slot_tx     = current_slot + 3;
+  const slot_point msgb_ack_slot_tx = msgb_slot_tx + 4;
 
   // Simulate the RA scheduler having committed the MsgB PDSCH a few slots ahead.
   rach_indication_message::preamble preamble{};
   preamble.tc_rnti = tc_rnti;
   ASSERT_NE(bench->ra_ue_repo.add_msgb_pending(preamble, prach_slot), nullptr);
-  ASSERT_TRUE(bench->ra_ue_repo.set_msgb_scheduled(tc_rnti, msgb_slot_tx, msgb_slot_tx + 4));
+  ASSERT_TRUE(bench->ra_ue_repo.set_msgb_scheduled(tc_rnti, msgb_slot_tx, msgb_ack_slot_tx));
 
   // UE created right after the successRAR was scheduled, before its PDSCH is transmitted.
   add_ue(tc_rnti, to_du_ue_index(0));
@@ -708,13 +709,13 @@ TEST_P(fallback_scheduler_tester, when_msgb_not_yet_sent_ue_doesnt_get_allocated
   // Notify about SRB0 message in DL of size 99 bytes.
   push_buffer_state_to_dl_ue(to_du_ue_index(0), current_slot, 99, false);
 
-  // While the current slot has not passed the MsgB PDSCH slot, nothing should be scheduled for this UE.
-  while (current_slot < msgb_slot_tx) {
+  // While the current slot has not passed the MsgB HARQ-ACK PUCCH slot, nothing should be scheduled for this UE.
+  do {
     run_slot();
     ASSERT_FALSE(ue_is_allocated_pdcch(test_ue));
-  }
+  } while (current_slot < msgb_ack_slot_tx);
 
-  // Once the MsgB PDSCH slot has passed, the fallback scheduler is free to schedule ConRes for this UE.
+  // Once the MsgB HARQ-ACK PUCCH slot has passed, the fallback scheduler is free to schedule ConRes for this UE.
   std::optional<slot_point> conres_pdcch;
   for (unsigned i = 0; i != 20 and not conres_pdcch.has_value(); ++i) {
     run_slot();

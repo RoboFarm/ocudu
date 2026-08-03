@@ -116,7 +116,7 @@ TEST_F(ra_ue_repository_test, add_msgb_pending_entry_is_harqless_and_pending_unt
   EXPECT_TRUE(ctx->is_msgb_success_rar_pending(sl_tx));
   EXPECT_TRUE(ctx->is_msgb_success_rar_pending(sl_tx + 100));
 
-  // Records both the PDSCH slot and its later ACK slot. Gate releases once the (earlier) PDSCH slot passes.
+  // Records both the PDSCH slot and its later ACK slot. Gate releases once the (later) ACK slot passes.
   const slot_point msgb_slot_tx     = sl_tx + 3;
   const slot_point msgb_ack_slot_tx = msgb_slot_tx + 4;
   ASSERT_TRUE(repo.set_msgb_scheduled(tc_rnti, msgb_slot_tx, msgb_ack_slot_tx));
@@ -125,7 +125,8 @@ TEST_F(ra_ue_repository_test, add_msgb_pending_entry_is_harqless_and_pending_unt
   EXPECT_EQ(*ctx->msgb_slot_tx, msgb_slot_tx);
   EXPECT_EQ(*ctx->msgb_ack_slot_tx, msgb_ack_slot_tx);
   EXPECT_TRUE(ctx->is_msgb_success_rar_pending(msgb_slot_tx));
-  EXPECT_FALSE(ctx->is_msgb_success_rar_pending(msgb_slot_tx + 1));
+  EXPECT_TRUE(ctx->is_msgb_success_rar_pending(msgb_ack_slot_tx));
+  EXPECT_FALSE(ctx->is_msgb_success_rar_pending(msgb_ack_slot_tx + 1));
 }
 
 TEST_F(ra_ue_repository_test, add_msgb_pending_entry_is_erased_after_conres_timeout_even_if_never_scheduled)

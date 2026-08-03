@@ -276,7 +276,7 @@ bool ue_fallback_scheduler::schedule_dl_new_tx(cell_resource_allocator& res_allo
     // Determine if we should schedule ConRes, SRB0, SRB1 for the given UE.
     auto& u = ues[next_ue->ue_index];
 
-    // 2-step RACH: don't schedule ConRes CE/SRB0/SRB1 before the UE's successRAR PDSCH is sent.
+    // 2-step RACH: don't schedule ConRes CE/SRB0/SRB1 before the UE's successRAR HARQ-ACK PUCCH slot has passed.
     auto ra_it = ra_ue_repo.find(u.crnti);
     if (ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar_pending(res_alloc.slot_tx())) {
       ++next_ue;
@@ -375,6 +375,10 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
   // Retrieve the slot of the last PDSCH for this UE.
   const slot_point last_pdsch_slot = u.get_pcell().harqs.last_pdsch_slot();
 
+  // Used to gate scheduling on the UE's still-pending successRAR HARQ-ACK PUCCH slot, if any (see the per-candidate
+  // check below).
+  const auto ra_it = ra_ue_repo.find(u.crnti);
+
   // \ref starting_slot is the slot from which the scheduler will search for PDSCH space for a given UE.
   // As per TS 38.214, clause 5.1, the PDSCHs need to follow the same order as PDCCHs for a given UE. Thus, we set the
   // starting_slot to be always higher than the slot of the last PDSCH for the same UE (if it exists).
@@ -396,6 +400,14 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
     const cell_slot_resource_allocator& pdsch_alloc              = res_alloc[offset_to_sched_ref_slot];
 
     if ((not cell_cfg.is_dl_enabled(pdcch_alloc.slot)) or (not cell_cfg.is_dl_enabled(pdsch_alloc.slot))) {
+      continue;
+    }
+
+    // 2-step RACH: this candidate slot may be past the outer check above (the search window can extend beyond the
+    // current slot), so re-check it isn't at or before the UE's still-pending successRAR HARQ-ACK PUCCH slot. The
+    // UE's MsgB PDSCH implicitly uses DL HARQ id 0 (no harq-id field in its DCI), so no other PDSCH for this RNTI
+    // may be scheduled until that HARQ-ACK PUCCH slot has passed.
+    if (ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar_pending(pdsch_alloc.slot)) {
       continue;
     }
 
@@ -456,12 +468,6 @@ ue_fallback_scheduler::schedule_dl_srb(cell_resource_allocator&              res
     slot_point       most_recent_ack_slot = pdsch_alloc.slot;
     if (last_slot_ack.valid() and last_slot_ack > most_recent_ack_slot) {
       most_recent_ack_slot = last_slot_ack;
-    }
-    // Fold in the still-pending successRAR's own HARQ-ACK slot, if any.
-    const auto ra_it = ra_ue_repo.find(u.crnti);
-    if (ra_it != ra_ue_repo.end() and ra_it->msgb_ack_slot_tx.has_value() and
-        *ra_it->msgb_ack_slot_tx > most_recent_ack_slot) {
-      most_recent_ack_slot = *ra_it->msgb_ack_slot_tx;
     }
     if (pdsch_alloc.slot + dci_1_0_k1_values.back() <= most_recent_ack_slot) {
       continue;
