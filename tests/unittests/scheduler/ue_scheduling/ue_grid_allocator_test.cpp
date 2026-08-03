@@ -817,8 +817,9 @@ protected:
 
   void set_reported_cqi(ue_cell& ue_cc, uint8_t cqi)
   {
-    csi_report_data csi;
+    csi_report_data csi{};
     csi.first_tb_wideband_cqi = csi_report_data::wideband_cqi_type{cqi};
+    csi.valid                 = true;
     ue_cc.handle_csi_report(csi);
   }
 
