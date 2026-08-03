@@ -90,6 +90,15 @@ private:
   /// \brief Handle incoming ConditionalHandoverCancel (source cancels CHO resources at target).
   void handle_conditional_ho_cancel(const asn1::xnap::conditional_ho_cancel_s& msg);
 
+  /// \brief Notify about the reception of a Retrieve UE Context Request message.
+  /// \param[in] msg The received Retrieve UE Context Request message.
+  void handle_retrieve_ue_context_request(const asn1::xnap::retrieve_ue_context_request_s& msg);
+
+  /// \brief Resolve the configuration of a cell served by the XN-C peer.
+  /// \param[in] nci Identity of the served cell.
+  /// \return The served cell configuration, or std::nullopt if the peer did not advertise the cell at XN setup.
+  std::optional<cu_cp_served_cell_info> find_peer_served_cell(nr_cell_identity nci) const;
+
   /// \brief Notify about the reception of a successful outcome message.
   /// \param[in] outcome The successful outcome message.
   void handle_successful_outcome(const asn1::xnap::successful_outcome_s& outcome);

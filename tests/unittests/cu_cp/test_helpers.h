@@ -671,6 +671,15 @@ public:
     logger.info("Received a new request to get packed UE capabilities");
     return byte_buffer{};
   }
+
+  bool verify_reestablishment_short_mac_i(const security::sec_short_mac_i& short_mac_i,
+                                          pci_t                            source_pci,
+                                          rnti_t                           source_c_rnti,
+                                          nr_cell_identity                 target_nci) override
+  {
+    logger.info("Received a request to verify a ShortMAC-I");
+    return short_mac_i_valid;
+  }
   async_task<bool> handle_rrc_reconfiguration_request(const rrc_reconfiguration_procedure_request& msg) override
   {
     logger.info("Received a new RRC reconfiguration request");
@@ -848,6 +857,9 @@ public:
   std::optional<rrc_radio_bearer_config> last_radio_bearer_cfg;
   void                                   reset() { last_radio_bearer_cfg.reset(); }
 
+  /// Outcome the dummy reports for a ShortMAC-I verification.
+  bool short_mac_i_valid = true;
+
   unsigned    last_transaction_id;
   srb_id_t    last_srb_id;
   byte_buffer last_ue_capabilities;
@@ -935,6 +947,19 @@ public:
   }
 
   std::vector<cu_cp_served_cell_info> handle_served_cells_required() override { return served_cells; }
+
+  cu_cp_ue_index_t handle_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id) override
+  {
+    logger.info("Received a UE Context ID lookup request");
+    return cu_cp_ue_index_t::invalid;
+  }
+
+  async_task<xnap_retrieve_ue_context_response>
+  handle_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request) override
+  {
+    logger.info("ue={}: Received a Retrieve UE Context Request", request.ue_index);
+    return launch_no_op_task(xnap_retrieve_ue_context_response{});
+  }
 
   byte_buffer                         last_handover_command;
   std::vector<cu_cp_served_cell_info> served_cells;

@@ -13,9 +13,10 @@ set(SOURCES
         xn_setup_procedure_test.cpp
         xnap_asn1_converters_test.cpp
         xnap_handover_preparation_procedure_test.cpp
+        xnap_retrieve_ue_context_procedure_test.cpp
         )
 
 add_executable(xnap_test ${SOURCES})
 target_include_directories(xnap_test PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(xnap_test xnap_test_helpers ocudu_xnap ocudu_support rrc_ue_test_helpers ocudulog gtest gtest_main)
+target_link_libraries(xnap_test xnap_test_helpers xnap_test_doubles ocudu_xnap ocudu_support rrc_ue_test_helpers ocudulog gtest gtest_main)
 gtest_discover_tests(xnap_test PROPERTIES "LABELS;xnap")

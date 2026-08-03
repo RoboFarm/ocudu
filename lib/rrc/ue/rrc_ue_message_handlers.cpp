@@ -10,6 +10,7 @@
 #include "rrc_asn1_helpers.h"
 #include "rrc_ue_helpers.h"
 #include "rrc_ue_impl.h"
+#include "rrc_ue_security_helpers.h"
 #include "ue/rrc_asn1_converters.h"
 #include "ue/rrc_measurement_types_asn1_converters.h"
 #include "ocudu/adt/format.h"
@@ -473,6 +474,15 @@ async_task<bool> rrc_ue_impl::handle_security_mode_complete_expected(uint8_t tra
 
     CORO_RETURN(true);
   });
+}
+
+bool rrc_ue_impl::verify_reestablishment_short_mac_i(const security::sec_short_mac_i& short_mac_i,
+                                                     pci_t                            source_pci,
+                                                     rnti_t                           source_c_rnti,
+                                                     nr_cell_identity                 target_nci)
+{
+  return ocucp::verify_short_mac_i(
+      short_mac_i, source_pci, source_c_rnti, target_nci, cu_cp_ue_notifier.get_security_context(), logger);
 }
 
 byte_buffer rrc_ue_impl::get_packed_ue_capability_rat_container_list() const

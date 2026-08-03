@@ -5,11 +5,13 @@
 #include "xnap_impl.h"
 #include "log_helpers.h"
 #include "procedures/ngran_node_cfg_update_procedure.h"
+#include "procedures/retrieve_ue_context_asn1_helpers.h"
 #include "procedures/sn_status_transfer_asn1_helpers.h"
 #include "procedures/xn_handover_asn1_helpers.h"
 #include "procedures/xn_setup_asn1_helpers.h"
 #include "procedures/xn_setup_procedure.h"
 #include "procedures/xn_setup_procedure_asn1_helpers.h"
+#include "procedures/xnap_old_node_retrieve_ue_context_procedure.h"
 #include "procedures/xnap_sn_status_transfer_procedure.h"
 #include "procedures/xnap_source_handover_preparation_procedure.h"
 #include "procedures/xnap_target_handover_preparation_procedure.h"
@@ -118,6 +120,9 @@ void xnap_impl::handle_initiating_message(const init_msg_s& msg)
       break;
     case xnap_elem_procs_o::init_msg_c::types_opts::conditional_ho_cancel:
       handle_conditional_ho_cancel(msg.value.conditional_ho_cancel());
+      break;
+    case xnap_elem_procs_o::init_msg_c::types_opts::retrieve_ue_context_request:
+      handle_retrieve_ue_context_request(msg.value.retrieve_ue_context_request());
       break;
     default:
       logger.error("Initiating message of type {} is not supported", msg.value.type().to_string());
@@ -542,4 +547,78 @@ bool xnap_impl::handle_ue_context_release_required(cu_cp_ue_index_t ue_index)
   ue_ctxt_list.remove_ue_context(ue_index);
 
   return true;
+}
+
+std::optional<cu_cp_served_cell_info> xnap_impl::find_peer_served_cell(nr_cell_identity nci) const
+{
+  if (!peer_ctxt.has_value()) {
+    return std::nullopt;
+  }
+
+  auto cell_it = std::find_if(peer_ctxt->list_of_served_cells_nr.begin(),
+                              peer_ctxt->list_of_served_cells_nr.end(),
+                              [nci](const cu_cp_served_cell_info& cell) { return cell.nr_cgi.nci == nci; });
+  if (cell_it == peer_ctxt->list_of_served_cells_nr.end()) {
+    return std::nullopt;
+  }
+
+  return *cell_it;
+}
+
+void xnap_impl::handle_retrieve_ue_context_request(const asn1::xnap::retrieve_ue_context_request_s& msg)
+{
+  // This is sent from the new to the old NG-RAN node, so the new NG-RAN node UE XnAP ID is the peer XNAP UE ID.
+  const peer_xnap_ue_id_t peer_xnap_ue_id = uint_to_peer_xnap_ue_id(msg->new_ng_ra_nnode_ue_xn_ap_id);
+
+  // Add lambda that generates and transmits a Retrieve UE Context Failure message. It is used before the procedure is
+  // launched, so it addresses the peer by the UE XnAP ID the request carried.
+  auto send_retrieve_ue_context_failure = [this, peer_xnap_ue_id](const xnap_cause_t& cause) {
+    xnap_message xnap_msg;
+    xnap_msg.pdu.set_unsuccessful_outcome();
+    xnap_msg.pdu.unsuccessful_outcome().load_info_obj(ASN1_XNAP_ID_RETRIEVE_UE_CONTEXT);
+    auto& asn1_failure                        = xnap_msg.pdu.unsuccessful_outcome().value.retrieve_ue_context_fail();
+    asn1_failure->new_ng_ra_nnode_ue_xn_ap_id = peer_xnap_ue_id_to_uint(peer_xnap_ue_id);
+    asn1_failure->cause                       = cause_to_asn1(cause);
+
+    if (!tx_notifier.on_new_message(xnap_msg)) {
+      logger.warning("XN-C association is not set. Cannot send RetrieveUEContextFailure");
+      return;
+    }
+    logger.info("Sending RetrieveUEContextFailure");
+  };
+
+  xnap_retrieve_ue_context_request request;
+  if (!asn1_to_retrieve_ue_context_request(request, msg)) {
+    logger.info("Received invalid RetrieveUEContextRequest");
+    send_retrieve_ue_context_failure(cause_protocol_t::abstract_syntax_error_falsely_constructed_msg);
+    return;
+  }
+
+  // Resolve the UE the peer is asking for. Only this node can do so, as the UE Context ID refers to identities this
+  // node allocated.
+  request.ue_index = cu_cp_notifier.on_xnap_ue_context_id_lookup(request.ue_context_id);
+  if (request.ue_index == cu_cp_ue_index_t::invalid) {
+    logger.info("Received RetrieveUEContextRequest for unknown UE Context ID");
+    send_retrieve_ue_context_failure(xnap_cause_radio_network_t::ue_context_id_not_known);
+    return;
+  }
+
+  // Resolve the target cell, which the CU-CP needs to derive KgNB* (TS 33.501 section 6.11).
+  request.target_cell = find_peer_served_cell(request.target_nci);
+  if (!request.target_cell.has_value()) {
+    logger.info("ue={}: Received RetrieveUEContextRequest for a target cell the peer did not advertise. nci={}",
+                request.ue_index,
+                request.target_nci);
+    send_retrieve_ue_context_failure(xnap_cause_radio_network_t::cell_not_available);
+    return;
+  }
+
+  if (!cu_cp_notifier.schedule_async_task(
+          request.ue_index,
+          launch_async<xnap_old_node_retrieve_ue_context_procedure>(
+              request, peer_xnap_ue_id, ue_ctxt_list, cu_cp_notifier, tx_notifier, logger))) {
+    logger.debug("ue={}: Couldn't schedule the retrieve UE context procedure", request.ue_index);
+    send_retrieve_ue_context_failure(xnap_cause_radio_network_t::unspecified);
+    return;
+  }
 }

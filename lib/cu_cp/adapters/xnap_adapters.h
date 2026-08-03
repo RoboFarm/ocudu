@@ -83,6 +83,19 @@ public:
     return cu_cp_handler->handle_served_cells_required();
   }
 
+  cu_cp_ue_index_t on_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id) override
+  {
+    ocudu_assert(cu_cp_handler != nullptr, "CU-CP XNAP handler must not be nullptr");
+    return cu_cp_handler->handle_xnap_ue_context_id_lookup(ue_context_id);
+  }
+
+  async_task<xnap_retrieve_ue_context_response>
+  on_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request) override
+  {
+    ocudu_assert(cu_cp_handler != nullptr, "CU-CP XNAP handler must not be nullptr");
+    return cu_cp_handler->handle_xnap_retrieve_ue_context_request(request);
+  }
+
 private:
   cu_cp_xnap_handler* cu_cp_handler = nullptr;
   xnc_peer_index_t    xnc_index     = xnc_peer_index_t::invalid;

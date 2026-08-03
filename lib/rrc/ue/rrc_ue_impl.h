@@ -54,6 +54,10 @@ public:
   rrc_ue_security_mode_command_context get_security_mode_command_context() override;
   async_task<bool>                     handle_security_mode_complete_expected(uint8_t transaction_id) override;
   byte_buffer                          get_packed_ue_capability_rat_container_list() const override;
+  bool                                 verify_reestablishment_short_mac_i(const security::sec_short_mac_i& short_mac_i,
+                                                                          pci_t                            source_pci,
+                                                                          rnti_t                           source_c_rnti,
+                                                                          nr_cell_identity                 target_nci) override;
   byte_buffer                          get_packed_ue_radio_access_cap_info() const override;
   async_task<bool> handle_rrc_reconfiguration_request(const rrc_reconfiguration_procedure_request& msg) override;
   rrc_ue_handover_reconfiguration_context

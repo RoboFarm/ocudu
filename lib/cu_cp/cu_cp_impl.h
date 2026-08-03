@@ -153,6 +153,9 @@ public:
                                                                             peer_xnap_ue_id_t winner_peer_xnap_ue_id) override;
   void                                handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_index) override;
   std::vector<cu_cp_served_cell_info> handle_served_cells_required() override;
+  cu_cp_ue_index_t handle_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id) override;
+  async_task<xnap_retrieve_ue_context_response>
+  handle_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request) override;
 
   // cu_cp_nrppa_handler.
   nrppa_cu_cp_ue_notifier* handle_new_nrppa_ue(cu_cp_ue_index_t ue_index) override;

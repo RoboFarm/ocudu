@@ -15,6 +15,7 @@
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/rrc/rrc_ue.h"
 #include "ocudu/xnap/xnap_handover.h"
+#include "ocudu/xnap/xnap_ue_context_retrieval.h"
 
 namespace ocudu::ocucp {
 
@@ -490,6 +491,17 @@ public:
   /// \brief Handle a request for the NR cells this node serves, to be advertised to a peer NG-RAN node.
   /// \returns The cells served by the connected DUs.
   virtual std::vector<cu_cp_served_cell_info> handle_served_cells_required() = 0;
+  /// \brief Resolve the UE identified by a UE Context ID received in a Retrieve UE Context Request.
+  /// See TS 38.423 section 8.2.4.
+  /// \param[in] ue_context_id The received UE Context ID.
+  /// \returns The index of the UE holding the context, or cu_cp_ue_index_t::invalid if it is not known.
+  virtual cu_cp_ue_index_t handle_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id) = 0;
+
+  /// \brief Handle the received Retrieve UE Context Request. See TS 38.423 section 8.2.4.
+  /// \param[in] request The received request, with the UE index already resolved.
+  /// \returns The UE context to transfer, or a failed response carrying the rejection cause.
+  virtual async_task<xnap_retrieve_ue_context_response>
+  handle_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request) = 0;
 };
 
 class cu_cp_impl_interface : public cu_cp_e1ap_event_handler,

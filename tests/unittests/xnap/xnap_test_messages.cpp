@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "xnap_test_messages.h"
+#include "lib/xnap/procedures/xn_setup_procedure_asn1_helpers.h"
 #include "lib/xnap/xnap_asn1_converters.h"
 #include "ocudu/asn1/asn1_utils.h"
 #include "ocudu/asn1/rrc_nr/rrc_nr.h"
@@ -74,6 +75,16 @@ cu_cp_served_cell_info ocudu::ocucp::generate_served_cell_info(pci_t pci, const 
   served_cell.nr_mode_info = tdd_info;
 
   return served_cell;
+}
+
+xnap_message ocudu::ocucp::generate_xn_setup_response_with_served_cell(const xnap_configuration&  peer_cfg,
+                                                                       pci_t                      served_pci,
+                                                                       const nr_cell_global_id_t& served_cgi)
+{
+  const cu_cp_served_cell_info served_cell =
+      generate_served_cell_info(served_pci, served_cgi, peer_cfg.tai_support_list.front().tac);
+
+  return generate_asn1_xn_setup_response(peer_cfg, {&served_cell, 1});
 }
 
 xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id,
@@ -252,6 +263,29 @@ xnap_message ocudu::ocucp::generate_ue_context_release(local_xnap_ue_id_t local_
 
   ue_context_release->source_ng_ra_nnode_ue_xn_ap_id = peer_xnap_ue_id_to_uint(peer_xnap_ue_id);
   ue_context_release->target_ng_ra_nnode_ue_xn_ap_id = local_xnap_ue_id_to_uint(local_xnap_ue_id);
+
+  return xnap_msg;
+}
+
+xnap_message ocudu::ocucp::generate_retrieve_ue_context_request(peer_xnap_ue_id_t peer_xnap_ue_id,
+                                                                pci_t             fail_cell_pci,
+                                                                nr_cell_identity  target_nci)
+{
+  xnap_message xnap_msg;
+  xnap_msg.pdu.set_init_msg();
+  xnap_msg.pdu.init_msg().load_info_obj(ASN1_XNAP_ID_RETRIEVE_UE_CONTEXT);
+
+  auto& request = xnap_msg.pdu.init_msg().value.retrieve_ue_context_request();
+
+  // This is sent from the target to the source, so the new NG-RAN node UE XnAP ID is the peer XNAP UE ID.
+  request->new_ng_ra_nnode_ue_xn_ap_id = peer_xnap_ue_id_to_uint(peer_xnap_ue_id);
+
+  auto& reest_id = request->ue_context_id.set_rrrc_reest();
+  reest_id.c_rnti.from_number(to_value(rnti_t::MIN_CRNTI));
+  reest_id.fail_cell_pci.set_nr() = fail_cell_pci;
+
+  request->mac_i.from_number(0xabcd);
+  request->new_ng_ran_cell_id.set_nr().from_number(target_nci.value());
 
   return xnap_msg;
 }

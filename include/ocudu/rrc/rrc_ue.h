@@ -247,6 +247,19 @@ public:
   /// \returns The packed UE Capability RAT Container List.
   virtual byte_buffer get_packed_ue_capability_rat_container_list() const = 0;
 
+  /// \brief Verify a ShortMAC-I this UE computed for a reestablishment attempt at another NG-RAN node.
+  /// The token is computed with the AS keys of this UE, so only this node can verify it
+  /// (TS 38.331 section 5.3.7.4, TS 33.501 section 6.11).
+  /// \param[in] short_mac_i The ShortMAC-I received from the peer NG-RAN node.
+  /// \param[in] source_pci PCI of the cell the UE declared a failure on.
+  /// \param[in] source_c_rnti C-RNTI the UE had in that cell.
+  /// \param[in] target_nci Identity of the cell the UE is reestablishing on.
+  /// \returns True if the ShortMAC-I matches, false otherwise.
+  virtual bool verify_reestablishment_short_mac_i(const security::sec_short_mac_i& short_mac_i,
+                                                  pci_t                            source_pci,
+                                                  rnti_t                           source_c_rnti,
+                                                  nr_cell_identity                 target_nci) = 0;
+
   /// \brief Handle an RRC Reconfiguration Request.
   /// \param[in] msg The new RRC Reconfiguration Request.
   /// \returns The result of the rrc reconfiguration.

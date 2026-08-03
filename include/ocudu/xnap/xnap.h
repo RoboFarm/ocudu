@@ -11,6 +11,7 @@
 #include "ocudu/ran/inter_cu_handover_messages.h"
 #include "ocudu/support/async/async_task.h"
 #include "ocudu/xnap/xnap_handover.h"
+#include "ocudu/xnap/xnap_ue_context_retrieval.h"
 
 namespace ocudu::ocucp {
 
@@ -153,6 +154,19 @@ public:
   /// \brief Request the NR cells this node serves, to advertise them to the XN-C peer.
   /// \returns The cells served by the connected DUs.
   virtual std::vector<cu_cp_served_cell_info> on_served_cells_required() = 0;
+
+  /// \brief Resolve the UE the peer identified in a Retrieve UE Context Request (TS 38.423 section 8.2.4).
+  /// \param[in] ue_context_id The UE Context ID received from the peer.
+  /// \returns The index of the local UE holding the context, or cu_cp_ue_index_t::invalid if the UE Context ID does
+  /// not match any local UE.
+  virtual cu_cp_ue_index_t on_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id) = 0;
+
+  /// \brief Notify the CU-CP about the reception of a Retrieve UE Context Request (TS 38.423 section 8.2.4).
+  /// The CU-CP verifies the MAC-I, derives KgNB* for the target cell and collects the UE context to transfer.
+  /// \param[in] request The received request, with the UE index already resolved.
+  /// \returns The UE context to transfer, or a failed response carrying the rejection cause.
+  virtual async_task<xnap_retrieve_ue_context_response>
+  on_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request) = 0;
 };
 
 /// Combined entry point for the XNAP object.

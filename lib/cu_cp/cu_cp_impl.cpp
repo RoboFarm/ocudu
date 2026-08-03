@@ -22,6 +22,7 @@
 #include "routines/mobility/intra_cu_handover_routine.h"
 #include "routines/mobility/intra_cu_handover_target_routine.h"
 #include "routines/mobility/mobility_helpers.h"
+#include "routines/mobility/ue_context_retrieval_helpers.h"
 #include "routines/pdu_session_resource_modification_routine.h"
 #include "routines/pdu_session_resource_release_routine.h"
 #include "routines/pdu_session_resource_setup_routine.h"
@@ -1315,6 +1316,54 @@ void cu_cp_impl::handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_ind
     CORO_AWAIT(handle_ue_context_release_command(command));
     CORO_RETURN();
   }));
+}
+
+cu_cp_ue_index_t cu_cp_impl::handle_xnap_ue_context_id_lookup(const xnap_ue_context_id& ue_context_id)
+{
+  if (std::holds_alternative<xnap_ue_context_id_for_rrc_reest>(ue_context_id)) {
+    const auto& reest_id = std::get<xnap_ue_context_id_for_rrc_reest>(ue_context_id);
+    return ue_mng.get_ue_index(reest_id.fail_cell_pci, reest_id.c_rnti);
+  }
+
+  // The RRC Resume UE Context ID resolves through the I-RNTI, which is not supported yet.
+  return cu_cp_ue_index_t::invalid;
+}
+
+async_task<xnap_retrieve_ue_context_response>
+cu_cp_impl::handle_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_context_request& request)
+{
+  auto reject = [](xnap_cause_t cause) {
+    xnap_retrieve_ue_context_response response;
+    response.cause = cause;
+    return launch_no_op_task(response);
+  };
+
+  cu_cp_ue* ue = ue_mng.find_du_ue(request.ue_index);
+  if (ue == nullptr) {
+    logger.warning("ue={}: UE not found for UE context retrieval", request.ue_index);
+    return reject(xnap_cause_radio_network_t::unknown_local_ng_ran_node_ue_xn_ap_id);
+  }
+
+  auto* ngap = ngap_db.find_ngap(ue->get_ue_context().plmn);
+  if (ngap == nullptr) {
+    logger.warning("ue={}: Couldn't find NGAP for UE context retrieval", request.ue_index);
+    return reject(xnap_cause_radio_network_t::non_relocation_of_context);
+  }
+
+  std::optional<guami_t> served_guami;
+  for (const auto& guami : ngap->get_ngap_context().served_guami_list) {
+    if (guami.plmn == ue->get_ue_context().plmn) {
+      served_guami = guami;
+      break;
+    }
+  }
+  if (!served_guami.has_value()) {
+    logger.warning("ue={}: Couldn't find GUAMI for {}", request.ue_index, ue->get_ue_context().plmn);
+    return reject(xnap_cause_radio_network_t::unknown_guami_id);
+  }
+
+  return launch_no_op_task(collect_ue_context_for_retrieval(
+      request, *ue, served_guami.value(), ngap->get_amf_ue_id(request.ue_index), logger));
 }
 
 cu_cp_ue_index_t cu_cp_impl::handle_ue_index_allocation_request(const nr_cell_global_id_t& cgi,
