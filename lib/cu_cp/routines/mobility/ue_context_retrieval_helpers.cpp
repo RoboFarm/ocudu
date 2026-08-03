@@ -3,44 +3,12 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_context_retrieval_helpers.h"
-#include "ocudu/asn1/rrc_nr/rrc_nr.h"
 
 using namespace ocudu;
 using namespace ocucp;
 
-/// Extracts the SSB ARFCN of a cell from the MeasurementTimingConfiguration the peer advertised for it at XN setup.
-/// This is the same value the peer's RRC uses when it derives keys for that cell, so both nodes end up with the same
-/// KgNB*.
-static std::optional<uint32_t> get_ssb_arfcn(const byte_buffer& packed_meas_timing_cfg)
-{
-  if (packed_meas_timing_cfg.empty()) {
-    return std::nullopt;
-  }
-
-  asn1::rrc_nr::meas_timing_cfg_s meas_timing_cfg;
-  asn1::cbit_ref                  bref{packed_meas_timing_cfg};
-  if (meas_timing_cfg.unpack(bref) != asn1::OCUDUASN_SUCCESS) {
-    return std::nullopt;
-  }
-
-  if (meas_timing_cfg.crit_exts.type() != asn1::rrc_nr::meas_timing_cfg_s::crit_exts_c_::types_opts::c1 ||
-      meas_timing_cfg.crit_exts.c1().type() !=
-          asn1::rrc_nr::meas_timing_cfg_s::crit_exts_c_::c1_c_::types_opts::meas_timing_conf) {
-    return std::nullopt;
-  }
-
-  const auto& meas_timing_list = meas_timing_cfg.crit_exts.c1().meas_timing_conf().meas_timing;
-  for (const auto& meas_timing : meas_timing_list) {
-    if (meas_timing.freq_and_timing_present) {
-      return meas_timing.freq_and_timing.carrier_freq;
-    }
-  }
-
-  return std::nullopt;
-}
-
-/// Verifies the token the UE computed with its source AS keys. Only the RRC Reestablishment identity is supported, as
-/// the RRC Resume identity requires verifying a ResumeMAC-I instead.
+/// Verifies the token the UE computed with the AS keys it has here. Only the RRC Reestablishment identity is
+/// supported, as the RRC Resume identity requires verifying a ResumeMAC-I instead.
 static bool verify_mac_i(const xnap_retrieve_ue_context_request& request, cu_cp_ue& ue, ocudulog::basic_logger& logger)
 {
   if (!std::holds_alternative<xnap_ue_context_id_for_rrc_reest>(request.ue_context_id)) {
@@ -60,6 +28,7 @@ ocudu::ocucp::collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_re
                                                cu_cp_ue&                               ue,
                                                const guami_t&                          guami,
                                                amf_ue_id_t                             amf_ue_id,
+                                               std::optional<arfcn_t>                  target_ssb_arfcn,
                                                ocudulog::basic_logger&                 logger)
 {
   xnap_retrieve_ue_context_response response;
@@ -85,7 +54,7 @@ ocudu::ocucp::collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_re
   }
 
   // Derive KgNB* for the target cell (TS 33.501 section 6.11). Deriving on a copy keeps the keys of the local UE
-  // intact, as it stays in service until the target confirms the retrieval.
+  // intact, as it stays in service until the new NG-RAN node confirms the retrieval.
   if (!request.target_cell.has_value()) {
     logger.info("ue={}: Rejecting UE context retrieval. Cause: target cell not served by the peer. nci={}",
                 request.ue_index,
@@ -94,7 +63,6 @@ ocudu::ocucp::collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_re
     return response;
   }
 
-  const std::optional<uint32_t> target_ssb_arfcn = get_ssb_arfcn(request.target_cell->meas_timing_cfg);
   if (!target_ssb_arfcn.has_value()) {
     logger.info("ue={}: Rejecting UE context retrieval. Cause: unknown SSB ARFCN of the target cell. nci={}",
                 request.ue_index,
@@ -104,15 +72,16 @@ ocudu::ocucp::collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_re
   }
 
   security::security_context target_sec_context = ue.get_security_manager().get_security_context();
-  target_sec_context.horizontal_key_derivation(request.target_cell->nr_pci, target_ssb_arfcn.value());
+  target_sec_context.horizontal_key_derivation(request.target_cell->nr_pci, target_ssb_arfcn->value());
   logger.debug("ue={}: Derived KgNB* for the target cell. pci={} ssb-arfcn={}",
                request.ue_index,
                request.target_cell->nr_pci,
-               target_ssb_arfcn.value());
+               target_ssb_arfcn->value());
 
   auto& ue_context_info     = response.ue_context_info;
   ue_context_info.amf_ue_id = amf_ue_id_to_uint(amf_ue_id);
-  // TODO: Fill the correct AMF address.
+  // TODO: Report the address of the SCTP association with the serving AMF (TS 38.423 section 9.2.1.13). The CU-CP is
+  // given the N2 client, not the address it connects to.
   ue_context_info.amf_addr         = transport_layer_address::create_from_string("127.0.0.1");
   ue_context_info.security_context = target_sec_context;
   ue_context_info.ue_ambr          = ue.get_ue_ambr();

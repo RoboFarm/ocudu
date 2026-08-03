@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ocudu/ran/arfcn.h"
 #include "ocudu/ran/cause/common.h"
 #include "ocudu/ran/cu_cp_cell_configuration.h"
 #include "ocudu/ran/plmn_identity.h"
@@ -50,6 +51,15 @@ public:
   /// \return The decoded time point, or \c std::nullopt if \c encoded is not a valid ReferenceTime-r16 encoding.
   virtual std::optional<std::chrono::system_clock::time_point> get_ref_time_r16(const byte_buffer& encoded,
                                                                                 bool               is_local_clock) = 0;
+
+  /// \brief Decodes the SSB ARFCN of a cell from a PER-encoded MeasurementTimingConfiguration (TS 38.331 section
+  /// 6.2.2), as carried opaquely in the Measurement Timing Configuration IE of the XnAP Served Cell Information
+  /// (TS 38.423 section 9.2.2.11).
+  ///
+  /// \param[in] encoded The packed MeasurementTimingConfiguration advertised by an XN-C peer for one of its cells.
+  /// \return The SSB ARFCN, or \c std::nullopt if \c encoded is not a valid MeasurementTimingConfiguration or carries
+  /// no frequency and timing information.
+  virtual std::optional<arfcn_t> get_ssb_arfcn(const byte_buffer& encoded) = 0;
 };
 
 struct rrc_resume_context_t {

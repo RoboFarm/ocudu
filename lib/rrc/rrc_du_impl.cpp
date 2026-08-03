@@ -189,6 +189,34 @@ std::optional<std::chrono::system_clock::time_point> rrc_du_impl::get_ref_time_r
   return std::chrono::system_clock::time_point{std::chrono::nanoseconds{unix_ns}};
 }
 
+std::optional<arfcn_t> rrc_du_impl::get_ssb_arfcn(const byte_buffer& encoded)
+{
+  if (encoded.empty()) {
+    return std::nullopt;
+  }
+
+  meas_timing_cfg_s meas_timing_cfg;
+  asn1::cbit_ref    bref{encoded};
+  if (meas_timing_cfg.unpack(bref) != asn1::OCUDUASN_SUCCESS) {
+    logger.warning("Failed to unpack MeasurementTimingConfiguration container");
+    return std::nullopt;
+  }
+
+  if (meas_timing_cfg.crit_exts.type() != meas_timing_cfg_s::crit_exts_c_::types_opts::c1 ||
+      meas_timing_cfg.crit_exts.c1().type() != meas_timing_cfg_s::crit_exts_c_::c1_c_::types_opts::meas_timing_conf) {
+    logger.warning("Unsupported MeasurementTimingConfiguration critical extension");
+    return std::nullopt;
+  }
+
+  for (const auto& meas_timing : meas_timing_cfg.crit_exts.c1().meas_timing_conf().meas_timing) {
+    if (meas_timing.freq_and_timing_present) {
+      return meas_timing.freq_and_timing.carrier_freq;
+    }
+  }
+
+  return std::nullopt;
+}
+
 byte_buffer rrc_du_impl::get_rrc_reject()
 {
   // Pack RRC Reconfig.

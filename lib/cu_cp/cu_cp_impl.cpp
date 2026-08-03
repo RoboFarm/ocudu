@@ -1362,8 +1362,19 @@ cu_cp_impl::handle_xnap_retrieve_ue_context_request(const xnap_retrieve_ue_conte
     return reject(xnap_cause_radio_network_t::unknown_guami_id);
   }
 
+  // The SSB ARFCN of the target cell is only available PER-encoded in the MeasurementTimingConfiguration the peer
+  // advertised for it, so it is decoded by the RRC. Without a target cell there is nothing to decode, and the retrieval
+  // is rejected for the missing cell further down.
+  std::optional<arfcn_t> target_ssb_arfcn;
+  if (request.target_cell.has_value()) {
+    target_ssb_arfcn = du_db.get_du_processor(ue->get_du_index())
+                           .get_rrc_du_handler()
+                           .get_rrc_du_cell_manager()
+                           .get_ssb_arfcn(request.target_cell->meas_timing_cfg);
+  }
+
   return launch_no_op_task(collect_ue_context_for_retrieval(
-      request, *ue, served_guami.value(), ngap->get_amf_ue_id(request.ue_index), logger));
+      request, *ue, served_guami.value(), ngap->get_amf_ue_id(request.ue_index), target_ssb_arfcn, logger));
 }
 
 cu_cp_ue_index_t cu_cp_impl::handle_ue_index_allocation_request(const nr_cell_global_id_t& cgi,

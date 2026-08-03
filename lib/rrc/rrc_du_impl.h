@@ -94,6 +94,8 @@ public:
   std::optional<std::chrono::system_clock::time_point> get_ref_time_r16(const byte_buffer& encoded,
                                                                         bool               is_local_clock) override;
 
+  std::optional<arfcn_t> get_ssb_arfcn(const byte_buffer& encoded) override;
+
   // rrc_du_ue_repository.
   byte_buffer                         get_rrc_reject() override;
   byte_buffer                         pack_meas_config(const rrc_meas_cfg& meas_cfg) override;

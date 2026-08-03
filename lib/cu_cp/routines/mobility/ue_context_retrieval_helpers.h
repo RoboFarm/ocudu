@@ -9,22 +9,26 @@
 
 namespace ocudu::ocucp {
 
-/// \brief Collect the UE context the source NG-RAN node transfers in a Retrieve UE Context Response.
+/// \brief Collect the UE context the old NG-RAN node transfers in a Retrieve UE Context Response.
 ///
-/// Implements the source side of TS 33.501 section 6.11 and TS 38.423 section 8.2.4: the MAC-I is verified against the
-/// UE's source AS keys, KgNB* is derived for the target cell, and the UE context is packed for transfer. The UE is not
-/// released here, that only happens once the target confirms the retrieval.
+/// Implements the old NG-RAN node side of TS 33.501 section 6.11 and TS 38.423 section 8.2.4: the MAC-I is verified
+/// against the AS keys the UE has here, KgNB* is derived for the target cell, and the UE context is packed for
+/// transfer. The UE is not released here, that only happens once the new NG-RAN node confirms the retrieval.
 ///
 /// \param[in] request The received Retrieve UE Context Request, with the UE index and target cell already resolved.
 /// \param[in] ue The UE holding the context.
 /// \param[in] guami The GUAMI serving the UE.
 /// \param[in] amf_ue_id The AMF UE NGAP ID of the UE.
+/// \param[in] target_ssb_arfcn SSB ARFCN of the target cell, decoded from the MeasurementTimingConfiguration the peer
+/// advertised for it. Empty when it could not be decoded, in which case KgNB* cannot be derived.
 /// \param[in] logger CU-CP logger.
-/// \return The response to send to the target. On failure, \c success is false and \c cause carries the reason.
+/// \return The response to send to the new NG-RAN node. On failure, \c success is false and \c cause carries the
+/// reason.
 xnap_retrieve_ue_context_response collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_request& request,
                                                                    cu_cp_ue&                               ue,
                                                                    const guami_t&                          guami,
                                                                    amf_ue_id_t                             amf_ue_id,
-                                                                   ocudulog::basic_logger&                 logger);
+                                                                   std::optional<arfcn_t>  target_ssb_arfcn,
+                                                                   ocudulog::basic_logger& logger);
 
 } // namespace ocudu::ocucp
