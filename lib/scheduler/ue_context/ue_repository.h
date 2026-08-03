@@ -26,6 +26,10 @@ struct ue_creation_context {
   /// Slot at which the PRACH preamble was received, if this UE was created following a RACH tracked by the RA
   /// scheduler. \c std::nullopt, otherwise.
   std::optional<slot_point> prach_slot_rx;
+  /// \brief Set when contention resolution was already completed by other means before this UE creation (e.g. a
+  /// 2-step RACH successRAR, which embeds the UE Contention Resolution Identity directly, TS38.321 6.2.3a), so no
+  /// MAC Contention Resolution CE needs to be scheduled for this UE.
+  bool skip_conres_ce = false;
 };
 
 /// Container that stores all scheduler UEs.

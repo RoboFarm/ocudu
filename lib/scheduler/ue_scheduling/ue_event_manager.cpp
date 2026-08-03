@@ -297,15 +297,18 @@ void ue_cell_event_manager::handle_ue_creation(ue_config_update_event ev)
     }
 
     // Check if this UE was created via RACH and is still tracked by the RA scheduler, so its PRACH reception slot
-    // can be carried over into the UE's PCell context.
+    // can be carried over into the UE's PCell context. A 2-step RACH successRAR completion already resolved
+    // contention (TS38.321 6.2.3a), so no MAC ConRes CE is needed.
     auto                      ra_it = ra_ue_repo.find(crnti);
     std::optional<slot_point> prach_slot_rx =
         ra_it != ra_ue_repo.end() ? std::optional<slot_point>(ra_it->prach_slot_rx) : std::nullopt;
+    bool skip_conres_ce = ra_it != ra_ue_repo.end() and ra_it->is_msgb_success_rar();
 
     // Insert UE in UE repository.
     const du_cell_index_t pcell_index    = ev.next_config().pcell_common_cfg().cell_index;
     bool                  is_in_fallback = ev.get_fallback_command().has_value() and ev.get_fallback_command().value();
-    ue_db.add_ue(ev.next_config(), {is_in_fallback, ev.get_ul_ccch_slot_rx(), ev.get_cfra_enabled(), prach_slot_rx});
+    ue_db.add_ue(ev.next_config(),
+                 {is_in_fallback, ev.get_ul_ccch_slot_rx(), ev.get_cfra_enabled(), prach_slot_rx, skip_conres_ce});
 
     auto& u     = ue_db[ue_index];
     auto& ue_cc = u.get_pcell();

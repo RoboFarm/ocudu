@@ -126,9 +126,11 @@ void ue_repository::add_ue(const ue_configuration& ue_cfg, const ue_creation_con
   st.prach_slot_rx = creation_ctx.prach_slot_rx.value_or(slot_point{});
   if (creation_ctx.starts_in_fallback) {
     if (st.msg3_rx_slot.valid()) {
-      // RACH-created UE: ConRes CE pending + RRC Setup/Reestablishment/Resume pending.
+      // RACH-created UE: RRC Setup/Reestablishment/Resume pending. ConRes CE is also pending, unless contention
+      // resolution was already completed by other means (e.g. 2-step RACH successRAR, TS38.321 6.2.3a).
       st.config_st = ue_config_state::pending_initial_conf;
-      st.conres_st = ue_conres_state::pending_conres_ce;
+      st.conres_st =
+          creation_ctx.skip_conres_ce ? ue_conres_state::conres_completed : ue_conres_state::pending_conres_ce;
     } else if (creation_ctx.cfra_enabled) {
       // F1AP-created UE that is expecting a CFRA. Defer UCI/SRS scheduling until Msg3 is ACKed.
       st.conres_st = ue_conres_state::pending_cfra;

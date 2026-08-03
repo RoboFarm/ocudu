@@ -41,11 +41,14 @@ struct ra_ue_context {
   /// TC-RNTI associated with this UE in RA.
   rnti_t tc_rnti() const { return preamble.tc_rnti; }
 
-  /// True if this is a successRAR entry (no Msg3 HARQ) whose MsgB PDSCH slot is not yet committed or still in the
-  /// future. Always false for a Msg3-tracking entry (native 4-step or 2-step fallback).
+  /// True if this entry was created following a 2-step RACH successRAR completion (no Msg3 HARQ involved). Always
+  /// false for a Msg3-tracking entry (native 4-step or 2-step fallback).
+  bool is_msgb_success_rar() const { return harq_ent.empty(); }
+
+  /// True if this is a successRAR entry whose MsgB PDSCH slot is not yet committed or still in the future.
   bool is_msgb_success_rar_pending(slot_point slot_tx) const
   {
-    return harq_ent.empty() and (not msgb_slot_tx.has_value() or *msgb_slot_tx >= slot_tx);
+    return is_msgb_success_rar() and (not msgb_slot_tx.has_value() or *msgb_slot_tx >= slot_tx);
   }
 };
 
