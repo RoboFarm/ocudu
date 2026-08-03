@@ -38,6 +38,7 @@ rlc_tx_um_entity::rlc_tx_um_entity(gnb_du_id_t                          du_id,
   head_len_full(rlc_um_pdu_header_size_complete_sdu),
   head_len_first(rlc_um_pdu_header_size_no_so(cfg.sn_field_length)),
   head_len_not_first(rlc_um_pdu_header_size_with_so(cfg.sn_field_length)),
+  pdcp_sn_mask(pdcp_compute_sn_mask(cfg.pdcp_sn_len)),
   pcap_context(ue_index, rb_id_, config)
 {
   metrics_low.metrics_set_mode(rlc_mode::um_bidir);
@@ -92,12 +93,20 @@ void rlc_tx_um_entity::discard_sdu(uint32_t pdcp_sn_start, uint32_t block_size)
     metrics_high.metrics_add_discard_failure(1);
     return;
   }
+  if (OCUDU_UNLIKELY(pdcp_sn_start > pdcp_sn_mask)) {
+    logger.log_warning("Ignoring discard of invalid SN. pdcp_sn_start={} block_size={} pdcn_sn_len={}",
+                       pdcp_sn_start,
+                       block_size,
+                       cfg.pdcp_sn_len);
+    metrics_high.metrics_add_discard_failure(1);
+    return;
+  }
 
-  uint32_t pdcp_sn_end = pdcp_sn_start + block_size;
+  uint32_t pdcp_sn_end = (pdcp_sn_start + block_size) & pdcp_sn_mask;
   uint32_t nof_ok      = 0;
   uint32_t nof_fail    = 0;
   logger.log_info("Discarding SDUs. pdcp_sn={}..{}", pdcp_sn_start, pdcp_sn_end - 1);
-  for (uint32_t pdcp_sn = pdcp_sn_start; pdcp_sn < pdcp_sn_end; pdcp_sn++) {
+  for (uint32_t pdcp_sn = pdcp_sn_start; pdcp_sn != pdcp_sn_end; pdcp_sn = (pdcp_sn + 1) & pdcp_sn_mask) {
     if (sdu_queue.try_discard(pdcp_sn)) {
       nof_ok++;
     } else {

@@ -117,6 +117,9 @@ private:
   const uint32_t head_min_size;
   const uint32_t head_max_size;
 
+  /// PDCP SN mask for efficient SDU discard across SN wraparound.
+  const uint32_t pdcp_sn_mask;
+
   /// \brief t-PollRetransmit
   /// This timer is used by the transmitting side of an AM RLC entity in order to retransmit a poll (see sub
   /// clause 5.3.3).

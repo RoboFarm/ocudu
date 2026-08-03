@@ -32,6 +32,12 @@ constexpr uint8_t pdcp_sn_size_to_uint(pdcp_sn_size sn_size)
   return static_cast<uint8_t>(sn_size);
 }
 
+/// \brief Compute a bitmask for extraction of the PDCP SN from PDCP COUNT or across SN wraparound.
+constexpr uint32_t pdcp_compute_sn_mask(pdcp_sn_size sn_size)
+{
+  return 0xffffffffU >> (32U - pdcp_sn_size_to_uint(sn_size));
+}
+
 } // namespace ocudu
 
 namespace fmt {

@@ -47,6 +47,9 @@ private:
   const uint32_t head_len_first;
   const uint32_t head_len_not_first;
 
+  /// PDCP SN mask for efficient SDU discard across SN wraparound.
+  const uint32_t pdcp_sn_mask;
+
   pcap_rlc_pdu_context pcap_context;
 
   // Storage for previous buffer state
