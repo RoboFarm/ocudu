@@ -17,6 +17,7 @@
 #include "procedures/f1ap_du_removal_procedure.h"
 #include "procedures/f1ap_du_reset_procedure.h"
 #include "procedures/f1ap_du_setup_procedure.h"
+#include "procedures/f1ap_du_ue_context_modification_procedure.h"
 #include "procedures/f1ap_du_ue_context_release_procedure.h"
 #include "procedures/f1ap_du_ue_context_setup_procedure.h"
 #include "procedures/f1ap_du_write_replace_warning_procedure.h"
@@ -230,7 +231,8 @@ void f1ap_du_impl::handle_ue_context_modification_request(const asn1::f1ap::ue_c
     return;
   }
 
-  ue->handle_ue_context_modification_request(msg, ctxt);
+  du_mng.get_ue_handler(ue->context.ue_index)
+      .schedule_async_task(launch_async<f1ap_du_ue_context_modification_procedure>(msg, *ue, ctxt));
 }
 
 void f1ap_du_impl::handle_dl_rrc_message_transfer(const asn1::f1ap::dl_rrc_msg_transfer_s& msg)
