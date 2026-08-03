@@ -23,8 +23,8 @@ install_docker_dependencies_debian_ubuntu() {
     local -x DEBIAN_FRONTEND=noninteractive
     local -a pkgs=()
 
-    local -a build_pkgs=(git ca-certificates binutils)
-    local -a run_pkgs=(curl tini)
+    local -a build_pkgs=(git ca-certificates)
+    local -a run_pkgs=(curl catatonit)
 
     case "$mode" in
         build)
@@ -79,7 +79,7 @@ install_docker_dependencies_fedora() {
     local -a pkgs=()
 
     local -a build_pkgs=(git ca-certificates make gcc gcc-c++ pkgconf-pkg-config which)
-    local -a run_pkgs=(curl chrony tini procps-ng)
+    local -a run_pkgs=(curl chrony catatonit procps-ng)
 
     case "$mode" in
         build)
@@ -95,6 +95,11 @@ install_docker_dependencies_fedora() {
     esac
 
     install_fedora_pkgs "${pkgs[@]}"
+
+    # Fedora ships catatonit under /usr/libexec; link Ubuntu's path for a common entrypoint.
+    if [[ "$mode" == "run" ]]; then
+        ln -sf /usr/libexec/catatonit/catatonit /usr/bin/catatonit
+    fi
 }
 
 install_docker_dependencies_rhel() {
