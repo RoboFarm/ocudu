@@ -7,7 +7,7 @@
 #include "ocudu/adt/span.h"
 #include "ocudu/support/ocudu_assert.h"
 #include <algorithm>
-#include <cstdint>
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -98,7 +98,7 @@ class shared_map_segment_pool
   static constexpr size_t elem_align = std::max({alignof(std::optional<kv_obj<K, Vs>>)...});
 
   struct alignas(elem_align) elem_slot {
-    uint8_t data[elem_size];
+    std::byte data[elem_size];
     elem_slot() noexcept {}
   };
 
@@ -117,10 +117,10 @@ class shared_map_segment_pool
       if (parent.free_list.empty()) {
         return {};
       }
-      uint8_t* raw = parent.free_list.back();
+      void* raw = parent.free_list.back();
       parent.free_list.pop_back();
 
-      auto* elem_ptr = reinterpret_cast<opt_t*>(raw);
+      auto* elem_ptr = static_cast<opt_t*>(raw);
       for (size_t i = 0; i < parent.seg_size; ++i) {
         ::new (&elem_ptr[i]) opt_t();
       }
@@ -132,7 +132,7 @@ class shared_map_segment_pool
       for (size_t i = 0; i < seg.size(); ++i) {
         std::destroy_at(&seg[i]);
       }
-      parent.free_list.push_back(reinterpret_cast<uint8_t*>(seg.data()));
+      parent.free_list.push_back(seg.data());
     }
 
   private:
@@ -140,7 +140,7 @@ class shared_map_segment_pool
   };
 
   std::vector<elem_slot>           elem_slots;
-  std::vector<uint8_t*>            free_list;
+  std::vector<void*>               free_list;
   size_t                           seg_size;
   std::tuple<typed_adapter<Vs>...> adapters;
 
@@ -150,7 +150,7 @@ public:
   {
     free_list.reserve(num_slots);
     for (size_t i = 0; i < num_slots; ++i) {
-      free_list.push_back(reinterpret_cast<uint8_t*>(&elem_slots[i * segment_size]));
+      free_list.push_back(&elem_slots[i * segment_size]);
     }
   }
 
