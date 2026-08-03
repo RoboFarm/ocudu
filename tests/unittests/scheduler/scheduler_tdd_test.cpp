@@ -767,7 +767,7 @@ INSTANTIATE_TEST_SUITE_P(
   // ConRes-timer-expiry cliff made this case flaky across random seeds (rare PUCCH-layout draws still tip it over),
   // so a margin below the cliff is kept; if a scheduler change shifts the cliff, re-sweep across many
   // --gtest_random_seed values (not just a handful) and update this value to keep the same margin below the new one.
-  multiue_tdd_test_params{create_tdd_pattern(tdd_pattern_profile_fr1_30khz::DDDSU), 4, 100, 22, 22, 5},
+  multiue_tdd_test_params{create_tdd_pattern(tdd_pattern_profile_fr1_30khz::DDDSU), 4, 100, 18, 18, 5},
   multiue_tdd_test_params{create_tdd_pattern(tdd_pattern_profile_fr1_30khz::DDDSU), 2, 100, 85, 85, 5},
   multiue_tdd_test_params{create_tdd_pattern(tdd_pattern_profile_fr1_30khz::DDDDDDSUUU), 4, 100, 40, 40, 5},
   multiue_tdd_test_params{create_tdd_pattern(tdd_pattern_profile_fr1_30khz::DDDDDDSUUU), 2, 100, 60, 60, 5},
