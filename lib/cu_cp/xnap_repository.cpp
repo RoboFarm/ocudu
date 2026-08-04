@@ -95,6 +95,16 @@ xnap_interface* xnap_repository::find_xnap(const gnb_id_t& peer_gnb_id)
   return nullptr;
 }
 
+std::optional<xnc_peer_index_t> xnap_repository::find_xnap_index_by_served_pci(pci_t peer_pci)
+{
+  for (const auto& [idx, xn] : xnap_db) {
+    if (xn.xnap->has_peer_pci(peer_pci)) {
+      return idx;
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<xnc_peer_index_t> xnap_repository::find_xnap_index(const gnb_id_t& peer_gnb_id)
 {
   for (const auto& [idx, xn] : xnap_db) {

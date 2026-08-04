@@ -52,6 +52,13 @@ public:
   /// \return A pointer to the interface of the added XNAP object if it was successfully found, a nullptr otherwise.
   xnap_interface* find_xnap(const gnb_id_t& peer_gnb_id);
 
+  /// \brief Find the index of an XNAP object in the repository by the PCI of one of the cells the peer serves.
+  /// \param[in] peer_pci PCI of a cell the XN-C peer advertised in its served cell list at XN setup.
+  /// \return The index of the XN-C peer serving that cell if found, std::nullopt otherwise.
+  /// \remark PCIs are only unique within a neighbourhood, so the first peer advertising the PCI is returned. Picking
+  /// the wrong one makes the retrieval fail and leaves the caller to fall back.
+  std::optional<xnc_peer_index_t> find_xnap_index_by_served_pci(pci_t peer_pci);
+
   /// \brief Find the index of an XNAP object in the repository by gNB ID.
   /// \param[in] peer_gnb_id GNB ID of the XN-C peer to which the XNAP object is connected.
   /// \return The index of the XN-C peer if found, std::nullopt otherwise.
