@@ -12,8 +12,8 @@ resource "gitlab_pipeline_schedule" "this" {
   active         = coalesce(try(each.value.active, null), true)
   take_ownership = true
 
-  inputs = [
-    for k, v in coalesce(each.value.inputs, {}) : {
+  inputs = length(coalesce(each.value.inputs, {})) == 0 ? null : [
+    for k, v in each.value.inputs : {
       name  = k
       value = v
     }
