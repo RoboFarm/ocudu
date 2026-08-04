@@ -54,6 +54,12 @@ struct dummy_cu_cp_rrc_ue_interface : public cu_cp_rrc_ue_interface {
   {
     return {};
   }
+  async_task<rrc_ue_context_retrieval_response>
+  handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
+                                       const rrc_ue_context_retrieval_request& request) override
+  {
+    return launch_no_op_task(rrc_ue_context_retrieval_response{});
+  }
   async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) override
   {
     return launch_no_op_task(true);

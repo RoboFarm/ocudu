@@ -83,6 +83,9 @@ public:
   bool handle_ue_plmn_selected(cu_cp_ue_index_t ue_index, const plmn_identity& plmn) override;
   rrc_ue_reestablishment_context_response
   handle_rrc_reestablishment_request(pci_t old_pci, rnti_t old_c_rnti, cu_cp_ue_index_t ue_index) override;
+  async_task<rrc_ue_context_retrieval_response>
+                   handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
+                                                        const rrc_ue_context_retrieval_request& request) override;
   async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) override;
 
   void             handle_rrc_reestablishment_failure(const cu_cp_ue_context_release_request& request) override;

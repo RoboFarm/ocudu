@@ -176,6 +176,13 @@ public:
     return cu_cp_rrc_ue_handler->handle_rrc_reestablishment_request(old_pci, old_c_rnti, ue_index);
   }
 
+  async_task<rrc_ue_context_retrieval_response>
+  on_ue_context_retrieval_required(const rrc_ue_context_retrieval_request& request) override
+  {
+    ocudu_assert(cu_cp_rrc_ue_handler != nullptr, "CU-CP handler must not be nullptr");
+    return cu_cp_rrc_ue_handler->handle_ue_context_retrieval_required(ue_index, request);
+  }
+
   async_task<bool> on_rrc_reestablishment_context_modification_required() override
   {
     ocudu_assert(cu_cp_rrc_ue_handler != nullptr, "CU-CP handler must not be nullptr");

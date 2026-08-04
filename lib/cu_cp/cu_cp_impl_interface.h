@@ -255,6 +255,13 @@ public:
   virtual rrc_ue_reestablishment_context_response
   handle_rrc_reestablishment_request(pci_t old_pci, rnti_t old_c_rnti, cu_cp_ue_index_t ue_index) = 0;
 
+  /// \brief Handle a required UE context retrieval from a peer NG-RAN node over Xn (TS 38.423 section 8.2.4).
+  /// \param[in] ue_index The index of the UE the context is retrieved for.
+  /// \param[in] request The retrieval request.
+  /// \returns The retrieved context, or a failure if no peer serves the cell or the peer rejected the retrieval.
+  virtual async_task<rrc_ue_context_retrieval_response>
+  handle_ue_context_retrieval_required(cu_cp_ue_index_t ue_index, const rrc_ue_context_retrieval_request& request) = 0;
+
   /// \brief Handle a required reestablishment context modification.
   /// \param[in] ue_index The index of the UE that needs the context modification.
   virtual async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) = 0;

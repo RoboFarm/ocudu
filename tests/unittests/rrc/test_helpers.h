@@ -57,6 +57,12 @@ public:
   bool next_ue_setup_response          = true;
   bool next_ue_setup_complete_response = true;
 
+  /// Outcome and payload the dummy answers a UE context retrieval with, plus the last request it saw.
+  bool                                            context_retrieval_succeeds = false;
+  security::security_context                      retrieved_sec_context;
+  byte_buffer                                     retrieved_rrc_context;
+  std::optional<rrc_ue_context_retrieval_request> last_context_retrieval_request;
+
   bool on_ue_setup_request() override { return next_ue_setup_response; }
 
   bool on_ue_setup_complete_received(const plmn_identity& plmn) override { return next_ue_setup_complete_response; }
@@ -66,6 +72,25 @@ public:
     logger.info("old_pci={} old_c-rnti={}: Received RRC Reestablishment Request", old_pci, old_c_rnti);
 
     return reest_context;
+  }
+
+  async_task<rrc_ue_context_retrieval_response>
+  on_ue_context_retrieval_required(const rrc_ue_context_retrieval_request& request) override
+  {
+    logger.info(
+        "old_pci={} old_c-rnti={}: Received UE Context Retrieval Required", request.old_pci, request.old_c_rnti);
+    last_context_retrieval_request = request;
+
+    rrc_ue_context_retrieval_response response;
+    response.success     = context_retrieval_succeeds;
+    response.sec_context = retrieved_sec_context;
+    response.rrc_context = retrieved_rrc_context.copy();
+
+    return launch_async(
+        [resp = std::move(response)](coro_context<async_task<rrc_ue_context_retrieval_response>>& ctx) mutable {
+          CORO_BEGIN(ctx);
+          CORO_RETURN(std::move(resp));
+        });
   }
 
   async_task<bool> on_rrc_reestablishment_context_modification_required() override

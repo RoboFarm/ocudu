@@ -150,7 +150,7 @@ TEST_F(cu_cp_xnap_repository_test, when_peer_serves_a_cell_then_xnap_is_found_by
 
   ASSERT_NO_FATAL_FAILURE(complete_xn_setup_with_served_cell(xnc_peer_index_t::min, *xnap, served_pci));
 
-  // A UE reestablishing on this PCI must resolve to the peer holding its context (TS 38.423 section 8.2.5).
+  // A UE reestablishing on this PCI must resolve to the peer holding its context (TS 38.423 section 8.2.4).
   ASSERT_EQ(xnc_peer_index_t::min, xnap_db.find_xnap_index_by_served_pci(served_pci))
       << "Failed to retrieve XNAP index by served cell PCI";
   ASSERT_FALSE(xnap_db.find_xnap_index_by_served_pci(static_cast<pci_t>(served_pci + 1)).has_value())

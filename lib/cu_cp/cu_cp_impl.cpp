@@ -23,6 +23,7 @@
 #include "routines/mobility/intra_cu_handover_target_routine.h"
 #include "routines/mobility/mobility_helpers.h"
 #include "routines/mobility/ue_context_retrieval_helpers.h"
+#include "routines/mobility/ue_context_retrieval_new_node_routine.h"
 #include "routines/pdu_session_resource_modification_routine.h"
 #include "routines/pdu_session_resource_release_routine.h"
 #include "routines/pdu_session_resource_setup_routine.h"
@@ -557,6 +558,13 @@ cu_cp_impl::handle_rrc_reestablishment_request(pci_t old_pci, rnti_t old_c_rnti,
   reest_context.ue_index              = old_ue_index;
 
   return reest_context;
+}
+
+async_task<rrc_ue_context_retrieval_response>
+cu_cp_impl::handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
+                                                 const rrc_ue_context_retrieval_request& request)
+{
+  return launch_async<ue_context_retrieval_new_node_routine>(request, ue_index, xnap_db, ue_mng, logger);
 }
 
 async_task<bool> cu_cp_impl::handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index)

@@ -53,6 +53,7 @@ set(SOURCES
         routines/ue_amf_context_release_request_routine.cpp
         routines/mobility/mobility_helpers.cpp
         routines/mobility/ue_context_retrieval_helpers.cpp
+        routines/mobility/ue_context_retrieval_new_node_routine.cpp
         routines/mobility/intra_cu_handover_routine.cpp
         routines/mobility/intra_cu_handover_target_routine.cpp
         routines/mobility/inter_cu_handover_source_routine.cpp

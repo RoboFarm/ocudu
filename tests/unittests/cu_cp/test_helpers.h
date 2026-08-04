@@ -597,6 +597,17 @@ public:
     return reest_context;
   }
 
+  async_task<rrc_ue_context_retrieval_response>
+  handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
+                                       const rrc_ue_context_retrieval_request& request) override
+  {
+    logger.info("ue={} old_pci={} old_c-rnti={}: Received UE Context Retrieval Required",
+                ue_index,
+                request.old_pci,
+                request.old_c_rnti);
+    return launch_no_op_task(rrc_ue_context_retrieval_response{});
+  }
+
   async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) override
   {
     logger.info("ue={}: Received Reestablishment Context Modification Required");
