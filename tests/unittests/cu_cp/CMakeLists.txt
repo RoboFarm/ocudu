@@ -88,6 +88,7 @@ add_executable(cu_cp_test
                cu_cp_setup_test.cpp
                cu_cp_ue_context_release_test.cpp
                cu_cp_xn_served_cells_test.cpp
+               cu_cp_ue_context_retrieval_test.cpp
                cu_cp_xnap_test.cpp
                )
 set_target_properties(cu_cp_test PROPERTIES UNITY_BUILD ON)
