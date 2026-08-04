@@ -343,7 +343,13 @@ xnap_message ocudu::ocucp::generate_retrieve_ue_context_response(local_xnap_ue_i
 
   ue_context_info.pdu_session_res_to_be_setup_list.push_back(pdu_session_item);
 
-  ue_context_info.rrc_context = make_byte_buffer("deadbeef").value();
+  // A real HandoverPreparationInformation, so that the target can recover the UE capabilities and the source's
+  // AS-Config from it, as it does for a handover.
+  ue_context_info.rrc_context =
+      make_byte_buffer(
+          "00217b8680ce811d1960097e360e1317000183f1300098a09a00000020400f13400389a00000000e268208010010134a0f0040000000"
+          "00000040000000247001040000259650100400002596500052388008404008010100200400200801052050")
+          .value();
 
   return xnap_msg;
 }

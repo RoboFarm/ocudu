@@ -15,6 +15,7 @@
 #include "tests/unittests/cu_cp/test_helpers.h"
 #include "tests/unittests/e1ap/common/e1ap_cu_cp_test_messages.h"
 #include "tests/unittests/ngap/ngap_test_messages.h"
+#include "tests/unittests/xnap/xnap_test_messages.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/f1ap/f1ap_pdu_contents.h"
 #include "ocudu/asn1/f1ap/f1ap_pdu_contents_ue.h"
@@ -400,13 +401,15 @@ void cu_cp_test_environment::enqueue_procedure_outcome_pdus_and_start_cu_cp()
     get_amf(amf_index).enqueue_next_tx_pdu(ocucp::generate_ng_setup_response());
   }
 
-  // Enqueue XN Setup responses.
+  // Enqueue XN Setup responses. Each peer advertises one served cell, so that tests can resolve it by PCI the way a
+  // UE context retrieval does.
   for (const auto& [xnc_peer_idx, xnc_peer] : xnc_peers) {
     get_xnc_cu_cp(xnc_peer_idx)
-        .enqueue_next_tx_pdu(generate_asn1_xn_setup_response(
+        .enqueue_next_tx_pdu(generate_xn_setup_response_with_served_cell(
             xnap_configuration{.gnb_id = gnb_id_t{cu_cp_cfg.node.gnb_id.id + 2, cu_cp_cfg.node.gnb_id.bit_length},
                                .tai_support_list = amf_configs.begin()->second.supported_tas},
-            {}));
+            xnc_peer_served_pci,
+            nr_cell_global_id_t{plmn_identity::test_value(), nr_cell_identity::create(0x19b0).value()}));
   }
 
   // Attach XN-C handler before starting CU-CP (matching real app startup order).

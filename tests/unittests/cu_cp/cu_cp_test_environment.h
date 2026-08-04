@@ -100,6 +100,10 @@ public:
   mock_cu_up&     get_cu_up(size_t cu_up_index) { return *cu_ups.at(cu_up_index); }
   mock_xnc_cu_cp& get_xnc_cu_cp(size_t xnc_index = 0) { return *xnc_peers.at(xnc_index); }
 
+  /// PCI of the cell each XN-C peer advertises at XN setup. A UE reporting this PCI as its failure cell resolves to
+  /// the peer, which is what a UE context retrieval relies on.
+  static constexpr pci_t xnc_peer_served_pci = 42;
+
   /// Enqueue PDUs to automatically respond to NG/XN setup procedures and starts the CU-CP.
   void enqueue_procedure_outcome_pdus_and_start_cu_cp();
 
