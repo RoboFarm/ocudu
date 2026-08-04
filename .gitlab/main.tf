@@ -197,6 +197,14 @@ module "settings" {
   # =============================================================================
   # Pipeline Schedules Configuration
   # =============================================================================
+  # OCUDU_RUNNER_TAG overrides the CI default (saas-linux-medium, set in
+  # .gitlab/ci-shared/workflow.yml) so scheduled builds run on the upstream
+  # on-premise runner fleet instead of GitLab SaaS runners.
+  #
+  # Forks: this is upstream-specific. Remove the "variables" entries below, or
+  # replace the value with a tag your own runners use — otherwise the scheduled
+  # pipelines queue forever waiting for runners that do not exist. See section 2.3
+  # of .gitlab/README.md for the available runner options.
   schedules = {
     nightly = {
       description = "Nightly"
@@ -204,7 +212,7 @@ module "settings" {
       timezone    = "Europe/Madrid"
       ref         = "refs/heads/dev"
       active      = true
-      variables   = {}
+      variables   = { OCUDU_RUNNER_TAG = "on-prem-linux" }
     }
     weekly = {
       description = "Weekly"
@@ -212,7 +220,7 @@ module "settings" {
       timezone    = "Europe/Madrid"
       ref         = "refs/heads/dev"
       active      = true
-      variables   = {}
+      variables   = { OCUDU_RUNNER_TAG = "on-prem-linux" }
     }
     alternative_oss = {
       description = "Alternative OSs"
@@ -220,7 +228,7 @@ module "settings" {
       timezone    = "Europe/Madrid"
       ref         = "refs/heads/dev"
       active      = true
-      variables   = {}
+      variables   = { OCUDU_RUNNER_TAG = "on-prem-linux" }
     }
   }
 

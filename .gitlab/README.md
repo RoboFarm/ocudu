@@ -86,7 +86,7 @@ OCUDU CI/CD is designed to work primarily with GitLab Shared Runners, with optio
 Different pipeline types use different runner tags:
 
 | Tag | When Used | Runner Type | Requirements |
-|-----|-----------|-------------|--------------|
+| ----- | ----------- | ------------- | -------------- |
 | (no tag) | All pipelines | Free GitLab Shared Runners | Small tasks, minimal resources |
 | `saas-linux-medium-amd64` | MR pipelines & Scheduled pipelines* | Free GitLab Shared Runners | Available to all GitLab users |
 | `saas-linux-medium-arm64` | MR pipelines & Scheduled pipelines* | Free GitLab Shared Runners | Available to all GitLab users |
