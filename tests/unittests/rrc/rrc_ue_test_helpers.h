@@ -104,6 +104,7 @@ protected:
     rrc_ue_create_msg.cu_cp_ue_notifier     = &ue_mng.find_ue(allocated_ue_index)->get_rrc_ue_cu_cp_ue_notifier();
     rrc_ue_create_msg.cell.bands.push_back(nr_band::n78);
     rrc_ue_create_msg.cell.plmn_identity_list.push_back(plmn_identity::test_value());
+    rrc_ue_create_msg.cell.timers.t301 = test_t301;
 
     rrc_ue_cfg_t rrc_ue_cfg;
     // Add meas timing.
@@ -454,6 +455,9 @@ protected:
                   .sinr.value(),
               92);
   }
+
+  /// T301 the test cell advertises, as the RRC DU would derive it from SIB1.
+  static constexpr std::chrono::milliseconds test_t301{2000};
 
   cu_cp_ue_index_t allocated_ue_index;
 

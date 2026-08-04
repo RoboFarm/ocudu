@@ -43,8 +43,9 @@ void ue_context_retrieval_new_node_routine::operator()(coro_context<async_task<r
   xnap_request.ue_index = ue_index;
   xnap_request.ue_context_id =
       xnap_ue_context_id_for_rrc_reest{.c_rnti = request.old_c_rnti, .fail_cell_pci = request.old_pci};
-  xnap_request.mac_i      = request.short_mac_i;
-  xnap_request.target_nci = request.target_nci;
+  xnap_request.mac_i             = request.short_mac_i;
+  xnap_request.target_nci        = request.target_nci;
+  xnap_request.max_response_time = request.max_response_time;
 
   CORO_AWAIT_VALUE(xnap_response, xnap->handle_retrieve_ue_context_required(xnap_request));
 

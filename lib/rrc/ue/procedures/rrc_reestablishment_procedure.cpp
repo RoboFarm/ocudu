@@ -231,11 +231,24 @@ rrc_reestablishment_procedure::is_local_reestablishment_accepted()
 
 rrc_ue_context_retrieval_request rrc_reestablishment_procedure::make_context_retrieval_request() const
 {
-  return rrc_ue_context_retrieval_request{
+  rrc_ue_context_retrieval_request request{
       .old_pci     = reestablishment_request.rrc_reest_request.ue_id.pci,
       .old_c_rnti  = to_rnti(reestablishment_request.rrc_reest_request.ue_id.c_rnti),
       .short_mac_i = to_short_mac_i(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number()),
       .target_nci  = context.cell.cgi.nci};
+
+  // T301 is the timer the retrieval runs inside: the UE stopped T311 and started T301 when it sent the
+  // RRCReestablishmentRequest (TS 38.331 section 5.3.7.3), and stops T301 only once it receives a Msg4, be it the
+  // RRCReestablishment (section 5.3.7.5) or the RRC Setup fallback (section 5.3.3.4). T301 therefore has to cover the
+  // whole exchange, not just the retrieval, so only part of it can be spent waiting for the peer; the rest is needed
+  // to get Msg4 to the UE before T301 expires and the UE goes to idle. Half is used, so that the shortest T301
+  // (100 ms) gives up early enough for the fallback to still reach the UE. T301 comes from SIB1, so keep the default
+  // guard if the cell did not report it.
+  if (context.cell.timers.t301.count() > 0) {
+    request.max_response_time = context.cell.timers.t301 / 2;
+  }
+
+  return request;
 }
 
 bool rrc_reestablishment_procedure::verify_security_context()

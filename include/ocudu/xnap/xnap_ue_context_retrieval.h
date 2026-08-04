@@ -20,6 +20,7 @@
 #include "ocudu/security/security.h"
 #include "ocudu/support/io/transport_layer_address.h"
 #include "ocudu/xnap/xnap_types.h"
+#include <chrono>
 #include <optional>
 #include <variant>
 
@@ -70,6 +71,10 @@ struct xnap_retrieve_ue_context_request {
   std::optional<cu_cp_served_cell_info> target_cell;
   /// Resume cause, only present when the UE Context ID identifies an RRC Resume.
   std::optional<resume_cause_t> rrc_resume_cause;
+  /// How long the new NG-RAN node waits for the old one to answer. TS 38.423 defines no timer for this procedure, but
+  /// the wait is spent inside the UE's T301 before the RRC Setup fallback can start, so the caller sizes it against
+  /// T301.
+  std::chrono::milliseconds max_response_time{1000};
 };
 
 /// Common type UE Context Information in the Retrieve UE Context Response, defined in TS 38.423 section 9.2.1.13.

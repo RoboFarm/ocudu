@@ -105,6 +105,12 @@ TEST_F(rrc_ue_reest, when_no_local_context_matches_then_context_is_retrieved_fro
   ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_pci, 1);
   ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_c_rnti, to_rnti(0x4601));
 
+  // The wait for the peer is spent out of the UE's running T301, so it must leave room for the RRC Setup fallback.
+  const std::chrono::milliseconds max_response_time =
+      rrc_ue_cu_cp_notifier.last_context_retrieval_request->max_response_time;
+  ASSERT_GT(max_response_time.count(), 0) << "The retrieval would time out immediately";
+  ASSERT_LT(max_response_time, test_t301) << "The retrieval may consume the UE's entire T301";
+
   // The UE is answered with RRCReestablishment over SRB1, not with an RRC Setup fallback.
   check_srb1_exists();
   ASSERT_EQ(get_last_srb(), srb_id_t::srb1);
@@ -131,7 +137,7 @@ TEST_F(rrc_ue_reest, when_context_cannot_be_retrieved_from_peer_then_rrc_setup_s
 TEST_F(rrc_ue_reest, when_reestablishment_is_rejected_locally_then_no_context_is_retrieved_from_peer)
 {
   // A local context exists but cannot be reestablished from. Asking a peer for it would be pointless, and would delay
-  // the RRC Setup fallback while the UE's T311 runs.
+  // the RRC Setup fallback while the UE's T301 runs.
   cu_cp_ue_index_t old_ue_index = uint_to_ue_index(0);
   add_ue_reestablishment_context(old_ue_index);
   add_retrievable_ue_context();

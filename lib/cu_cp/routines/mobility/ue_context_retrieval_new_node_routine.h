@@ -19,7 +19,7 @@ namespace ocudu::ocucp {
 /// peer need.
 ///
 /// The retrieval must complete before this node answers the UE, as the RRCReestablishment is integrity protected with
-/// keys derived from the retrieved KgNB*. It therefore runs inside the UE's T311.
+/// keys derived from the retrieved KgNB*. It therefore runs inside the UE's T301.
 class ue_context_retrieval_new_node_routine
 {
 public:

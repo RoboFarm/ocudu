@@ -40,10 +40,6 @@ private:
       transaction_sink;
 
   xnap_retrieve_ue_context_response response;
-
-  /// Guard timer for the Retrieve UE Context procedure. TS 38.423 defines no dedicated timer for it, so this mirrors
-  /// the guard used by the Handover Preparation procedure.
-  const std::chrono::milliseconds retrieve_ue_context_timeout{1000};
 };
 
 } // namespace ocudu::ocucp

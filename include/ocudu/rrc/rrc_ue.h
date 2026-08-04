@@ -22,6 +22,7 @@
 #include "ocudu/rrc/rrc_ue_config.h"
 #include "ocudu/security/security.h"
 #include "ocudu/support/async/async_task.h"
+#include <chrono>
 #include <variant>
 
 namespace asn1::rrc_nr {
@@ -442,6 +443,10 @@ struct rrc_ue_context_retrieval_request {
   /// Identity of the cell the UE accessed at this node, as the UE used it in VarShortMAC-Input. The peer verifies the
   /// ShortMAC-I against exactly this value and derives KgNB* for this cell.
   nr_cell_identity target_nci = nr_cell_identity::min();
+  /// How long to wait for the peer before giving up. The wait happens before anything is sent to the UE, so it is
+  /// spent out of the UE's running T301 and must leave room for the RRC Setup fallback to still reach the UE. Defaults
+  /// to the guard the Handover Preparation procedure uses, for the case where T301 is not known.
+  std::chrono::milliseconds max_response_time{1000};
 };
 
 /// \brief Result of a UE context retrieval from a peer NG-RAN node.

@@ -42,7 +42,7 @@ void xnap_new_node_retrieve_ue_context_procedure::operator()(
   }
 
   // Subscribe to the publisher before sending, to receive the RETRIEVE UE CONTEXT RESPONSE/FAILURE message.
-  transaction_sink.subscribe_to(ue_ctxt->retrieve_ue_context_outcome, retrieve_ue_context_timeout);
+  transaction_sink.subscribe_to(ue_ctxt->retrieve_ue_context_outcome, request.max_response_time);
 
   if (!send_retrieve_ue_context_request()) {
     ue_ctxt->logger.log_warning("\"{}\" failed. Cause: Could not send Retrieve UE Context Request", name());
@@ -56,7 +56,7 @@ void xnap_new_node_retrieve_ue_context_procedure::operator()(
       ue_ctxt->logger.log_warning(
           "\"{}\" failed. Cause: Timeout receiving Retrieve UE Context Response/Failure after {}ms",
           name(),
-          retrieve_ue_context_timeout.count());
+          request.max_response_time.count());
     } else if (transaction_sink.failed()) {
       ue_ctxt->logger.log_warning("\"{}\" failed. Cause: Received Retrieve UE Context Failure ({})",
                                   name(),
