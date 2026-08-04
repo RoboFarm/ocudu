@@ -352,7 +352,9 @@ dco:
       export -f monitor_child_process
   script: &codechecker_script
     - nohup bash -c monitor_child_process &
-    - static-analyzer.sh -i /tmp/codechecker_skip --jobs ${CPU_JOBS} --analyzers ${ANALYZER} ${ANALYZER_ARGS} $CI_PROJECT_DIR
+    # Run the wrapper from the repo checkout so the fix applies without rebuilding the builder image; the image ships
+    # its own copy for other repos to reuse.
+    - bash "${CI_PROJECT_DIR}/.gitlab/ci/builders/codechecker/static-analyzer.sh" -i /tmp/codechecker_skip --jobs ${CPU_JOBS} --analyzers ${ANALYZER} ${ANALYZER_ARGS} $CI_PROJECT_DIR
   after_script:
     - mv codechecker_html codechecker-${ANALYZER}-html
   artifacts: &codechecker_artifacts
@@ -362,6 +364,18 @@ dco:
       - codechecker-${ANALYZER}-html${ARTIFACT_EXTRA_PATH}
     when: always
     expire_in: 10 minutes
+
+# Mock-based regression test for the CodeChecker wrapper: fakes CodeChecker on PATH and runs the real wrapper, so it
+# needs no build and runs on fork pipelines. Only relevant when the codechecker folder changes.
+static-analyzer wrapper test:
+  extends: .static
+  rules:
+    - if: $ON_MR
+      changes:
+        paths:
+          - .gitlab/ci/builders/codechecker/**/*
+  script:
+    - bash .gitlab/ci/builders/codechecker/static-analyzer-test.sh
 
 clang-tidy:
   extends: .codechecker

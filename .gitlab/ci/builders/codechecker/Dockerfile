@@ -21,8 +21,8 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Europe/Madrid \
 COPY --from=codecheck_builder /root/.cache/pip/wheels /root/.cache/pip/wheels
 RUN pip install codechecker==${CODECHECKER_VERSION} 
 
-ADD codechecker/static-analyzer.sh codechecker/cppcheck_suppress_unspecified.py /usr/local/bin/
-RUN chmod +x /usr/local/bin/static-analyzer.sh /usr/local/bin/cppcheck_suppress_unspecified.py
+ADD codechecker/static-analyzer.sh codechecker/validate_analysis.py codechecker/cppcheck_suppress_unspecified.py /usr/local/bin/
+RUN chmod +x /usr/local/bin/static-analyzer.sh /usr/local/bin/validate_analysis.py /usr/local/bin/cppcheck_suppress_unspecified.py
 
 ADD install_dependencies.sh common.sh builder.sh add_junit_properties.py get_available_cores.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/install_dependencies.sh /usr/local/bin/builder.sh /usr/local/bin/add_junit_properties.py /usr/local/bin/get_available_cores.sh
