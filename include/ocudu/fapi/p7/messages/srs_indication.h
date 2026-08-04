@@ -59,7 +59,7 @@ struct formatter<ocudu::fapi::srs_indication> {
         format_to(ctx.out(), " RTOA_s={}", msg.pdu.positioning->ul_relative_toa->to_seconds<>());
       }
       if (msg.pdu.positioning->rsrp.has_value()) {
-        format_to(ctx.out(), " RSRP={:.1f}dB", *msg.pdu.positioning->rsrp);
+        format_to(ctx.out(), " RSRP={}", *msg.pdu.positioning->rsrp);
       }
     }
 

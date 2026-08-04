@@ -66,7 +66,7 @@ struct formatter<ocudu::fapi::rach_indication> {
     }
 
     if (msg.pdu.avg_rssi.has_value()) {
-      format_to(ctx.out(), " rssi={:.1f}dB", *msg.pdu.avg_rssi);
+      format_to(ctx.out(), " rssi={}", *msg.pdu.avg_rssi);
     }
 
     // Log the preambles.
@@ -76,7 +76,7 @@ struct formatter<ocudu::fapi::rach_indication> {
       ocudu::fapi::append_time_advance(ctx, preamble.timing_advance_offset, msg.slot.scs());
 
       if (preamble.preamble_pwr.has_value()) {
-        format_to(ctx.out(), " pwr={:.1f}dB", *preamble.preamble_pwr);
+        format_to(ctx.out(), " pwr={}", *preamble.preamble_pwr);
       }
       if (preamble.preamble_snr_dB.has_value()) {
         format_to(ctx.out(), " snr={:.1f}dB", *preamble.preamble_snr_dB);

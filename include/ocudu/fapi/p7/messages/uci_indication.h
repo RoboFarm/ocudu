@@ -44,11 +44,11 @@ private:
     ocudu::fapi::append_time_advance(ctx, pdu.timing_advance_offset, scs);
 
     if (pdu.rssi.has_value()) {
-      format_to(ctx.out(), " rssi={:.1f}dB", *pdu.rssi);
+      format_to(ctx.out(), " rssi={}", *pdu.rssi);
     }
 
     if (pdu.rsrp.has_value()) {
-      format_to(ctx.out(), " rsrp={:.1f}dB", *pdu.rsrp);
+      format_to(ctx.out(), " rsrp={}", *pdu.rsrp);
     }
 
     if (pdu.harq.has_value()) {
@@ -90,11 +90,11 @@ private:
     ocudu::fapi::append_time_advance(ctx, pdu.timing_advance_offset, scs);
 
     if (pdu.rssi.has_value()) {
-      format_to(ctx.out(), " rssi={:.1f}dB", *pdu.rsrp);
+      format_to(ctx.out(), " rssi={}", *pdu.rssi);
     }
 
     if (pdu.rsrp.has_value()) {
-      format_to(ctx.out(), " rsrp={:.1f}dB", *pdu.rsrp);
+      format_to(ctx.out(), " rsrp={}", *pdu.rsrp);
     }
 
     if (pdu.sr.has_value()) {
@@ -129,11 +129,11 @@ private:
     ocudu::fapi::append_time_advance(ctx, pdu.timing_advance_offset, scs);
 
     if (pdu.rssi.has_value()) {
-      format_to(ctx.out(), " rssi={:.1f}dB", *pdu.rsrp);
+      format_to(ctx.out(), " rssi={}", *pdu.rssi);
     }
 
     if (pdu.rsrp.has_value()) {
-      format_to(ctx.out(), " rsrp={:.1f}dB", *pdu.rsrp);
+      format_to(ctx.out(), " rsrp={}", *pdu.rsrp);
     }
 
     if (pdu.sr.has_value()) {

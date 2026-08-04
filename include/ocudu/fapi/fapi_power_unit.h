@@ -75,7 +75,7 @@ struct formatter<ocudu::fapi::fapi_power_unit> {
   template <typename FormatContext>
   auto format(const ocudu::fapi::fapi_power_unit& power, FormatContext& ctx) const
   {
-    return format_to(ctx.out(), "{}", power.to_normalized_dB());
+    return format_to(ctx.out(), "{:.1f}dB", power.to_normalized_dB());
   }
 };
 } // namespace fmt

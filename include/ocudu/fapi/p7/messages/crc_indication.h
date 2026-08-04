@@ -62,10 +62,10 @@ public:
       format_to(ctx.out(), " sinr={:.1f}dB", *msg.pdu.ul_sinr_metric_dB);
     }
     if (msg.pdu.rssi.has_value()) {
-      format_to(ctx.out(), " rssi={:.1f}dB", *msg.pdu.rssi);
+      format_to(ctx.out(), " rssi={}", *msg.pdu.rssi);
     }
     if (msg.pdu.rsrp.has_value()) {
-      format_to(ctx.out(), " rsrp={:.1f}dB", *msg.pdu.rsrp);
+      format_to(ctx.out(), " rsrp={}", *msg.pdu.rsrp);
     }
 
     return ctx.out();
