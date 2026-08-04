@@ -505,11 +505,14 @@ bool pucch_allocator_impl::has_common_pucch_grant(rnti_t rnti, slot_point sl_tx)
   return it != slot_ctx.ue_grants_map.end() and it->second.common.has_value();
 }
 
-bool pucch_allocator_impl::has_pucch_repetition_grant(rnti_t rnti, slot_point sl_tx) const
+span<const slot_point> pucch_allocator_impl::get_pucch_repetition_slots(rnti_t rnti, slot_point sl_tx) const
 {
   const auto& slot_ctx = slots_ctx[sl_tx.to_uint()];
   auto        it       = slot_ctx.ue_grants_map.find(rnti);
-  return it != slot_ctx.ue_grants_map.end() and it->second.harq_ack_is_repetition();
+  if (it == slot_ctx.ue_grants_map.end()) {
+    return {};
+  }
+  return it->second.burst_slots;
 }
 
 //////////////     Sub-class definitions       //////////////
@@ -751,8 +754,8 @@ void pucch_allocator_impl::commit_harq_ack_burst(cell_resource_allocator&       
       rep_state = pucch_repetition_tx_slot::ends;
     }
 
-    std::optional<ue_grants> new_grants =
-        multiplex_and_allocate_pucch(sl, bits, ue_grants{}, ue_cell_cfg, candidate.pri, slot_alloc_ctx, rep_state);
+    std::optional<ue_grants> new_grants = multiplex_and_allocate_pucch(
+        sl, bits, ue_grants{}, ue_cell_cfg, candidate.pri, slot_alloc_ctx, rep_state, candidate.slots.front());
     ocudu_assert(new_grants.has_value(), "PUCCH commit unexpectedly failed after a successful check phase");
     // Track every slot in the burst, so that later HARQ-ACK bits (still barred from SR/CSI multiplexing) can be
     // propagated to all of them and keep the repeated payload in sync.
@@ -858,7 +861,8 @@ pucch_allocator_impl::multiplex_and_allocate_pucch(cell_slot_resource_allocator&
                                                    const ue_cell_configuration&  ue_cell_cfg,
                                                    std::optional<unsigned>       d_pri,
                                                    const alloc_context&          alloc_ctx,
-                                                   pucch_repetition_tx_slot      rep_state)
+                                                   pucch_repetition_tx_slot      rep_state,
+                                                   slot_point                    rep_anchor_slot)
 {
   // NOTE: In this function, the \c candidate_grants report the data about the grants BEFORE the multiplexing is
   // applied. Each grant contains only one UCI type (HARQ grant contains HARQ bits, SR grant contains SR bits and so
@@ -917,8 +921,8 @@ pucch_allocator_impl::multiplex_and_allocate_pucch(cell_slot_resource_allocator&
 
   unsigned nof_used_pdus = 0;
   auto     alloc_grant   = [&](const pucch_grant&       grant,
-                               pucch_repetition_tx_slot grant_rep_state =
-                                   pucch_repetition_tx_slot::no_multi_slot) -> stable_id_t {
+                         pucch_repetition_tx_slot grant_rep_state       = pucch_repetition_tx_slot::no_multi_slot,
+                         slot_point               grant_rep_anchor_slot = {}) -> stable_id_t {
     const stable_id_t pdu_idx = pdu_indices[nof_used_pdus++];
     auto&             pdu     = pucch_pdus[pdu_idx];
     pucch_helper::fill_ded_pdu(pdu,
@@ -927,15 +931,16 @@ pucch_allocator_impl::multiplex_and_allocate_pucch(cell_slot_resource_allocator&
                                grant.bits,
                                csi_report_cfg.has_value() ? &*csi_report_cfg : nullptr,
                                alloc_ctx.rnti,
-                               grant_rep_state);
+                               grant_rep_state,
+                               grant_rep_anchor_slot);
     return pdu_idx;
   };
 
   ue_grants result{.common = old_grants.common, .d_pri = old_grants.d_pri};
   if (new_grants.harq_ack.has_value()) {
-    // Note: \c rep_state only reaches the PUCCH PDU here. Whether the resulting grant belongs to a repetition burst is
-    // recorded by the caller (\c commit_harq_ack_burst), which is the one that knows the burst's slots.
-    result.harq_ack = alloc_grant(*new_grants.harq_ack, rep_state);
+    // Note: the repetition state only reaches the PUCCH PDU here. Whether the resulting grant belongs to a repetition
+    // burst is recorded by the caller (\c commit_harq_ack_burst), which is the one that knows the burst's slots.
+    result.harq_ack = alloc_grant(*new_grants.harq_ack, rep_state, rep_anchor_slot);
     result.d_pri    = new_grants.d_pri;
   }
   if (new_grants.sr.has_value()) {
@@ -1184,14 +1189,16 @@ std::optional<unsigned> pucch_allocator_impl::update_harq_ack_bits(cell_slot_res
 
     // Preserve the PUCCH repetition state of the PDU (if this is part of a repetition burst), since fill_ded_pdu
     // otherwise resets it.
-    const pucch_repetition_tx_slot rep_state = pdu.slot_repetition;
+    const pucch_repetition_tx_slot rep_state       = pdu.slot_repetition;
+    const slot_point               rep_anchor_slot = pdu.repetition_anchor_slot;
     pucch_helper::fill_ded_pdu(pdu,
                                cell_cfg,
                                *pdu.res,
                                bits,
                                csi_report_cfg.has_value() ? &*csi_report_cfg : nullptr,
                                alloc_ctx.rnti,
-                               rep_state);
+                               rep_state,
+                               rep_anchor_slot);
   }
 
   return grants.d_pri;

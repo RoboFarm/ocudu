@@ -55,7 +55,8 @@ static ue_capability_summary make_rep_supported_caps_with_f0_2(unsigned dl_arfcn
 }
 
 // Asserts that each of the given slot delays holds exactly one PUCCH grant of the UE, carrying \c nof_harq_bits
-// HARQ-ACK bits and (if given) \c expected_format, and marked with its position within the repetition burst.
+// HARQ-ACK bits and (if given) \c expected_format, and marked with its position within the repetition burst and the
+// slot the burst starts at.
 static void expect_burst(test_bench&                  t_bench,
                          const ue&                    ue,
                          const std::vector<unsigned>& delays,
@@ -79,6 +80,7 @@ static void expect_burst(test_bench&                  t_bench,
       expected_rep_state = pucch_repetition_tx_slot::ends;
     }
     EXPECT_EQ(ue_pucchs[0]->slot_repetition, expected_rep_state);
+    EXPECT_EQ(ue_pucchs[0]->repetition_anchor_slot, t_bench.res_grid[delays.front()].slot);
   }
 }
 
@@ -197,18 +199,24 @@ TEST_F(pucch_alloc_repetition_test, every_slot_of_the_burst_is_reported_as_barre
   // UL scheduler as unusable for a PUSCH of this UE, not just the anchor.
   ASSERT_TRUE(alloc_ded_harq_ack(ue, pucch_repetition_factor::n4).has_value());
 
+  const slot_point anchor_slot = t_bench.res_grid[t_bench.k0 + default_k1].slot;
   for (unsigned i = 0; i != 4; ++i) {
-    const slot_point burst_slot = t_bench.res_grid[t_bench.k0 + default_k1 + i].slot;
-    EXPECT_TRUE(t_bench.pucch_alloc.has_pucch_repetition_grant(ue.crnti, burst_slot))
-        << "slot " << i << " of the burst was not reported as part of a repetition burst";
+    const slot_point             burst_slot = t_bench.res_grid[t_bench.k0 + default_k1 + i].slot;
+    const span<const slot_point> rep_slots  = t_bench.pucch_alloc.get_pucch_repetition_slots(ue.crnti, burst_slot);
+    EXPECT_EQ(rep_slots.size(), 4U) << "slot " << i << " of the burst was not reported as part of a repetition burst";
+    if (not rep_slots.empty()) {
+      // Every slot of the burst reports the same span of slots, in ascending order.
+      EXPECT_EQ(rep_slots.front(), anchor_slot);
+      EXPECT_EQ(rep_slots.back(), anchor_slot + 3);
+    }
   }
 
   // The slot right after the burst is unaffected, and the check is per-UE: the burst must not bar a PUSCH of a UE that
   // holds no grant in those slots.
-  EXPECT_FALSE(t_bench.pucch_alloc.has_pucch_repetition_grant(
-      ue.crnti, t_bench.res_grid[t_bench.k0 + default_k1 + 4].slot));
-  EXPECT_FALSE(
-      t_bench.pucch_alloc.has_pucch_repetition_grant(to_rnti(0x4602), t_bench.res_grid[t_bench.k0 + default_k1].slot));
+  EXPECT_TRUE(
+      t_bench.pucch_alloc.get_pucch_repetition_slots(ue.crnti, t_bench.res_grid[t_bench.k0 + default_k1 + 4].slot)
+          .empty());
+  EXPECT_TRUE(t_bench.pucch_alloc.get_pucch_repetition_slots(to_rnti(0x4602), anchor_slot).empty());
 }
 
 TEST_F(pucch_alloc_repetition_test, single_slot_harq_ack_grant_is_not_reported_as_a_repetition_burst)
@@ -217,8 +225,8 @@ TEST_F(pucch_alloc_repetition_test, single_slot_harq_ack_grant_is_not_reported_a
 
   // A plain single-slot grant can have its UCI multiplexed on a PUSCH as usual, so it must not bar the slot.
   ASSERT_TRUE(alloc_ded_harq_ack(ue).has_value());
-  EXPECT_FALSE(
-      t_bench.pucch_alloc.has_pucch_repetition_grant(ue.crnti, t_bench.res_grid[t_bench.k0 + default_k1].slot));
+  EXPECT_TRUE(
+      t_bench.pucch_alloc.get_pucch_repetition_slots(ue.crnti, t_bench.res_grid[t_bench.k0 + default_k1].slot).empty());
 }
 
 TEST_F(pucch_alloc_repetition_test, additional_harq_ack_bit_is_propagated_to_every_slot_of_the_burst)

@@ -285,11 +285,18 @@ ue_cell_grid_allocator::setup_dl_grant_builder(const slice_ue&                  
   } else {
     // Note: k1 needed for PDSCH-to-HARQ timing-indicator, but UE sends no feedback.
     // The values (4, 0) are arbitrary since they will not be used by the UE.
-    uci_result = uci_allocation{.k1 = 4U, .harq_bit_idx = 0};
+    uci_result = uci_allocation{.k1 = 4U, .k1_last_rep = 4U, .harq_bit_idx = 0};
   }
   uci_allocation& uci                     = uci_result.value();
   unsigned        k1                      = uci.k1;
   pdcch->ctx.context.harq_feedback_timing = k1;
+
+  // Both delays are counted from \c pdsch_alloc.slot, the first PDSCH occasion. With PDSCH repetitions, the UE counts
+  // k1 from the last repetition occasion, so \c last_occasion_offset must be added on top.
+  // In the case of a multi-slot PUCCH repetition burst, the HARQ-ACK feedback can only be considered lost once the
+  // last repetition has been transmitted.
+  const unsigned ack_delay      = last_occasion_offset + k1 + ue_cell_cfg.cell_cfg_common.ntn_cs_koffset;
+  const unsigned last_ack_delay = last_occasion_offset + uci.k1_last_rep + ue_cell_cfg.cell_cfg_common.ntn_cs_koffset;
 
   // Allocate UE DL HARQ.
   // NOTE: With PDSCH repetitions, the HARQ-ACK is expected k1 slots after the last repetition occasion.
@@ -297,19 +304,17 @@ ue_cell_grid_allocator::setup_dl_grant_builder(const slice_ue&                  
     // It is a new tx.
     h_dl = ue_cc.harqs
                .alloc_dl_harq(pdsch_alloc.slot,
-                              last_occasion_offset + k1 + ue_cell_cfg.cell_cfg_common.ntn_cs_koffset,
+                              ack_delay,
                               expert_cfg.max_nof_dl_harq_retxs,
                               uci.harq_bit_idx,
                               user.ran_slice_id() == SRB_RAN_SLICE_ID,
-                              nof_repetitions)
+                              nof_repetitions,
+                              last_ack_delay)
                .value();
     ocudu_assert(h_dl.has_value(), "Failed to allocate DL HARQ");
   } else {
     // It is a retx.
-    bool result = h_dl->new_retx(pdsch_alloc.slot,
-                                 last_occasion_offset + k1 + ue_cell_cfg.cell_cfg_common.ntn_cs_koffset,
-                                 uci.harq_bit_idx,
-                                 nof_repetitions);
+    bool result = h_dl->new_retx(pdsch_alloc.slot, ack_delay, uci.harq_bit_idx, nof_repetitions, last_ack_delay);
     ocudu_assert(result, "Harq is in invalid state");
   }
 

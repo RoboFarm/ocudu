@@ -552,11 +552,18 @@ static std::optional<uci_allocation> allocate_ue_fallback_pucch(ue&             
           pucch_alloc.alloc_common_harq_ack(res_alloc, u.crnti, pdsch_delay, k1_candidate, pdcch_info);
     }
     if (pucch_res_indicator.has_value()) {
-      return uci_allocation{k1_candidate, 0, pucch_res_indicator};
+      // Note: the PUCCH grants used during fallback are never repeated over multiple slots.
+      return uci_allocation{.k1                  = k1_candidate,
+                            .k1_last_rep         = k1_candidate,
+                            .harq_bit_idx        = 0,
+                            .pucch_res_indicator = pucch_res_indicator};
     }
   }
   if (last_valid_k1.has_value()) {
-    return uci_allocation{last_valid_k1.value(), 0, std::nullopt};
+    return uci_allocation{.k1                  = last_valid_k1.value(),
+                          .k1_last_rep         = last_valid_k1.value(),
+                          .harq_bit_idx        = 0,
+                          .pucch_res_indicator = std::nullopt};
   }
   return std::nullopt;
 }

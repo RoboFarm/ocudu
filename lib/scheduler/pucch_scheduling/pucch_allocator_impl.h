@@ -63,7 +63,7 @@ public:
 
   [[nodiscard]] bool has_common_pucch_grant(rnti_t rnti, slot_point sl_tx) const override;
 
-  [[nodiscard]] bool has_pucch_repetition_grant(rnti_t rnti, slot_point sl_tx) const override;
+  [[nodiscard]] span<const slot_point> get_pucch_repetition_slots(rnti_t rnti, slot_point sl_tx) const override;
 
 private:
   /// ////////////  Helper struct and classes   //////////////
@@ -186,7 +186,8 @@ private:
                                    rnti_t                        rnti);
 
   // Implements the main steps of the multiplexing procedure as defined in TS 38.213, Section 9.2.5.
-  // \c rep_state is only applied to the resulting HARQ-ACK grant, and is meant for PUCCH repetition bursts.
+  // \c rep_state and \c rep_anchor_slot are only applied to the resulting HARQ-ACK grant, and are meant for PUCCH
+  // repetition bursts.
   std::optional<ue_grants>
   multiplex_and_allocate_pucch(cell_slot_resource_allocator& pucch_slot_alloc,
                                const pucch_uci_bits&         new_bits,
@@ -194,7 +195,8 @@ private:
                                const ue_cell_configuration&  ue_cell_cfg,
                                std::optional<unsigned>       d_pri,
                                const alloc_context&          alloc_ctx,
-                               pucch_repetition_tx_slot      rep_state = pucch_repetition_tx_slot::no_multi_slot);
+                               pucch_repetition_tx_slot      rep_state       = pucch_repetition_tx_slot::no_multi_slot,
+                               slot_point                    rep_anchor_slot = {});
 
   // Computes which resources are expected to be sent, depending on the UCI bits to be sent, before any multiplexing.
   static pucch_grant_list get_resources_pre_multiplexing(const ue_cell_configuration& ue_cell_cfg,

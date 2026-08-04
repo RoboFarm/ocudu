@@ -10,6 +10,7 @@
 #include "ocudu/ran/pucch/pucch_mapping.h"
 #include "ocudu/ran/pucch/pucch_uci_bits.h"
 #include "ocudu/ran/rnti.h"
+#include "ocudu/ran/slot_point.h"
 
 namespace ocudu {
 
@@ -100,6 +101,11 @@ struct pucch_info {
   /// Indicates whether this PUCCH transmission is part of a multi-slot PUCCH repetition burst, and its position
   /// within it. Applicable to all PUCCH formats.
   pucch_repetition_tx_slot slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
+  /// \brief Slot of the first transmission of the multi-slot PUCCH repetition burst this transmission belongs to.
+  ///
+  /// Only set when \c slot_repetition is not \c no_multi_slot. All the repetitions of a burst carry the same UCI, and
+  /// this slot, the one that the UCI reporting timing points at, identifies the UCI grant they belong to.
+  slot_point repetition_anchor_slot;
 
   /// Returns the format of the PUCCH.
   constexpr pucch_format format() const

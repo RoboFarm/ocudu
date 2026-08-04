@@ -608,8 +608,10 @@ ue_cell_event_manager::event_result ue_cell_event_manager::handle_uci_pdu(slot_p
   }
 
   // Process DL HARQ-ACK bits.
+  // Note: the slot of the UCI grant is used, rather than the slot in which the PDU was received, as they differ in the
+  // case of a multi-slot PUCCH repetition burst, and it is the former that the DL HARQ processes are keyed on.
   if (not action->harq_ack_bits.empty()) {
-    handle_harq_ind(*ue_cc, uci_sl, action->uci_valid, action->harq_ack_bits, action->ul_sinr_dB);
+    handle_harq_ind(*ue_cc, action->uci_slot, action->uci_valid, action->harq_ack_bits, action->ul_sinr_dB);
   }
 
   // Process SRs.

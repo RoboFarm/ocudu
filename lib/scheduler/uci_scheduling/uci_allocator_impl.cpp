@@ -230,7 +230,12 @@ std::optional<uci_allocation> uci_allocator_impl::alloc_harq_ack(cell_resource_a
         uci->rnti                       = ue_cell_cfg.crnti;
         uci->scheduled_dl_pdcch_counter = 0;
       }
+      // If the HARQ-ACK ended up in a PUCCH repetition burst, the report is only complete after its last repetition.
+      const span<const slot_point> burst_slots = pucch_alloc.get_pucch_repetition_slots(ue_cell_cfg.crnti, uci_slot);
+      const unsigned k1_last_rep = burst_slots.empty() ? k1_candidate : k1_candidate + (burst_slots.back() - uci_slot);
+
       uci_allocation res{.k1                  = k1_candidate,
+                         .k1_last_rep         = k1_last_rep,
                          .harq_bit_idx        = static_cast<uint8_t>(uci->scheduled_dl_pdcch_counter),
                          .pucch_res_indicator = d_pri};
       ++uci->scheduled_dl_pdcch_counter;
@@ -336,5 +341,5 @@ bool uci_allocator_impl::has_harq_ack_on_common_pucch_res(rnti_t rnti, slot_poin
 
 bool uci_allocator_impl::has_pucch_repetition(rnti_t rnti, slot_point sl_tx)
 {
-  return pucch_alloc.has_pucch_repetition_grant(rnti, sl_tx);
+  return not pucch_alloc.get_pucch_repetition_slots(rnti, sl_tx).empty();
 }

@@ -252,7 +252,7 @@ void cell_harq_repository<IsDl>::handle_harq_ack_timeout(harq_type& h, slot_poin
                    h.rnti,
                    fmt::underlying(h.h_id),
                    IsDl ? std::string_view{"DL"} : std::string_view{"UL"},
-                   h.slot_timeout - h.slot_ack,
+                   h.slot_timeout - h.slot_ack_end,
                    h.slot_ack);
 
     // Report timeout with NACK.
@@ -267,6 +267,7 @@ template <bool IsDl>
 typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::alloc_harq(du_ue_index_t ue_idx,
                                                                                        slot_point    sl_tx,
                                                                                        slot_point    sl_ack,
+                                                                                       slot_point    sl_ack_end,
                                                                                        unsigned      max_nof_harq_retxs,
                                                                                        std::optional<harq_id_t> harq_id,
                                                                                        bool    select_normal_mode,
@@ -326,6 +327,7 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
   h.slot_tx            = sl_tx;
   h.last_occasion_slot = sl_tx + (nof_repetitions - 1U);
   h.slot_ack           = sl_ack;
+  h.slot_ack_end       = sl_ack_end;
   h.nof_retxs          = 0;
   h.ndi                = !h.ndi;
   h.max_nof_harq_retxs = max_nof_harq_retxs;
@@ -340,8 +342,8 @@ typename cell_harq_repository<IsDl>::harq_type* cell_harq_repository<IsDl>::allo
   ue_harq_entity.last_slot_ack =
       ue_harq_entity.last_slot_ack.valid() ? std::max(ue_harq_entity.last_slot_ack, sl_ack) : sl_ack;
 
-  // Add HARQ to the timeout list.
-  h.slot_timeout = sl_ack + max_ack_wait_in_slots;
+  // Add HARQ to the timeout list. The wait starts at the last transmission that can carry the feedback.
+  h.slot_timeout = sl_ack_end + max_ack_wait_in_slots;
 
   // If HARQ mode B or DL HARQ Feedback disabled, set short timeout to release and reuse process quickly.
   // Note: sl_ack - ntn_cs_koffset = k1 (or k2).
@@ -450,6 +452,7 @@ template <bool IsDl>
 bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h,
                                                  slot_point sl_tx,
                                                  slot_point sl_ack,
+                                                 slot_point sl_ack_end,
                                                  uint8_t    nof_repetitions)
 {
   if (h.status != harq_state_t::pending_retx) {
@@ -468,6 +471,7 @@ bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h,
   h.slot_tx            = sl_tx;
   h.last_occasion_slot = sl_tx + (nof_repetitions - 1U);
   h.slot_ack           = sl_ack;
+  h.slot_ack_end       = sl_ack_end;
   ++h.nof_retxs;
 
   // Set UE HARQ entity common params.
@@ -478,8 +482,8 @@ bool cell_harq_repository<IsDl>::handle_new_retx(harq_type& h,
   ue_harq_entity.last_slot_ack =
       ue_harq_entity.last_slot_ack.valid() ? std::max(ue_harq_entity.last_slot_ack, sl_ack) : sl_ack;
 
-  // Add HARQ to the timeout list.
-  h.slot_timeout = sl_ack + max_ack_wait_in_slots;
+  // Add HARQ to the timeout list. The wait starts at the last transmission that can carry the feedback.
+  h.slot_timeout = sl_ack_end + max_ack_wait_in_slots;
   harq_timeout_wheel[h.slot_timeout.count() % harq_timeout_wheel.size()].push_front(&h);
 
   return true;
@@ -695,6 +699,7 @@ harq_utils::dl_harq_process_impl* cell_harq_manager::new_dl_tx(du_ue_index_t ue_
                                                                rnti_t        rnti,
                                                                slot_point    pdsch_slot,
                                                                unsigned      ack_delay,
+                                                               unsigned      last_ack_delay,
                                                                unsigned      max_harq_nof_retxs,
                                                                uint8_t       harq_bit_idx,
                                                                bool          select_normal_mode,
@@ -703,6 +708,7 @@ harq_utils::dl_harq_process_impl* cell_harq_manager::new_dl_tx(du_ue_index_t ue_
   dl_harq_process_impl* h = dl.alloc_harq(ue_idx,
                                           pdsch_slot,
                                           pdsch_slot + ack_delay,
+                                          pdsch_slot + last_ack_delay,
                                           max_harq_nof_retxs,
                                           std::nullopt,
                                           select_normal_mode,
@@ -727,7 +733,7 @@ harq_utils::ul_harq_process_impl* cell_harq_manager::new_ul_tx(du_ue_index_t    
                                                                bool                     select_normal_mode)
 {
   ul_harq_process_impl* h =
-      ul.alloc_harq(ue_idx, pusch_slot, pusch_slot, max_harq_nof_retxs, harq_id, select_normal_mode);
+      ul.alloc_harq(ue_idx, pusch_slot, pusch_slot, pusch_slot, max_harq_nof_retxs, harq_id, select_normal_mode);
   if (h == nullptr) {
     return nullptr;
   }
@@ -738,12 +744,17 @@ harq_utils::ul_harq_process_impl* cell_harq_manager::new_ul_tx(du_ue_index_t    
   return h;
 }
 
-bool dl_harq_process_handle::new_retx(slot_point pdsch_slot,
-                                      unsigned   ack_delay,
-                                      uint8_t    harq_bit_idx,
-                                      uint8_t    nof_repetitions)
+bool dl_harq_process_handle::new_retx(slot_point              pdsch_slot,
+                                      unsigned                ack_delay,
+                                      uint8_t                 harq_bit_idx,
+                                      uint8_t                 nof_repetitions,
+                                      std::optional<unsigned> last_ack_delay)
 {
-  if (not harq_repo->handle_new_retx(*impl, pdsch_slot, pdsch_slot + ack_delay, nof_repetitions)) {
+  if (not harq_repo->handle_new_retx(*impl,
+                                     pdsch_slot,
+                                     pdsch_slot + ack_delay,
+                                     pdsch_slot + last_ack_delay.value_or(ack_delay),
+                                     nof_repetitions)) {
     return false;
   }
   // Reset DL-only HARQ parameters.
@@ -827,7 +838,7 @@ void dl_harq_process_handle::save_grant_params(const dl_harq_alloc_context& ctx,
 
 bool ul_harq_process_handle::new_retx(slot_point pusch_slot)
 {
-  return harq_repo->handle_new_retx(*impl, pusch_slot, pusch_slot);
+  return harq_repo->handle_new_retx(*impl, pusch_slot, pusch_slot, pusch_slot);
 }
 
 expected<units::bytes> ul_harq_process_handle::ul_crc_info(bool ack)
@@ -1065,15 +1076,23 @@ std::optional<const ul_harq_process_handle> unique_ue_harq_entity::ul_harq(harq_
   return ul_harq(h_id);
 }
 
-std::optional<dl_harq_process_handle> unique_ue_harq_entity::alloc_dl_harq(slot_point sl_tx,
-                                                                           unsigned   ack_delay,
-                                                                           unsigned   max_harq_nof_retxs,
-                                                                           unsigned   harq_bit_idx,
-                                                                           bool       select_normal_mode,
-                                                                           uint8_t    nof_repetitions)
+std::optional<dl_harq_process_handle> unique_ue_harq_entity::alloc_dl_harq(slot_point              sl_tx,
+                                                                           unsigned                ack_delay,
+                                                                           unsigned                max_harq_nof_retxs,
+                                                                           unsigned                harq_bit_idx,
+                                                                           bool                    select_normal_mode,
+                                                                           uint8_t                 nof_repetitions,
+                                                                           std::optional<unsigned> last_ack_delay)
 {
-  dl_harq_process_impl* h = cell_harq_mgr->new_dl_tx(
-      ue_index, crnti, sl_tx, ack_delay, max_harq_nof_retxs, harq_bit_idx, select_normal_mode, nof_repetitions);
+  dl_harq_process_impl* h = cell_harq_mgr->new_dl_tx(ue_index,
+                                                     crnti,
+                                                     sl_tx,
+                                                     ack_delay,
+                                                     last_ack_delay.value_or(ack_delay),
+                                                     max_harq_nof_retxs,
+                                                     harq_bit_idx,
+                                                     select_normal_mode,
+                                                     nof_repetitions);
   if (h == nullptr) {
     return std::nullopt;
   }

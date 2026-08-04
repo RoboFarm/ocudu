@@ -692,6 +692,34 @@ TEST_F(single_ue_harq_entity_test, after_max_ack_wait_timeout_dl_harqs_are_avail
   ASSERT_EQ(timeout_handler.last_event, dummy_harq_timeout_handler::last_event_t::feedback_timeout);
 }
 
+TEST_F(single_ue_harq_entity_test, dl_harq_feedback_timeout_is_counted_from_the_last_pucch_repetition)
+{
+  // As per TS 38.213, Section 9.2.6, the HARQ-ACK of a PUCCH with repetitions is transmitted over several slots, the
+  // last of which is the earliest point at which the feedback can be considered lost.
+  const unsigned nof_rep_slots  = 4;
+  const unsigned last_ack_delay = k1 + nof_rep_slots - 1;
+  auto           h_dl           = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0, true, 1, last_ack_delay);
+  ASSERT_TRUE(h_dl.has_value());
+  ASSERT_EQ(h_dl->uci_slot(), current_slot + k1);
+  ASSERT_EQ(h_dl->last_uci_slot(), current_slot + last_ack_delay);
+
+  // Test: The HARQ process is still waiting for the feedback after the timeout of a single-slot HARQ-ACK report.
+  for (unsigned i = 0; i != max_ack_wait_timeout + k1 + 1; ++i) {
+    run_slot();
+  }
+  ASSERT_NE(harq_ent.find_dl_harq_waiting_ack(), std::nullopt);
+  ASSERT_EQ(timeout_handler.last_event, dummy_harq_timeout_handler::last_event_t::none);
+
+  // Test: The timeout is reached once the wait has elapsed since the last repetition.
+  for (unsigned i = 0; i != nof_rep_slots - 1; ++i) {
+    run_slot();
+  }
+  ASSERT_EQ(harq_ent.find_dl_harq_waiting_ack(), std::nullopt);
+  ASSERT_EQ(timeout_handler.last_event, dummy_harq_timeout_handler::last_event_t::feedback_timeout);
+  ASSERT_TRUE(timeout_handler.last_dir_is_dl);
+  ASSERT_FALSE(timeout_handler.last_was_ack);
+}
+
 TEST_F(single_ue_harq_entity_test, when_pending_retx_harq_is_never_rescheduled_then_on_retx_timeout_is_notified)
 {
   auto h_ul = harq_ent.alloc_ul_harq(current_slot + k2, max_retxs);

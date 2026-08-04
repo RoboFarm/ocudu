@@ -18,6 +18,11 @@ namespace ocudu {
 struct uci_allocation {
   /// Delay in slots of the UE's PUCCH HARQ-ACK report with respect to the PDSCH.
   unsigned k1;
+  /// \brief Delay in slots of the last transmission carrying the UE's HARQ-ACK report with respect to the PDSCH.
+  ///
+  /// It is equal to \c k1, except when the report is carried by a multi-slot PUCCH repetition burst (TS 38.213,
+  /// Section 9.2.6), in which case it points at the slot of the burst's last repetition.
+  unsigned k1_last_rep{0};
   /// Index of the HARQ-bit in the PUCCH/PUSCH HARQ report.
   uint8_t harq_bit_idx{0};
   /// If UCI is allocated on the PUCCH, contains the PUCCH resource indicator; else, this is to be ignored.

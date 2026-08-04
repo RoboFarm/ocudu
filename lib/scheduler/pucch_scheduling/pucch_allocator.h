@@ -98,16 +98,18 @@ public:
   /// \return Returns true if a PUCCH grant using common PUCCH resource exits. False, otherwise.
   [[nodiscard]] virtual bool has_common_pucch_grant(rnti_t rnti, slot_point sl_tx) const = 0;
 
-  /// \brief Returns whether a given slot is part of an in-flight multi-slot PUCCH repetition burst of a UE.
+  /// \brief Returns the slots spanned by the in-flight multi-slot PUCCH repetition burst of a UE that a given slot
+  /// belongs to, in ascending order; an empty span if the UE has no repeated PUCCH grant in that slot.
   ///
-  /// As per TS 38.213, Section 9.2.6, a UE whose PUCCH with repetitions overlaps a PUSCH transmits the PUCCH and drops
+  /// A non-empty result means that the slot cannot be used for any other transmission of this UE. In particular, as
+  /// per TS 38.213, Section 9.2.6, a UE whose PUCCH with repetitions overlaps a PUSCH transmits the PUCCH and drops
   /// the PUSCH in the overlapping slots; the UCI is not multiplexed on the PUSCH (Section 9.2.5 explicitly scopes that
   /// procedure to PUCCHs "over a single slot without repetitions"). The caller must therefore not schedule a PUSCH for
   /// this UE in such a slot.
   ///
   /// \param[in] rnti RNTI of the UE.
   /// \param[in] sl_tx Slot to search PUCCH grants.
-  [[nodiscard]] virtual bool has_pucch_repetition_grant(rnti_t rnti, slot_point sl_tx) const = 0;
+  [[nodiscard]] virtual span<const slot_point> get_pucch_repetition_slots(rnti_t rnti, slot_point sl_tx) const = 0;
 };
 
 } // namespace ocudu

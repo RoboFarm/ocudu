@@ -102,9 +102,11 @@ std::optional<dl_harq_process_handle> ue_cell::handle_dl_ack_info(slot_point    
     return h_dl;
   }
 
-  // In case of NACK/DTX, extend DRX window, if needed.
+  // In case of NACK/DTX, extend DRX window, if needed. As per TS 38.321, Section 5.7, the drx-HARQ-RTT-TimerDL starts
+  // after the end of the transmission carrying the DL HARQ feedback, which, for a PUCCH with repetitions, is the last
+  // repetition of the burst.
   if (ack_value != mac_harq_ack_report_status::ack) {
-    shared_ctx.drx_ctrl.on_dl_harq_nack(uci_slot);
+    shared_ctx.drx_ctrl.on_dl_harq_nack(h_dl->last_uci_slot());
   }
 
   // If the HARQ report was DTX, do not forward the feeback to the link adaptation controller, as the issue is not
