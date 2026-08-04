@@ -113,11 +113,17 @@ inline asn1::xnap::guami_s guami_to_asn1(const guami_t& guami)
 
 /// \brief Converts ASN.1 encoded GUAMI into internal GUAMI struct.
 /// \param[in] asn1_guami The ASN.1 encoded GUAMI.
-/// \return The internal GUAMI struct.
-inline guami_t asn1_to_guami(const asn1::xnap::guami_s& asn1_guami)
+/// \return The internal GUAMI struct if the conversion is successful, otherwise an error message.
+inline expected<guami_t, std::string> asn1_to_guami(const asn1::xnap::guami_s& asn1_guami)
 {
+  expected<plmn_identity> plmn_identity = plmn_identity::from_bytes(asn1_guami.plmn_id.to_bytes());
+  if (!plmn_identity.has_value()) {
+    return make_unexpected(
+        fmt::format("Failed to convert GUAMI PLMN ID {} to common type", asn1_guami.plmn_id.to_string()));
+  }
+
   guami_t guami;
-  guami.plmn.from_bytes(asn1_guami.plmn_id.to_bytes());
+  guami.plmn          = plmn_identity.value();
   guami.amf_region_id = asn1_guami.amf_region_id.to_number();
   guami.amf_set_id    = asn1_guami.amf_set_id.to_number();
   guami.amf_pointer   = asn1_guami.amf_pointer.to_number();

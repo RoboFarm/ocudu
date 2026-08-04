@@ -9,6 +9,7 @@ target_link_libraries(xnap_test_helpers ocudu_support xnap_asn1 ocudulog)
 
 set(SOURCES
         xn_setup_procedure_test.cpp
+        xnap_asn1_converters_test.cpp
         xnap_handover_preparation_procedure_test.cpp
         )
 

@@ -118,7 +118,11 @@ inline bool asn1_to_handover_request(xnap_handover_request& request, const asn1:
   request.nr_cgi = asn1_to_cgi(asn1_request->target_cell_global_id.nr());
 
   // Fill GUAMI.
-  request.guami = asn1_to_guami(asn1_request->guami);
+  expected<guami_t, std::string> guami = asn1_to_guami(asn1_request->guami);
+  if (!guami.has_value()) {
+    return false;
+  }
+  request.guami = guami.value();
 
   // Fill UE context info HO request.
   if (!asn1_to_ue_context_info_ho_request(request.ue_context_info_ho_request,
