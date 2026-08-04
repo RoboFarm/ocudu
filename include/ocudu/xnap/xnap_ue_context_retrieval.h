@@ -9,6 +9,7 @@
 #include "ocudu/ran/cause/common.h"
 #include "ocudu/ran/cause/xnap_cause.h"
 #include "ocudu/ran/cu_cp_cell_configuration.h"
+#include "ocudu/ran/cu_cp_location_reporting_types.h"
 #include "ocudu/ran/cu_cp_pdu_session.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/guami.h"
@@ -91,6 +92,8 @@ struct xnap_retrieve_ue_context_response {
   bool                                              success = false;
   guami_t                                           guami;
   xnap_ue_context_info_retrieve_ue_context_response ue_context_info;
+  /// Location reporting the old NG-RAN node asks the new one to run for this UE (TS 38.423 section 8.2.4.2).
+  std::optional<location_report_request> location_report_info;
   /// XNAP UE ID the peer allocated for this UE.
   peer_xnap_ue_id_t peer_xnap_ue_id = peer_xnap_ue_id_t::invalid;
   /// Cause of the failure. Only set when \c success is false.

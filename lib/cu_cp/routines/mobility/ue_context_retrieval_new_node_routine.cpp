@@ -91,7 +91,8 @@ ue_context_retrieval_new_node_routine::handle_retrieve_ue_context_response(xnap_
   retrieval_context.guami                               = response.guami;
   retrieval_context.pdu_session_res_to_be_setup_list =
       std::move(response.ue_context_info.pdu_session_res_to_be_setup_list);
-  retrieval_context.rrc_context = response.ue_context_info.rrc_context.copy();
+  retrieval_context.rrc_context          = response.ue_context_info.rrc_context.copy();
+  retrieval_context.location_report_info = response.location_report_info;
 
   logger.info("ue={}: \"{}\" finished successfully. Retrieved {} PDU sessions from xnc_peer={}",
               ue_index,

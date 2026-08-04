@@ -255,6 +255,10 @@ inline bool asn1_to_retrieve_ue_context_response(xnap_retrieve_ue_context_respon
 
   ue_context_info.rrc_context = asn1_ue_context_info.rrc_context.copy();
 
+  if (asn1_response->location_report_info_present) {
+    response.location_report_info = asn1_to_location_report_info(asn1_response->location_report_info);
+  }
+
   response.success = true;
 
   return true;

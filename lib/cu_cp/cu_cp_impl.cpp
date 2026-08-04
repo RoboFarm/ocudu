@@ -22,6 +22,7 @@
 #include "routines/mobility/intra_cu_handover_routine.h"
 #include "routines/mobility/intra_cu_handover_target_routine.h"
 #include "routines/mobility/mobility_helpers.h"
+#include "routines/mobility/retrieved_context_setup_routine.h"
 #include "routines/mobility/ue_context_retrieval_helpers.h"
 #include "routines/mobility/ue_context_retrieval_new_node_routine.h"
 #include "routines/pdu_session_resource_modification_routine.h"
@@ -571,6 +572,36 @@ async_task<bool> cu_cp_impl::handle_rrc_reestablishment_context_modification_req
 {
   cu_cp_ue* ue = ue_mng.find_du_ue(ue_index);
   ocudu_assert(ue != nullptr, "ue={}: Could not find DU UE", ue_index);
+
+  // A context retrieved from a peer is established at the CU-UP from the retrieved PDU sessions, and the user plane
+  // is moved over to this node (TS 38.423 section 8.2.4).
+  if (ue->get_context_retrieval_context().has_value()) {
+    // A CU-UP is selected on the first bearer setup for this UE.
+    if (ue->get_cu_up_index() == cu_cp_cu_up_index_t::invalid) {
+      ue->set_cu_up_index(cu_up_db.select_cu_up());
+    }
+    if (ue->get_cu_up_index() == cu_cp_cu_up_index_t::invalid) {
+      logger.warning("ue={}: Could not find a CU-UP to serve the UE", ue_index);
+      return launch_no_op_task(false);
+    }
+
+    ngap_interface* ngap = ngap_db.find_ngap(ue->get_ue_context().plmn);
+    if (ngap == nullptr) {
+      logger.warning("ue={}: Could not find NGAP for the UE's PLMN", ue_index);
+      return launch_no_op_task(false);
+    }
+
+    return launch_async<retrieved_context_setup_routine>(
+        *ue,
+        cu_up_db.find_cu_up_processor(ue->get_cu_up_index())->get_e1ap_bearer_context_manager(),
+        du_db.get_du_processor(ue->get_du_index()).get_f1ap_handler(),
+        *ngap,
+        xnap_db.find_xnap(ue->get_xnc_peer_index()),
+        ue_mng.get_ue_config(),
+        cfg.security.default_security_indication,
+        logger);
+  }
+
   ocudu_assert(
       ue->get_cu_up_index() != cu_cp_cu_up_index_t::invalid, "ue={}: could not find CU-UP of the UE", ue_index);
 

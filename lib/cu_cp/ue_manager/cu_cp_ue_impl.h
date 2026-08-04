@@ -62,6 +62,8 @@ struct cu_cp_ue_context_retrieval_context {
   slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item> pdu_session_res_to_be_setup_list;
   /// Packed RRC HandoverPreparationInformation, whose AS-Config carries the source's DRB-to-QoS-flow mapping.
   byte_buffer rrc_context;
+  /// Location reporting the peer asks this node to run for the UE (TS 38.423 section 8.2.4.2).
+  std::optional<location_report_request> location_report_info;
 };
 
 /// \brief Single CHO candidate cell context.
