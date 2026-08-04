@@ -13,6 +13,7 @@
 #include "fmt/format.h"
 #include <algorithm>
 #include <cinttypes>
+#include <functional>
 
 namespace ocudu {
 

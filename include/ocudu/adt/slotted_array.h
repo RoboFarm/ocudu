@@ -7,7 +7,6 @@
 #include "ocudu/adt/static_vector.h"
 #include "ocudu/adt/tiny_optional.h"
 #include "ocudu/support/ocudu_assert.h"
-#include <array>
 #include <vector>
 
 /// \file Definitions of slotted_array<T, N> used to manage containers with optional elements. All the defined classes
