@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "f1u_bearer_impl.h"
+#include "ocudu/support/executors/task_executor.h"
 
 using namespace ocudu;
 using namespace odu;

@@ -4,9 +4,11 @@
 #pragma once
 
 #include "ocudu/adt/detail/slotted_array_detail.h"
+#include "ocudu/adt/static_vector.h"
 #include "ocudu/adt/tiny_optional.h"
 #include "ocudu/support/ocudu_assert.h"
 #include <array>
+#include <vector>
 
 /// \file Definitions of slotted_array<T, N> used to manage containers with optional elements. All the defined classes
 /// provide methods to access, remove, add elements by index with O(1) complexity, iterators that skip absent elements,

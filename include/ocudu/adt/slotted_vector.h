@@ -8,6 +8,7 @@
 #pragma once
 
 #include "ocudu/adt/detail/slotted_array_detail.h"
+#include "ocudu/adt/span.h"
 #include <vector>
 
 namespace ocudu {

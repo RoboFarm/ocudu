@@ -6,6 +6,7 @@
 #include "ocudu/adt/intrusive_list.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/ocudulog/ocudulog.h"
+#include "ocudu/support/executors/task_executor.h"
 #include <deque>
 #include <utility>
 #include <variant>
