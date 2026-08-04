@@ -54,4 +54,11 @@ xnap_message generate_retrieve_ue_context_request(peer_xnap_ue_id_t peer_xnap_ue
                                                   pci_t             fail_cell_pci,
                                                   nr_cell_identity  target_nci);
 
+/// \brief Generate a dummy Retrieve UE Context Response message.
+xnap_message generate_retrieve_ue_context_response(local_xnap_ue_id_t local_xnap_ue_id,
+                                                   peer_xnap_ue_id_t  peer_xnap_ue_id);
+
+/// \brief Generate a dummy Retrieve UE Context Failure message.
+xnap_message generate_retrieve_ue_context_failure(local_xnap_ue_id_t local_xnap_ue_id);
+
 } // namespace ocudu::ocucp

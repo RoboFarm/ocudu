@@ -9,6 +9,7 @@
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/gnb_id.h"
 #include "ocudu/ran/inter_cu_handover_messages.h"
+#include "ocudu/ran/pci.h"
 #include "ocudu/support/async/async_task.h"
 #include "ocudu/xnap/xnap_handover.h"
 #include "ocudu/xnap/xnap_ue_context_retrieval.h"
@@ -83,6 +84,11 @@ public:
 
   /// \brief Initiate the transmission of a UE Context Release message as defined in TS 38.423 section 8.2.7.
   virtual bool handle_ue_context_release_required(cu_cp_ue_index_t ue_index) = 0;
+
+  /// \brief Initiates a Retrieve UE Context procedure as defined in TS 38.423 section 8.2.4, to fetch the context of a
+  /// UE that arrived at this node from the peer that still holds it.
+  virtual async_task<xnap_retrieve_ue_context_response>
+  handle_retrieve_ue_context_required(const xnap_retrieve_ue_context_request& request) = 0;
 };
 
 /// This interface for the CU-CP to stop an XNAP instance.
@@ -183,6 +189,10 @@ public:
 
   /// \brief Check if the connected XN-C peer has the given GNB ID.
   virtual bool has_peer_gnb_id(const gnb_id_t& peer_gnb_id) const = 0;
+
+  /// \brief Check if the connected XN-C peer serves a NR cell with the given PCI.
+  /// \remark The served cell list is only known once the XN setup procedure has completed with the peer.
+  virtual bool has_peer_pci(pci_t peer_pci) const = 0;
 };
 
 } // namespace ocudu::ocucp

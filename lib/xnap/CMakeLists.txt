@@ -11,6 +11,7 @@ set(SOURCES
         procedures/xnap_source_handover_preparation_procedure.cpp
         procedures/xnap_old_node_retrieve_ue_context_procedure.cpp
         procedures/xnap_target_handover_preparation_procedure.cpp
+        procedures/xnap_new_node_retrieve_ue_context_procedure.cpp
         procedures/xn_setup_procedure.cpp
         procedures/xnap_sn_status_transfer_procedure.cpp
         xnap_asn1_utils.cpp

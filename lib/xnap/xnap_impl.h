@@ -12,6 +12,7 @@
 #include "ocudu/xnap/xnap.h"
 #include "ocudu/xnap/xnap_configuration.h"
 #include "ocudu/xnap/xnap_message.h"
+#include <algorithm>
 
 namespace ocudu::ocucp {
 
@@ -47,12 +48,24 @@ public:
   void handle_sn_status_transfer_required(const cu_cp_status_transfer& sn_status_transfer) override;
   async_task<expected<cu_cp_status_transfer>> handle_sn_status_transfer_expected(cu_cp_ue_index_t ue_index) override;
   bool                                        handle_ue_context_release_required(cu_cp_ue_index_t ue_index) override;
+  async_task<xnap_retrieve_ue_context_response>
+  handle_retrieve_ue_context_required(const xnap_retrieve_ue_context_request& request) override;
 
   xnap_ue_context_removal_handler& get_xnap_ue_context_removal_handler() override { return *this; }
 
   bool has_peer_gnb_id(const gnb_id_t& peer_gnb_id) const override
   {
     return peer_ctxt.has_value() && peer_ctxt->gnb_id == peer_gnb_id;
+  }
+
+  bool has_peer_pci(pci_t peer_pci) const override
+  {
+    if (!peer_ctxt.has_value()) {
+      return false;
+    }
+    return std::any_of(peer_ctxt->list_of_served_cells_nr.begin(),
+                       peer_ctxt->list_of_served_cells_nr.end(),
+                       [peer_pci](const cu_cp_served_cell_info& cell) { return cell.nr_pci == peer_pci; });
   }
 
 private:

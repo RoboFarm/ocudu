@@ -289,3 +289,76 @@ xnap_message ocudu::ocucp::generate_retrieve_ue_context_request(peer_xnap_ue_id_
 
   return xnap_msg;
 }
+
+xnap_message ocudu::ocucp::generate_retrieve_ue_context_response(local_xnap_ue_id_t local_xnap_ue_id,
+                                                                 peer_xnap_ue_id_t  peer_xnap_ue_id)
+{
+  xnap_message xnap_msg;
+  xnap_msg.pdu.set_successful_outcome();
+  xnap_msg.pdu.successful_outcome().load_info_obj(ASN1_XNAP_ID_RETRIEVE_UE_CONTEXT);
+
+  auto& response = xnap_msg.pdu.successful_outcome().value.retrieve_ue_context_resp();
+
+  // This is sent from the source to the target, so the new NG-RAN node UE XnAP ID is the local XNAP UE ID and the old
+  // NG-RAN node UE XnAP ID is the peer XNAP UE ID.
+  response->new_ng_ra_nnode_ue_xn_ap_id = local_xnap_ue_id_to_uint(local_xnap_ue_id);
+  response->old_ng_ra_nnode_ue_xn_ap_id = peer_xnap_ue_id_to_uint(peer_xnap_ue_id);
+
+  response->guami = guami_to_asn1(
+      guami_t{.plmn = plmn_identity::test_value(), .amf_set_id = 1, .amf_pointer = 1, .amf_region_id = 1});
+
+  auto& ue_context_info           = response->ue_context_info_retr_ue_ctxt_resp;
+  ue_context_info.ng_c_ue_sig_ref = 1;
+  ue_context_info.sig_tnl_at_source.set_endpoint_ip_address();
+  tla_to_asn1_bitstring(ue_context_info.sig_tnl_at_source.endpoint_ip_address(),
+                        transport_layer_address::create_from_string("127.0.0.1"));
+  ue_context_info.ue_security_cap.nr_encyption_algorithms.from_number(49152);
+  ue_context_info.ue_security_cap.nr_integrity_protection_algorithms.from_number(49152);
+  ue_context_info.security_info.key_ng_ran_star.from_string(
+      "1111111000001101100111110001011010001110110010111010001100110111100111011000110110011010000110000011000010111000"
+      "0010001100001010000001111111100000100111101011000011110000110101110010001010001010101000101100101100100000001110"
+      "00010001000110001101110101100110");
+  ue_context_info.ue_ambr.dl_ue_ambr = 1000000000;
+  ue_context_info.ue_ambr.ul_ue_ambr = 1000000000;
+
+  pdu_session_res_to_be_setup_item_s pdu_session_item;
+  pdu_session_item.pdu_session_id = 1;
+  pdu_session_item.s_nssai =
+      s_nssai_to_asn1(s_nssai_t{.sst = slice_service_type{1}, .sd = slice_differentiator::create(1).value()});
+  up_transport_layer_info_to_asn1(
+      pdu_session_item.ul_ng_u_tnl_at_up_f,
+      up_transport_layer_info{transport_layer_address::create_from_string("127.0.0.1"), gtpu_teid_t{12345}});
+  pdu_session_item.pdu_session_type = pdu_session_type_e::ipv4;
+
+  qos_flows_to_be_setup_item_s qos_flow_item;
+  qos_flow_item.qfi = 1;
+  qos_flow_item.qos_flow_level_qos_params.qos_characteristics.set_non_dyn();
+  qos_flow_item.qos_flow_level_qos_params.qos_characteristics.non_dyn().five_qi = 9;
+  qos_flow_item.qos_flow_level_qos_params.alloc_and_retention_prio.pre_emption_cap =
+      asn1::xnap::allocand_retention_prio_s::pre_emption_cap_opts::options::shall_not_trigger_preemption;
+  qos_flow_item.qos_flow_level_qos_params.alloc_and_retention_prio.pre_emption_vulnerability =
+      asn1::xnap::allocand_retention_prio_s::pre_emption_vulnerability_opts::options::not_preemptable;
+  qos_flow_item.qos_flow_level_qos_params.alloc_and_retention_prio.prio_level = 1;
+  pdu_session_item.qos_flows_to_be_setup_list.push_back(qos_flow_item);
+
+  ue_context_info.pdu_session_res_to_be_setup_list.push_back(pdu_session_item);
+
+  ue_context_info.rrc_context = make_byte_buffer("deadbeef").value();
+
+  return xnap_msg;
+}
+
+xnap_message ocudu::ocucp::generate_retrieve_ue_context_failure(local_xnap_ue_id_t local_xnap_ue_id)
+{
+  xnap_message xnap_msg;
+  xnap_msg.pdu.set_unsuccessful_outcome();
+  xnap_msg.pdu.unsuccessful_outcome().load_info_obj(ASN1_XNAP_ID_RETRIEVE_UE_CONTEXT);
+
+  auto& failure = xnap_msg.pdu.unsuccessful_outcome().value.retrieve_ue_context_fail();
+
+  // This is sent from the source to the target, so the new NG-RAN node UE XnAP ID is the local XNAP UE ID.
+  failure->new_ng_ra_nnode_ue_xn_ap_id = local_xnap_ue_id_to_uint(local_xnap_ue_id);
+  failure->cause.set_radio_network()   = cause_radio_network_layer_opts::ue_context_id_not_known;
+
+  return xnap_msg;
+}

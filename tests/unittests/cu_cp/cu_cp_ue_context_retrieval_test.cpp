@@ -12,7 +12,7 @@
 using namespace ocudu;
 using namespace ocucp;
 
-/// Fixture for the old NG-RAN node side of the UE context retrieval procedure (TS 38.423 section 8.2.5), i.e. this
+/// Fixture for the old NG-RAN node side of the UE context retrieval procedure (TS 38.423 section 8.2.4), i.e. this
 /// node answering a peer that wants to take over one of our UEs.
 class cu_cp_ue_context_retrieval_test : public ::testing::Test
 {

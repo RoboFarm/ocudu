@@ -179,6 +179,26 @@ TEST_F(xn_setup_procedure_test, when_xn_setup_response_is_sent_then_it_carries_t
   EXPECT_EQ(asn1_to_cgi(asn1_cell_info.cell_id), served_cell.nr_cgi);
 }
 
+TEST_F(xn_setup_procedure_test, when_peer_advertises_served_cells_then_peer_is_found_by_served_cell_pci)
+{
+  const pci_t               served_pci = 42;
+  const nr_cell_global_id_t served_cgi{peer_plmn, nr_cell_identity::create(0x19b0).value()};
+
+  // Before the XN setup procedure completes, no served cell of the peer is known.
+  ASSERT_FALSE(xnap->has_peer_pci(served_pci)) << "Served cells must not be known before the XN setup completed";
+
+  // Action: Run the XN setup procedure with a peer advertising a served NR cell.
+  async_task<bool>         t = xnap->handle_xn_setup_request_required();
+  lazy_task_launcher<bool> t_launcher(t);
+  xnap_message setup_resp = generate_xn_setup_response_with_served_cell(xnap_peer_cfg, served_pci, served_cgi);
+  xnap->handle_message(setup_resp);
+  ASSERT_TRUE(t.ready());
+  ASSERT_TRUE(t.get());
+
+  ASSERT_TRUE(xnap->has_peer_pci(served_pci)) << "Peer was not found by the PCI of its served cell";
+  ASSERT_FALSE(xnap->has_peer_pci(served_pci + 1)) << "Unexpected match for a PCI the peer does not serve";
+}
+
 int main(int argc, char** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

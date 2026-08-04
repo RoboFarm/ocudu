@@ -13,11 +13,40 @@
 
 namespace ocudu::ocucp {
 
+/// \brief Convert a common type MAC-I to ASN.1.
+inline void mac_i_to_asn1(asn1::fixed_bitstring<16, false, true>& asn1_mac_i, const security::sec_short_mac_i& mac_i)
+{
+  asn1_mac_i.from_number((static_cast<uint16_t>(mac_i[0]) << 8U) | mac_i[1]);
+}
+
 /// \brief Convert an ASN.1 MAC-I to common type.
 inline security::sec_short_mac_i asn1_to_mac_i(const asn1::fixed_bitstring<16, false, true>& asn1_mac_i)
 {
   const auto value = static_cast<uint16_t>(asn1_mac_i.to_number());
   return {static_cast<uint8_t>(value >> 8U), static_cast<uint8_t>(value & 0xffU)};
+}
+
+/// \brief Convert a common type UE Context ID to ASN.1 (TS 38.423 section 9.2.3.40).
+inline void ue_context_id_to_asn1(asn1::xnap::ue_context_id_c& asn1_ue_context_id,
+                                  const xnap_ue_context_id&    ue_context_id)
+{
+  if (std::holds_alternative<xnap_ue_context_id_for_rrc_resume>(ue_context_id)) {
+    const auto& resume_id   = std::get<xnap_ue_context_id_for_rrc_resume>(ue_context_id);
+    auto&       asn1_resume = asn1_ue_context_id.set_rrc_resume();
+    if (std::holds_alternative<short_i_rnti_t>(resume_id.i_rnti)) {
+      asn1_resume.i_rnti.set_i_rnti_short().from_number(std::get<short_i_rnti_t>(resume_id.i_rnti).value());
+    } else {
+      asn1_resume.i_rnti.set_i_rnti_full().from_number(std::get<full_i_rnti_t>(resume_id.i_rnti).value());
+    }
+    asn1_resume.allocated_c_rnti.from_number(to_value(resume_id.allocated_c_rnti));
+    asn1_resume.access_pci.set_nr() = resume_id.access_pci;
+    return;
+  }
+
+  const auto& reest_id   = std::get<xnap_ue_context_id_for_rrc_reest>(ue_context_id);
+  auto&       asn1_reest = asn1_ue_context_id.set_rrrc_reest();
+  asn1_reest.c_rnti.from_number(to_value(reest_id.c_rnti));
+  asn1_reest.fail_cell_pci.set_nr() = reest_id.fail_cell_pci;
 }
 
 /// \brief Convert an ASN.1 UE Context ID to common type (TS 38.423 section 9.2.3.40).
@@ -71,6 +100,23 @@ inline bool asn1_to_ue_context_id(xnap_ue_context_id&                ue_context_
   }
 
   return false;
+}
+
+/// \brief Convert a common type Retrieve UE Context Request to ASN.1 (TS 38.423 section 9.1.1.8).
+/// \remark The New NG-RAN node UE XnAP ID is set by the procedure, which owns the local XNAP UE ID.
+inline void retrieve_ue_context_request_to_asn1(asn1::xnap::retrieve_ue_context_request_s& asn1_request,
+                                                const xnap_retrieve_ue_context_request&    request)
+{
+  ue_context_id_to_asn1(asn1_request->ue_context_id, request.ue_context_id);
+  mac_i_to_asn1(asn1_request->mac_i, request.mac_i);
+  asn1_request->new_ng_ran_cell_id.set_nr().from_number(request.target_nci.value());
+
+  // The RRC Resume Cause IE only carries the RNA Update cause (TS 38.423 section 9.2.3.61), so no other resume cause
+  // is signalled.
+  if (request.rrc_resume_cause.has_value() && request.rrc_resume_cause.value() == resume_cause_t::rna_upd) {
+    asn1_request->rrc_resume_cause_present = true;
+    asn1_request->rrc_resume_cause.value   = asn1::xnap::rrc_resume_cause_opts::rna_upd;
+  }
 }
 
 /// \brief Convert an ASN.1 Retrieve UE Context Request to common type (TS 38.423 section 9.1.1.8).
@@ -148,6 +194,70 @@ inline void retrieve_ue_context_response_to_asn1(asn1::xnap::retrieve_ue_context
 
   // Fill RRC container (containing HandoverPreparationInformation).
   asn1_ue_context_info.rrc_context = ue_context_info.rrc_context.copy();
+}
+
+/// \brief Convert an ASN.1 Retrieve UE Context Response to common type (TS 38.423 section 9.1.1.9).
+/// \returns True if the conversion was successful, false otherwise.
+inline bool asn1_to_retrieve_ue_context_response(xnap_retrieve_ue_context_response&            response,
+                                                 const asn1::xnap::retrieve_ue_context_resp_s& asn1_response)
+{
+  // Fill GUAMI.
+  expected<guami_t, std::string> guami = asn1_to_guami(asn1_response->guami);
+  if (!guami.has_value()) {
+    return false;
+  }
+  response.guami = guami.value();
+
+  const auto& asn1_ue_context_info = asn1_response->ue_context_info_retr_ue_ctxt_resp;
+  auto&       ue_context_info      = response.ue_context_info;
+
+  ue_context_info.amf_ue_id = asn1_ue_context_info.ng_c_ue_sig_ref;
+  if (asn1_ue_context_info.sig_tnl_at_source.type() !=
+      asn1::xnap::cp_transport_layer_info_c::types_opts::endpoint_ip_address) {
+    return false;
+  }
+  ue_context_info.amf_addr = tla_from_asn1_bitstring(asn1_ue_context_info.sig_tnl_at_source.endpoint_ip_address());
+  asn1_to_security_context(
+      ue_context_info.security_context, asn1_ue_context_info.ue_security_cap, asn1_ue_context_info.security_info);
+  ue_context_info.ue_ambr.dl = asn1_ue_context_info.ue_ambr.dl_ue_ambr;
+  ue_context_info.ue_ambr.ul = asn1_ue_context_info.ue_ambr.ul_ue_ambr;
+
+  for (const auto& asn1_pdu_session : asn1_ue_context_info.pdu_session_res_to_be_setup_list) {
+    pdu_session_id_t                 pdu_session_id = uint_to_pdu_session_id(asn1_pdu_session.pdu_session_id);
+    cu_cp_pdu_session_res_setup_item pdu_session_item;
+    pdu_session_item.pdu_session_id = pdu_session_id;
+    pdu_session_item.s_nssai        = asn1_to_s_nssai(asn1_pdu_session.s_nssai);
+    if (asn1_pdu_session.pdu_session_ambr_present) {
+      pdu_session_item.pdu_session_aggregate_maximum_bit_rate_dl = asn1_pdu_session.pdu_session_ambr.dl_session_ambr;
+      pdu_session_item.pdu_session_aggregate_maximum_bit_rate_ul = asn1_pdu_session.pdu_session_ambr.ul_session_ambr;
+    }
+    if (asn1_pdu_session.ul_ng_u_tnl_at_up_f.type() != asn1::xnap::up_transport_layer_info_c::types_opts::gtp_tunnel) {
+      return false;
+    }
+    pdu_session_item.ul_ngu_up_tnl_info = asn1_to_up_transport_layer_info(asn1_pdu_session.ul_ng_u_tnl_at_up_f);
+    pdu_session_item.pdu_session_type   = asn1_to_pdu_session_type(asn1_pdu_session.pdu_session_type);
+    if (asn1_pdu_session.security_ind_present) {
+      pdu_session_item.security_ind.emplace();
+      asn1_to_security_indication(pdu_session_item.security_ind.value(), asn1_pdu_session.security_ind);
+    }
+
+    for (const auto& asn1_qos_flow : asn1_pdu_session.qos_flows_to_be_setup_list) {
+      qos_flow_id_t               qos_flow_id = uint_to_qos_flow_id(asn1_qos_flow.qfi);
+      qos_flow_setup_request_item qos_flow_item;
+      qos_flow_item.qos_flow_id = qos_flow_id;
+      qos_flow_item.qos_flow_level_qos_params =
+          asn1_to_qos_flow_level_qos_parameters(asn1_qos_flow.qos_flow_level_qos_params);
+      pdu_session_item.qos_flow_setup_request_items.emplace(qos_flow_id, qos_flow_item);
+    }
+
+    ue_context_info.pdu_session_res_to_be_setup_list.emplace(pdu_session_id, pdu_session_item);
+  }
+
+  ue_context_info.rrc_context = asn1_ue_context_info.rrc_context.copy();
+
+  response.success = true;
+
+  return true;
 }
 
 /// \brief Fill an ASN.1 Retrieve UE Context Failure with the given cause (TS 38.423 section 9.1.1.10).

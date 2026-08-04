@@ -11,6 +11,7 @@
 #include "procedures/xn_setup_asn1_helpers.h"
 #include "procedures/xn_setup_procedure.h"
 #include "procedures/xn_setup_procedure_asn1_helpers.h"
+#include "procedures/xnap_new_node_retrieve_ue_context_procedure.h"
 #include "procedures/xnap_old_node_retrieve_ue_context_procedure.h"
 #include "procedures/xnap_sn_status_transfer_procedure.h"
 #include "procedures/xnap_source_handover_preparation_procedure.h"
@@ -143,6 +144,11 @@ void xnap_impl::handle_successful_outcome(const successful_outcome_s& outcome)
         ue_ctxt->xn_handover_outcome.set(outcome.value.ho_request_ack());
       }
     } break;
+    case xnap_elem_procs_o::successful_outcome_c::types_opts::retrieve_ue_context_resp: {
+      if (auto* ue_ctxt = asn1_utils::get_ue_ctxt_in_ue_assoc_msg(outcome, ue_ctxt_list, logger)) {
+        ue_ctxt->retrieve_ue_context_outcome.set(outcome.value.retrieve_ue_context_resp());
+      }
+    } break;
     default:
       logger.error("Successful outcome of type {} is not supported", outcome.value.type().to_string());
   }
@@ -160,6 +166,11 @@ void xnap_impl::handle_unsuccessful_outcome(const unsuccessful_outcome_s& outcom
     case xnap_elem_procs_o::unsuccessful_outcome_c::types_opts::ho_prep_fail: {
       if (auto* ue_ctxt = asn1_utils::get_ue_ctxt_in_ue_assoc_msg(outcome, ue_ctxt_list, logger)) {
         ue_ctxt->xn_handover_outcome.set(outcome.value.ho_prep_fail());
+      }
+    } break;
+    case xnap_elem_procs_o::unsuccessful_outcome_c::types_opts::retrieve_ue_context_fail: {
+      if (auto* ue_ctxt = asn1_utils::get_ue_ctxt_in_ue_assoc_msg(outcome, ue_ctxt_list, logger)) {
+        ue_ctxt->retrieve_ue_context_outcome.set(outcome.value.retrieve_ue_context_fail());
       }
     } break;
     default:
@@ -563,6 +574,22 @@ std::optional<cu_cp_served_cell_info> xnap_impl::find_peer_served_cell(nr_cell_i
   }
 
   return *cell_it;
+}
+
+async_task<xnap_retrieve_ue_context_response>
+xnap_impl::handle_retrieve_ue_context_required(const xnap_retrieve_ue_context_request& request)
+{
+  if (!ue_ctxt_list.contains(request.ue_index)) {
+    local_xnap_ue_id_t local_xnap_ue_id = ue_ctxt_list.allocate_local_xnap_ue_id();
+    if (local_xnap_ue_id == local_xnap_ue_id_t::invalid) {
+      logger.warning("ue={}: No local XNAP UE ID available", request.ue_index);
+      return launch_no_op_task(xnap_retrieve_ue_context_response{});
+    }
+
+    ue_ctxt_list.add_ue(request.ue_index, local_xnap_ue_id);
+  }
+
+  return launch_async<xnap_new_node_retrieve_ue_context_procedure>(request, ue_ctxt_list, tx_notifier);
 }
 
 void xnap_impl::handle_retrieve_ue_context_request(const asn1::xnap::retrieve_ue_context_request_s& msg)
