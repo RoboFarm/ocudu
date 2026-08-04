@@ -89,6 +89,27 @@ bool fill_rrc_reconfig_args(rrc_reconfiguration_procedure_request&              
                             std::optional<security::sec_selected_algos>                      selected_algos,
                             const ocudulog::basic_logger&                                    logger);
 
+/// \brief Processes the response of an E1AP Bearer Context Setup Request and prefills the DRBs of the subsequent F1AP
+/// UE Context Setup or Modification Request. The SRBs are not touched, as they depend on which of them the UE already
+/// has established at the DU.
+/// \param[out] drb_setup_mod_list Reference to the DRB list of the F1AP request to fill.
+/// \param[out] next_config Reference to the calculated config update, whose security settings are updated with the
+/// ones the CU-UP applied.
+/// \param[in] ngap_setup_list Const reference to the PDU sessions that were requested to be set up.
+/// \param[in] bearer_context_setup_resp Const reference to the Bearer Context Setup Response.
+/// \param[in] up_resource_mng Reference to the UP resource manager.
+/// \param[in] default_sec_ind Security indication to apply to PDU sessions that don't carry their own.
+/// \param[in] logger Reference to the logger.
+/// \return True on success, false otherwise.
+bool update_setup_list_with_bearer_ctxt_setup_response(
+    std::vector<f1ap_drb_to_setup>&                                              drb_setup_mod_list,
+    up_config_update&                                                            next_config,
+    const slotted_id_vector<pdu_session_id_t, cu_cp_pdu_session_res_setup_item>& ngap_setup_list,
+    const e1ap_bearer_context_setup_response&                                    bearer_context_setup_resp,
+    up_resource_manager&                                                         up_resource_mng,
+    const security_indication_t&                                                 default_sec_ind,
+    const ocudulog::basic_logger&                                                logger);
+
 /// \brief Processes the response of a UE Context Setup Request.
 /// \param[out] bearer_ctxt_mod_request Reference to the resulting Bearer Context Modification Request response.
 /// \param[out] drb_setup_mod_list Reference to the successful DRB setup list.
