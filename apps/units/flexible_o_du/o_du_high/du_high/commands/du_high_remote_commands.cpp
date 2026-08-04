@@ -8,7 +8,6 @@
 #include "ocudu/ran/pci.h"
 #include "ocudu/ran/sib/cell_reselection.h"
 #include "ocudu/ran/ssb/ssb_configuration.h"
-#include "ocudu/support/ocudu_assert.h"
 #include <limits>
 #include <type_traits>
 
@@ -37,30 +36,31 @@ constexpr bool value_fits_type(int64_t v)
   }
 }
 
-/// Reads a JSON integer and range-checks it against [lo, hi] before narrowing to T. nlohmann stores integers in two
-/// slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can silently narrow and even
-/// a straight get<int64_t>() can wrap (e.g. 2^32+25 -> 25, or UINT64_MAX -> -1, which sits inside a signed range).
-/// Every bound fits in int64, so reject a uint64 above INT64_MAX up front, then read losslessly as int64 and check.
-template <typename T>
-error_type<std::string>
-parse_int_in_range(const nlohmann::json& value, int64_t lo, int64_t hi, std::string_view field, T& out)
+/// Reads a JSON integer and range-checks it against the compile-time bounds [Lo, Hi] before narrowing to T. nlohmann
+/// stores integers in two slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can
+/// silently narrow and even a straight get<int64_t>() can wrap (e.g. 2^32+25 -> 25, or UINT64_MAX -> -1, which sits
+/// inside a signed range). Every bound fits in int64, so reject a uint64 above INT64_MAX up front, then read losslessly
+/// as int64 and check. Lo/Hi are template parameters so the "bounds must fit T" contract is a static_assert enforced in
+/// every build mode (a runtime ocudu_assert would be compiled out of the default Release build), permanently ruling out
+/// a caller whose bounds overflow T and let the final cast truncate (e.g. Hi=1000 into a uint8_t).
+template <int64_t Lo, int64_t Hi, typename T>
+error_type<std::string> parse_int_in_range(const nlohmann::json& value, std::string_view field, T& out)
 {
   static_assert(std::is_integral_v<T> && !std::is_same_v<std::remove_cv_t<T>, bool>,
                 "parse_int_in_range output must be a non-bool integral type");
-  // The [lo, hi] contract must fit T so the final narrowing cast cannot truncate. Every current caller passes a
-  // field's own type bounds; asserting it catches a future caller that passes wider bounds (e.g. hi=1000 into uint8_t).
-  ocudu_assert(value_fits_type<T>(lo) && value_fits_type<T>(hi),
-               "parse_int_in_range: [lo, hi] must be representable in T");
+  static_assert(Lo <= Hi, "parse_int_in_range: Lo must not exceed Hi");
+  static_assert(value_fits_type<T>(Lo) && value_fits_type<T>(Hi),
+                "parse_int_in_range: [Lo, Hi] must be representable in the output type T");
   if (!value.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' object value type should be an integer", field));
   }
   if (value.is_number_unsigned() && value.get<uint64_t>() > max_int64_as_uint64) {
-    return make_unexpected(fmt::format("'{}' value out of range, valid range is from {} to {}", field, lo, hi));
+    return make_unexpected(fmt::format("'{}' value out of range, valid range is from {} to {}", field, Lo, Hi));
   }
   const int64_t parsed = value.get<int64_t>();
-  if (parsed < lo || parsed > hi) {
+  if (parsed < Lo || parsed > Hi) {
     return make_unexpected(
-        fmt::format("'{}' value out of range, received '{}', valid range is from {} to {}", field, parsed, lo, hi));
+        fmt::format("'{}' value out of range, received '{}', valid range is from {} to {}", field, parsed, Lo, Hi));
   }
   out = static_cast<T>(parsed);
   return {};
@@ -118,11 +118,8 @@ error_type<std::string> ssb_modify_remote_command::execute(const nlohmann::json&
       return make_unexpected("'ssb_block_power_dbm' object is missing and it is mandatory");
     }
     int ssb_block_power_value = 0;
-    if (auto res = parse_int_in_range(*ssb_block_power_key,
-                                      MIN_SS_PBCH_BLOCK_POWER,
-                                      MAX_SS_PBCH_BLOCK_POWER,
-                                      "ssb_block_power_dbm",
-                                      ssb_block_power_value);
+    if (auto res = parse_int_in_range<MIN_SS_PBCH_BLOCK_POWER, MAX_SS_PBCH_BLOCK_POWER>(
+            *ssb_block_power_key, "ssb_block_power_dbm", ssb_block_power_value);
         !res) {
       return res;
     }
@@ -191,7 +188,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
     }
     uint8_t sst = 0;
     // SST is an 8-bit field (TS 23.003); the full uint8 domain is valid.
-    if (auto res = parse_int_in_range(*sst_key, 0, std::numeric_limits<uint8_t>::max(), "sst", sst); !res) {
+    if (auto res = parse_int_in_range<0, std::numeric_limits<uint8_t>::max()>(*sst_key, "sst", sst); !res) {
       return res;
     }
 
@@ -203,7 +200,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
       // create() validates the 24-bit SD domain below; parse_int_in_range first keeps a crafted value from truncating
       // into uint32 (e.g. 2^32 -> 0), which create() would otherwise accept.
       uint32_t sd_int = 0;
-      if (auto res = parse_int_in_range(*sd_key, 0, std::numeric_limits<uint32_t>::max(), "sd", sd_int); !res) {
+      if (auto res = parse_int_in_range<0, std::numeric_limits<uint32_t>::max()>(*sd_key, "sd", sd_int); !res) {
         return res;
       }
       sd = slice_differentiator::create(sd_int);
@@ -225,11 +222,8 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> min_prb_policy_ratio_value = std::nullopt;
   if (min_prb_policy_ratio != policies_key.value().end()) {
     unsigned min_prb = 0;
-    if (auto res = parse_int_in_range(*min_prb_policy_ratio,
-                                      prb_policy_ratio_min_percent,
-                                      prb_policy_ratio_max_percent,
-                                      "min_prb_policy_ratio",
-                                      min_prb);
+    if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
+            *min_prb_policy_ratio, "min_prb_policy_ratio", min_prb);
         !res) {
       return res;
     }
@@ -241,11 +235,8 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> max_prb_policy_ratio_value = std::nullopt;
   if (max_prb_policy_ratio != policies_key.value().end()) {
     unsigned max_prb = 0;
-    if (auto res = parse_int_in_range(*max_prb_policy_ratio,
-                                      prb_policy_ratio_min_percent,
-                                      prb_policy_ratio_max_percent,
-                                      "max_prb_policy_ratio",
-                                      max_prb);
+    if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
+            *max_prb_policy_ratio, "max_prb_policy_ratio", max_prb);
         !res) {
       return res;
     }
@@ -257,8 +248,8 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   std::optional<unsigned> dedicated_ratio_value = std::nullopt;
   if (dedicated_ratio != policies_key.value().end()) {
     unsigned dedicated = 0;
-    if (auto res = parse_int_in_range(
-            *dedicated_ratio, prb_policy_ratio_min_percent, prb_policy_ratio_max_percent, "dedicated_ratio", dedicated);
+    if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
+            *dedicated_ratio, "dedicated_ratio", dedicated);
         !res) {
       return res;
     }
@@ -365,7 +356,7 @@ static expected<q_offset_range_t, std::string> parse_q_offset_range(const nlohma
   static constexpr int64_t q_offset_range_min_db = static_cast<int64_t>(q_offset_range_t::db_24);
   static constexpr int64_t q_offset_range_max_db = static_cast<int64_t>(q_offset_range_t::db24);
   int64_t                  v                     = 0;
-  if (auto res = parse_int_in_range(val, q_offset_range_min_db, q_offset_range_max_db, field_name, v); !res) {
+  if (auto res = parse_int_in_range<q_offset_range_min_db, q_offset_range_max_db>(val, field_name, v); !res) {
     return make_unexpected(res.error());
   }
   switch (v) {
