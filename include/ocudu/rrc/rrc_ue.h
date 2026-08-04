@@ -407,6 +407,14 @@ public:
   /// \param[in] sec_ctxt The new security context
   virtual void update_security_context(const security::security_context& sec_ctxt) = 0;
 
+  /// \brief Initialize the security context from one retrieved from a peer NG-RAN node. A context coming from a peer
+  /// carries KgNB*, so this takes over the algorithms the peer selected and derives the AS keys below it.
+  /// \param[in] sec_ctxt The security context retrieved from the peer.
+  /// \param[in] algos The AS algorithms the peer signalled, or std::nullopt to select them locally.
+  /// \return True on success, false if no algorithm could be selected.
+  virtual bool init_retrieved_security_context(const security::security_context&                  sec_ctxt,
+                                               const std::optional<security::sec_selected_algos>& algos) = 0;
+
   /// \brief Perform horizontal key derivation
   virtual void perform_horizontal_key_derivation(pci_t target_pci, unsigned target_ssb_arfcn) = 0;
 };

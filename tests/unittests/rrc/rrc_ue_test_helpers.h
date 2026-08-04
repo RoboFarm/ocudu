@@ -362,6 +362,15 @@ protected:
     pdcp_ctx->handle_ul_dcch_pdu(srb_id_t::srb1, byte_buffer::create(rrc_reconfig_complete_pdu).value());
   }
 
+  /// Makes the CU-CP answer a UE context retrieval with a context retrieved from a peer NG-RAN node, as if no local UE
+  /// context had matched the reestablishment identity.
+  void add_retrievable_ue_context()
+  {
+    rrc_ue_cu_cp_notifier.context_retrieval_succeeds = true;
+    rrc_ue_cu_cp_notifier.retrieved_sec_context =
+        generate_security_context(ue_mng.find_ue(allocated_ue_index)->get_security_manager());
+  }
+
   void add_ue_reestablishment_context(cu_cp_ue_index_t ue_index)
   {
     rrc_ue_reestablishment_context_response reest_context = {};

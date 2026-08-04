@@ -91,3 +91,55 @@ TEST_F(rrc_ue_reest,
 
   receive_reestablishment_complete();
 }
+
+TEST_F(rrc_ue_reest, when_no_local_context_matches_then_context_is_retrieved_from_peer)
+{
+  // No local UE context is added, so the context can only come from a peer NG-RAN node (TS 38.423 section 8.2.4).
+  add_retrievable_ue_context();
+
+  receive_valid_reestablishment_request(1, to_rnti(0x4601));
+
+  // The retrieval must carry the identity the UE used, so the peer can verify the ShortMAC-I against it.
+  ASSERT_TRUE(rrc_ue_cu_cp_notifier.last_context_retrieval_request.has_value())
+      << "No UE context retrieval was requested";
+  ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_pci, 1);
+  ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_c_rnti, to_rnti(0x4601));
+
+  // The UE is answered with RRCReestablishment over SRB1, not with an RRC Setup fallback.
+  check_srb1_exists();
+  ASSERT_EQ(get_last_srb(), srb_id_t::srb1);
+
+  receive_reestablishment_complete();
+}
+
+TEST_F(rrc_ue_reest, when_context_cannot_be_retrieved_from_peer_then_rrc_setup_sent)
+{
+  // No local context and no peer that can supply one, e.g. no XN-C peer serves the failure cell.
+  receive_valid_reestablishment_request(1, to_rnti(0x4601));
+
+  ASSERT_TRUE(rrc_ue_cu_cp_notifier.last_context_retrieval_request.has_value())
+      << "No UE context retrieval was requested";
+
+  // Fall back to RRC Setup, as before.
+  ASSERT_EQ(get_srb0_pdu_type(), asn1::rrc_nr::dl_ccch_msg_type_c::c1_c_::types::rrc_setup);
+
+  check_srb1_exists();
+  receive_setup_complete();
+  check_initial_ue_message_sent();
+}
+
+TEST_F(rrc_ue_reest, when_reestablishment_is_rejected_locally_then_no_context_is_retrieved_from_peer)
+{
+  // A local context exists but cannot be reestablished from. Asking a peer for it would be pointless, and would delay
+  // the RRC Setup fallback while the UE's T311 runs.
+  cu_cp_ue_index_t old_ue_index = uint_to_ue_index(0);
+  add_ue_reestablishment_context(old_ue_index);
+  add_retrievable_ue_context();
+
+  receive_valid_reestablishment_request_with_cause_recfg_fail(1, to_rnti(0x4601));
+
+  ASSERT_FALSE(rrc_ue_cu_cp_notifier.last_context_retrieval_request.has_value())
+      << "A UE context retrieval was requested for a locally rejected reestablishment";
+
+  ASSERT_EQ(get_srb0_pdu_type(), asn1::rrc_nr::dl_ccch_msg_type_c::c1_c_::types::rrc_setup);
+}

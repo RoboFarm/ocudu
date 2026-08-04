@@ -128,6 +128,13 @@ public:
     ue->get_security_manager().update_security_context(sec_ctxt);
   }
 
+  bool init_retrieved_security_context(const security::security_context&                  sec_ctxt,
+                                       const std::optional<security::sec_selected_algos>& algos) override
+  {
+    ocudu_assert(ue != nullptr, "CU-CP UE must not be nullptr");
+    return ue->get_security_manager().init_retrieved_security_context(sec_ctxt, algos);
+  }
+
   /// \brief Perform horizontal key derivation.
   void perform_horizontal_key_derivation(pci_t target_pci, unsigned target_ssb_arfcn) override
   {

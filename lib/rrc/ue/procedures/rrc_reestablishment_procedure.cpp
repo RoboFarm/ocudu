@@ -52,25 +52,48 @@ void rrc_reestablishment_procedure::operator()(coro_context<async_task<void>>& c
                   reestablishment_request.rrc_reest_request.ue_id.pci);
 
   // Verify if we are in conditions for a Reestablishment, or should opt for RRC Setup as fallback.
-  if (not is_reestablishment_accepted()) {
+  local_outcome = is_local_reestablishment_accepted();
+
+  if (local_outcome == local_reestablishment_outcome::context_not_found) {
+    // No local UE context matches, but the UE may have come from a peer NG-RAN node that still holds it. Retrieve it
+    // over Xn (TS 38.423 section 8.2.4) before answering the UE, as the RRCReestablishment is integrity protected with
+    // keys derived from the retrieved KgNB*.
+    CORO_AWAIT_VALUE(context_retrieval_response,
+                     cu_cp_notifier.on_ue_context_retrieval_required(make_context_retrieval_request()));
+  }
+
+  if (local_outcome != local_reestablishment_outcome::accepted and not is_context_retrieved()) {
+    if (local_outcome == local_reestablishment_outcome::context_not_found) {
+      log_rejected_reestablishment("Old UE context not found locally and could not be retrieved from a peer");
+    }
     CORO_AWAIT(handle_rrc_reestablishment_fallback());
     logger.log_info("\"{}\" finished successfully", name());
     CORO_EARLY_RETURN();
   }
 
-  // Transfer old UE context to new UE context. If it fails, resort to fallback.
-  CORO_AWAIT_VALUE(context_transfer_success, cu_cp_notifier.on_ue_transfer_required(old_ue_reest_context.ue_index));
-  if (not context_transfer_success) {
-    CORO_AWAIT(handle_rrc_reestablishment_fallback());
-    logger.log_info("\"{}\" for old_ue={} finished successfully", name(), old_ue_reest_context.ue_index);
-    CORO_EARLY_RETURN();
+  if (not is_context_retrieved()) {
+    // Transfer old UE context to new UE context. If it fails, resort to fallback.
+    CORO_AWAIT_VALUE(context_transfer_success, cu_cp_notifier.on_ue_transfer_required(old_ue_reest_context.ue_index));
+    if (not context_transfer_success) {
+      CORO_AWAIT(handle_rrc_reestablishment_fallback());
+      logger.log_info("\"{}\" for old_ue={} finished successfully", name(), old_ue_reest_context.ue_index);
+      CORO_EARLY_RETURN();
+    }
   }
 
   // Accept RRC Reestablishment Request by sending RRC Reestablishment.
   // Note: From this point we should guarantee that a Reestablishment will be performed.
 
   // Transfer reestablishment context and update security keys.
-  transfer_reestablishment_context_and_update_keys();
+  if (is_context_retrieved()) {
+    if (not transfer_retrieved_context_and_update_keys()) {
+      CORO_AWAIT(handle_rrc_reestablishment_fallback());
+      logger.log_info("\"{}\" finished successfully", name());
+      CORO_EARLY_RETURN();
+    }
+  } else {
+    transfer_reestablishment_context_and_update_keys();
+  }
 
   // Create SRB1.
   create_srb1();
@@ -119,8 +142,11 @@ void rrc_reestablishment_procedure::operator()(coro_context<async_task<void>>& c
                        procedure_timeout.count());
   }
 
-  // Notify CU-CP to remove the old UE.
-  cu_cp_notifier.on_rrc_reestablishment_complete(old_ue_reest_context.ue_index);
+  // Notify CU-CP to remove the old UE. A retrieved context has no local old UE; the peer's context is released over Xn
+  // once the path has been switched.
+  if (not is_context_retrieved()) {
+    cu_cp_notifier.on_rrc_reestablishment_complete(old_ue_reest_context.ue_index);
+  }
 
   // Note: From this point the UE is removed and only the stored context can be accessed.
 
@@ -159,7 +185,8 @@ async_task<void> rrc_reestablishment_procedure::handle_rrc_reestablishment_fallb
   });
 }
 
-bool rrc_reestablishment_procedure::is_reestablishment_accepted()
+rrc_reestablishment_procedure::local_reestablishment_outcome
+rrc_reestablishment_procedure::is_local_reestablishment_accepted()
 {
   // Notify the CU-CP about the reestablishment. This will return the old RRC UE context if it exists.
   // Note that this needs to be run before any other sanity check, as it will also cancel an possibly ongoing handover
@@ -170,33 +197,45 @@ bool rrc_reestablishment_procedure::is_reestablishment_accepted()
 
   if (context.cfg.force_reestablishment_fallback) {
     log_rejected_reestablishment("RRC Reestablishments were disabled by the app configuration");
-    return false;
+    return local_reestablishment_outcome::rejected;
   }
 
   if (reestablishment_request.rrc_reest_request.reest_cause.value == asn1::rrc_nr::reest_cause_opts::recfg_fail) {
     log_rejected_reestablishment("Cannot recover from failed RRC Reconfiguration for old UE");
-    return false;
+    return local_reestablishment_outcome::rejected;
   }
 
-  // Check if an old UE context with matching C-RNTI, PCI exists.
+  // Check if an old UE context with matching C-RNTI, PCI exists. If not, a peer NG-RAN node may still hold it.
   if (old_ue_reest_context.ue_index == cu_cp_ue_index_t::invalid) {
-    log_rejected_reestablishment("Old UE context not found");
-    return false;
+    return local_reestablishment_outcome::context_not_found;
   }
 
   if (old_ue_reest_context.reestablishment_ongoing) {
     log_rejected_reestablishment("Old UE is already in reestablishment procedure");
-    return false;
+    return local_reestablishment_outcome::rejected;
   }
 
   // Check if the old UE completed the SRB2 and DRB establishment.
   if (not old_ue_reest_context.old_ue_fully_attached) {
     log_rejected_reestablishment("Old UE bearers were not fully established");
-    return false;
+    return local_reestablishment_outcome::rejected;
   }
 
   // Verify security context.
-  return verify_security_context();
+  if (not verify_security_context()) {
+    return local_reestablishment_outcome::rejected;
+  }
+
+  return local_reestablishment_outcome::accepted;
+}
+
+rrc_ue_context_retrieval_request rrc_reestablishment_procedure::make_context_retrieval_request() const
+{
+  return rrc_ue_context_retrieval_request{
+      .old_pci     = reestablishment_request.rrc_reest_request.ue_id.pci,
+      .old_c_rnti  = to_rnti(reestablishment_request.rrc_reest_request.ue_id.c_rnti),
+      .short_mac_i = to_short_mac_i(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number()),
+      .target_nci  = context.cell.cgi.nci};
 }
 
 bool rrc_reestablishment_procedure::verify_security_context()
@@ -237,6 +276,29 @@ void rrc_reestablishment_procedure::transfer_reestablishment_context_and_update_
   cu_cp_ue_notifier.update_security_context(old_ue_reest_context.sec_context);
   cu_cp_ue_notifier.perform_horizontal_key_derivation(context.cell.pci, ssb_arfcn);
   logger.log_debug("Refreshed keys horizontally. pci={} ssb-arfcn_f_ref={}", context.cell.pci, ssb_arfcn);
+}
+
+bool rrc_reestablishment_procedure::transfer_retrieved_context_and_update_keys()
+{
+  // Store the UE capabilities and the AS configuration the UE had at the peer, which the peer transfers packed inside
+  // the RRC container.
+  if (not context_retrieval_response.rrc_context.empty()) {
+    if (not srb_notifier.handle_rrc_handover_preparation_info(context_retrieval_response.rrc_context.copy())) {
+      logger.log_warning("Couldn't store the UE capabilities transferred by the peer");
+    }
+  }
+
+  // Take over the keys as the peer derived them: it derived KgNB* for this node's cell when it answered the
+  // retrieval (TS 33.501 section 6.11), which is the key the UE computed as well. The algorithms the UE protects with
+  // come from the AS-Config in the same container.
+  if (not cu_cp_ue_notifier.init_retrieved_security_context(
+          context_retrieval_response.sec_context,
+          get_as_security_algorithms(context_retrieval_response.rrc_context, logger))) {
+    logger.log_warning("Could not initialize the security context retrieved from the peer");
+    return false;
+  }
+  logger.log_debug("Initialized the security context retrieved from the peer. pci={}", context.cell.pci);
+  return true;
 }
 
 void rrc_reestablishment_procedure::create_srb1()
