@@ -8,7 +8,9 @@
 #include "ocudu/ran/pci.h"
 #include "ocudu/ran/sib/cell_reselection.h"
 #include "ocudu/ran/ssb/ssb_configuration.h"
+#include "ocudu/support/ocudu_assert.h"
 #include <limits>
+#include <type_traits>
 
 using namespace ocudu;
 
@@ -22,6 +24,19 @@ constexpr uint64_t max_int64_as_uint64 = static_cast<uint64_t>(std::numeric_limi
 constexpr int64_t prb_policy_ratio_min_percent = 0;
 constexpr int64_t prb_policy_ratio_max_percent = 100;
 
+/// True if the int64 value v is representable in the integral type T (a C++17 stand-in for C++20 std::in_range), used
+/// to assert a caller's [lo, hi] fits the output type before the narrowing cast below.
+template <typename T>
+constexpr bool value_fits_type(int64_t v)
+{
+  if constexpr (std::is_signed_v<T>) {
+    return v >= static_cast<int64_t>(std::numeric_limits<T>::min()) &&
+           v <= static_cast<int64_t>(std::numeric_limits<T>::max());
+  } else {
+    return v >= 0 && static_cast<uint64_t>(v) <= static_cast<uint64_t>(std::numeric_limits<T>::max());
+  }
+}
+
 /// Reads a JSON integer and range-checks it against [lo, hi] before narrowing to T. nlohmann stores integers in two
 /// slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can silently narrow and even
 /// a straight get<int64_t>() can wrap (e.g. 2^32+25 -> 25, or UINT64_MAX -> -1, which sits inside a signed range).
@@ -30,6 +45,12 @@ template <typename T>
 error_type<std::string>
 parse_int_in_range(const nlohmann::json& value, int64_t lo, int64_t hi, std::string_view field, T& out)
 {
+  static_assert(std::is_integral_v<T> && !std::is_same_v<std::remove_cv_t<T>, bool>,
+                "parse_int_in_range output must be a non-bool integral type");
+  // The [lo, hi] contract must fit T so the final narrowing cast cannot truncate. Every current caller passes a
+  // field's own type bounds; asserting it catches a future caller that passes wider bounds (e.g. hi=1000 into uint8_t).
+  ocudu_assert(value_fits_type<T>(lo) && value_fits_type<T>(hi),
+               "parse_int_in_range: [lo, hi] must be representable in T");
   if (!value.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' object value type should be an integer", field));
   }

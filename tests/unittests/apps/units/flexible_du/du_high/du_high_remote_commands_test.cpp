@@ -1110,3 +1110,73 @@ TEST(sib_update_remote_command, rejects_uint64_that_wraps_into_q_offset_freq)
   ASSERT_FALSE(res.has_value());
   EXPECT_NE(res.error().find("q_offset_freq"), std::string::npos) << "actual: " << res.error();
 }
+
+// Every remote-command integer routes through the same "reject a uint64 above INT64_MAX" guard. This drives
+// UINT64_MAX through each guarded SIB field individually so a future field added without the guard is caught here,
+// even though a static read shows every current path already has it (table-driven regression net).
+TEST(sib_update_remote_command, uint64_max_is_rejected_for_every_guarded_field)
+{
+  const uint64_t big = std::numeric_limits<uint64_t>::max();
+
+  auto expect_rejected = [](nlohmann::json cell, const std::string& what) {
+    capturing_du_configurator mock;
+    sib_update_remote_command cmd{mock};
+    auto                      res = cmd.execute(wrap(std::move(cell)));
+    EXPECT_FALSE(res.has_value()) << what << " with UINT64_MAX was accepted";
+    EXPECT_FALSE(mock.last_req.has_value()) << what << " reached the DU despite UINT64_MAX";
+  };
+
+  // SIB2 bounded/enum fields (q_hyst, the reselection thresholds/priority, q_rx_lev_min, t_reselection).
+  for (const char* field : {"q_hyst_db",
+                            "thresh_serving_low_p",
+                            "cell_reselection_priority",
+                            "q_rx_lev_min",
+                            "s_intra_search_p",
+                            "t_reselection_nr"}) {
+    auto content   = sib2_content_with(-70, 14, 4);
+    content[field] = big;
+    auto cell      = make_cell_skeleton();
+    cell["sib"]    = {{"type", "sib2"}, {"content", content}};
+    expect_rejected(std::move(cell), std::string{"sib2."} + field);
+  }
+
+  // SIB3: PCI + q_offset_cell in the neighbour list, PCI-start + excluded range in the excluded list.
+  const auto sib3_base = [] {
+    return nlohmann::json{
+        {"intra_freq_neigh_cell_list", nlohmann::json::array({{{"pci", 47}, {"q_offset_cell", 0}}})},
+        {"intra_freq_excluded_cell_list", nlohmann::json::array({{{"pci_start", 100}, {"range", 4}}})}};
+  };
+  for (const char* field : {"pci", "q_offset_cell"}) {
+    auto content                                    = sib3_base();
+    content["intra_freq_neigh_cell_list"][0][field] = big;
+    auto cell                                       = make_cell_skeleton();
+    cell["sib"]                                     = {{"type", "sib3"}, {"content", content}};
+    expect_rejected(std::move(cell), std::string{"sib3.neigh."} + field);
+  }
+  for (const char* field : {"pci_start", "range"}) {
+    auto content                                       = sib3_base();
+    content["intra_freq_excluded_cell_list"][0][field] = big;
+    auto cell                                          = make_cell_skeleton();
+    cell["sib"]                                        = {{"type", "sib3"}, {"content", content}};
+    expect_rejected(std::move(cell), std::string{"sib3.excluded."} + field);
+  }
+
+  // SIB4 carrier fields (NR-ARFCN, SSB SCS, the bounded thresholds/q_rx_lev_min, q_offset_freq).
+  const auto sib4_base = [] {
+    return nlohmann::json{{"inter_freq_carrier_freq_list",
+                           nlohmann::json::array({{{"arfcn", 649632},
+                                                   {"ssb_scs", 30},
+                                                   {"derive_ssb_index_from_cell", true},
+                                                   {"q_rx_lev_min", -70},
+                                                   {"thresh_x_high_p", 16},
+                                                   {"thresh_x_low_p", 4},
+                                                   {"q_offset_freq", 0}}})}};
+  };
+  for (const char* field : {"arfcn", "ssb_scs", "q_rx_lev_min", "thresh_x_high_p", "thresh_x_low_p", "q_offset_freq"}) {
+    auto content                                      = sib4_base();
+    content["inter_freq_carrier_freq_list"][0][field] = big;
+    auto cell                                         = make_cell_skeleton();
+    cell["sib"]                                       = {{"type", "sib4"}, {"content", content}};
+    expect_rejected(std::move(cell), std::string{"sib4."} + field);
+  }
+}
