@@ -226,16 +226,6 @@ ue_cell_grid_allocator::select_pdsch_repetitions(const ue_cell&           ue_cc,
     return std::nullopt;
   }
 
-  if (logger.debug.enabled()) {
-    logger.debug("ue={} rnti={}: PDSCH repetition bundle selected at slot={}: nof_occasions={} nof_txs={} dci_row={}.",
-                 fmt::underlying(ue_cc.ue_index),
-                 ue_cc.rnti(),
-                 pdsch_slot,
-                 reps.nof_occasions,
-                 reps.tx_offsets.size() + 1,
-                 pdsch_td_res_index);
-  }
-
   return reps;
 }
 
@@ -459,12 +449,14 @@ ue_cell_grid_allocator::set_pdsch_params(dl_grant_info&                        g
   }
 
   // Fill PDSCH PDU.
-  dl_msg_alloc& msg            = *grant.pdsch;
-  msg.context.ue_index         = u.ue_index;
-  msg.context.k1               = k1;
-  msg.context.ss_id            = grant.cfg.ss_id;
-  msg.context.nof_retxs        = grant.h_dl.nof_retxs();
-  msg.context.buffer_occupancy = 0; // We fill this value later, after the TB is built.
+  dl_msg_alloc& msg                     = *grant.pdsch;
+  msg.context.ue_index                  = u.ue_index;
+  msg.context.k1                        = k1;
+  msg.context.ss_id                     = grant.cfg.ss_id;
+  msg.context.nof_retxs                 = grant.h_dl.nof_retxs();
+  msg.context.nof_repetitions           = grant.reps.has_value() ? grant.reps->nof_occasions : uint8_t{1};
+  msg.context.nof_remaining_repetitions = grant.reps.has_value() ? grant.reps->tx_offsets.size() : uint8_t{0};
+  msg.context.buffer_occupancy          = 0; // We fill this value later, after the TB is built.
   if (not is_retx and ue_cc.link_adaptation_controller().is_dl_olla_enabled()) {
     msg.context.olla_offset = ue_cc.link_adaptation_controller().dl_cqi_offset();
   }
@@ -525,8 +517,8 @@ ue_cell_grid_allocator::set_pdsch_params(dl_grant_info&                        g
   // buffer (new_data=false) in the same PRBs/symbols, with the RV following the repetition cycle.
   dl_repetition_occasion_list committed_repetition_slots;
   if (grant.reps.has_value()) {
-    for (const uint8_t offset : grant.reps->tx_offsets) {
-      cell_slot_resource_allocator& rep_alloc = cell_alloc[pdsch_td_cfg.k0 + offset];
+    for (unsigned i = 0; i < grant.reps->tx_offsets.size(); ++i) {
+      cell_slot_resource_allocator& rep_alloc = cell_alloc[pdsch_td_cfg.k0 + grant.reps->tx_offsets[i]];
       const unsigned nof_other_grants = rep_alloc.result.dl.bc.sibs.size() + rep_alloc.result.dl.paging_grants.size() +
                                         rep_alloc.result.dl.rar_grants.size() + rep_alloc.result.dl.ue_grants.size();
       if (rep_alloc.result.dl.ue_grants.full() or nof_other_grants >= expert_cfg.max_pdschs_per_slot or
@@ -542,13 +534,13 @@ ue_cell_grid_allocator::set_pdsch_params(dl_grant_info&                        g
       if (not crbs.second.empty()) {
         rep_alloc.dl_res_grid.fill(grant_info{scs, pdsch_td_cfg.symbols, crbs.second});
       }
-      dl_msg_alloc& rep_msg                   = rep_alloc.result.dl.ue_grants.emplace_back();
-      rep_msg.context                         = msg.context;
-      rep_msg.context.buffer_occupancy        = 0;
-      rep_msg.pdsch_cfg                       = msg.pdsch_cfg;
-      rep_msg.pdsch_cfg.codewords[0].new_data = false;
-      rep_msg.pdsch_cfg.codewords[0].rv_index = get_repetition_rv(rv, offset);
-      committed_repetition_slots.push_back(rep_alloc.slot);
+      dl_msg_alloc& rep_msg                     = rep_alloc.result.dl.ue_grants.emplace_back();
+      rep_msg.context                           = msg.context;
+      rep_msg.context.buffer_occupancy          = 0;
+      rep_msg.pdsch_cfg                         = msg.pdsch_cfg;
+      rep_msg.pdsch_cfg.codewords[0].new_data   = false;
+      rep_msg.pdsch_cfg.codewords[0].rv_index   = get_repetition_rv(rv, grant.reps->tx_offsets[i]);
+      rep_msg.context.nof_remaining_repetitions = grant.reps->tx_offsets.size() - 1 - i;
     }
   }
 

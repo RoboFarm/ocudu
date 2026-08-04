@@ -130,6 +130,13 @@ struct dl_msg_alloc {
     search_space_id ss_id;
     /// Number of times the HARQ process has been retransmitted.
     unsigned nof_retxs;
+    /// Number of Rel-16 PDSCH repetitions selected for this grant, as per the TDRA row. Value 1 means no repetition.
+    /// Shared by all occasions of the same bundle, including the PDCCH-less ones.
+    uint8_t nof_repetitions{1};
+    /// Countdown of repetitions of this bundle still to be transmitted after this occasion, counting only occasions
+    /// actually committed to the resource grid. Reaches 0 at the last transmitted occasion, decrementing by 1 per
+    /// occasion regardless of any occasions dropped in between (e.g. due to grid collisions).
+    uint8_t nof_remaining_repetitions{0};
     /// Current UE DL buffer occupancy, after this PDSCH grant.
     unsigned buffer_occupancy;
     /// Offset that the OLLA algorithm applied to the DL MCS candidate to account for channel impairments.

@@ -26,6 +26,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
   std::optional<uint8_t>  dai;
   std::optional<bool>     vrb_prb;
   std::optional<unsigned> antenna_ports;
+  std::optional<unsigned> tdra_idx;
 
   dci_1_0_p_rnti_configuration::payload_info short_messages_indicator =
       dci_1_0_p_rnti_configuration::payload_info::scheduling_information;
@@ -40,6 +41,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       mcs                = dci1_0.modulation_coding_scheme;
       pucch_res_id       = dci1_0.pucch_resource_indicator;
       tpc_cmd            = dci1_0.tpc_command;
+      tdra_idx           = dci1_0.time_resource;
     } break;
     case dci_dl_rnti_config_type::tc_rnti_f1_0: {
       const auto& dci1_0 = dci.as_tc_rnti_f1_0();
@@ -48,6 +50,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       rv                 = dci1_0.redundancy_version;
       mcs                = dci1_0.modulation_coding_scheme;
       pucch_res_id       = dci1_0.pucch_resource_indicator;
+      tdra_idx           = dci1_0.time_resource;
     } break;
     case dci_dl_rnti_config_type::c_rnti_f1_1: {
       const auto& dci1_1 = dci.as_c_rnti_f1_1();
@@ -58,6 +61,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       pucch_res_id       = dci1_1.pucch_resource_indicator;
       tpc_cmd            = dci1_1.tpc_command;
       vrb_prb            = dci1_1.vrb_prb_mapping;
+      tdra_idx           = dci1_1.time_resource;
       if (dci.as_c_rnti_f1_1().downlink_assignment_index.has_value()) {
         dai = dci.as_c_rnti_f1_1().downlink_assignment_index;
       }
@@ -67,6 +71,10 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
       const auto& dci1_0       = dci.as_p_rnti_f1_0();
       short_messages_indicator = dci1_0.short_messages_indicator;
       short_messages           = dci1_0.short_messages;
+      // The time domain resource assignment is reserved when only the short message is carried.
+      if (short_messages_indicator != dci_1_0_p_rnti_configuration::payload_info::short_messages) {
+        tdra_idx = dci1_0.time_resource;
+      }
     } break;
     default:
       is_formattable = false;
@@ -82,6 +90,7 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
                            dai,
                            tpc_cmd,
                            vrb_prb,
+                           tdra_idx,
                            short_messages_indicator,
                            short_messages,
                            antenna_ports](auto& ctx) {
@@ -99,6 +108,9 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
                      "dci: paging_ind={} short_msg_ind={}",
                      has_paging_info ? "yes" : "no",
                      has_short_message ? "yes" : "no");
+      if (tdra_idx.has_value()) {
+        fmt::format_to(ctx.out(), " tdra_idx={}", *tdra_idx);
+      }
       if (has_short_message) {
         fmt::format_to(ctx.out(),
                        " short_msg=0x{:02x} (sysInfoMod={} etwsCmas={})",
@@ -109,6 +121,9 @@ static auto make_dl_dci_log_entry(const dci_dl_info& dci)
     } else if (is_formattable) {
       fmt::format_to(
           ctx.out(), "dci: h_id={} ndi={} rv={} mcs={} res_ind={}", h_id, ndi ? 1 : 0, rv, mcs, pucch_res_id);
+      if (tdra_idx.has_value()) {
+        fmt::format_to(ctx.out(), " tdra_idx={}", *tdra_idx);
+      }
       if (tpc_cmd.has_value()) {
         fmt::format_to(ctx.out(), " tpc={}", *tpc_cmd);
       }
@@ -280,11 +295,13 @@ static auto make_ue_dl_msg_info_log_entry(const dl_msg_alloc& ue_msg)
                            rv       = pdsch.codewords[0].rv_index,
                            tbs      = pdsch.codewords[0].tb_size_bytes,
                            has_cw1,
-                           new_data_cw1 = has_cw1 && pdsch.codewords[1].new_data,
-                           rv_cw1       = has_cw1 ? pdsch.codewords[1].rv_index : uint8_t{0},
-                           tbs_cw1      = has_cw1 ? pdsch.codewords[1].tb_size_bytes : units::bytes{0},
-                           nof_layers   = pdsch.nof_layers,
-                           dl_bo        = ue_msg.context.buffer_occupancy](auto& ctx) {
+                           new_data_cw1   = has_cw1 && pdsch.codewords[1].new_data,
+                           rv_cw1         = has_cw1 ? pdsch.codewords[1].rv_index : uint8_t{0},
+                           tbs_cw1        = has_cw1 ? pdsch.codewords[1].tb_size_bytes : units::bytes{0},
+                           nof_layers     = pdsch.nof_layers,
+                           dl_bo          = ue_msg.context.buffer_occupancy,
+                           nof_reps       = ue_msg.context.nof_repetitions,
+                           reps_remaining = ue_msg.context.nof_remaining_repetitions](auto& ctx) {
     fmt::format_to(ctx.out(),
                    "DL: ue={} c-rnti={} h_id={} ss_id={} rb={} k1={} cw[0]: newtx={} rv={} tbs={}",
                    fmt::underlying(ue_idx),
@@ -301,6 +318,9 @@ static auto make_ue_dl_msg_info_log_entry(const dl_msg_alloc& ue_msg)
     }
     if (new_data or new_data_cw1) {
       fmt::format_to(ctx.out(), " ri={} dl_bo={}", nof_layers, dl_bo);
+    }
+    if (nof_reps > 1) {
+      fmt::format_to(ctx.out(), " reps={} reps_remaining={}", nof_reps, reps_remaining);
     }
     return ctx.out();
   });
@@ -553,17 +573,19 @@ static auto make_ue_dl_msg_debug_log_entry(const dl_msg_alloc& ue_grant)
                            nof_layers = ue_grant.pdsch_cfg.nof_layers,
                            first_prg  = std::move(first_prg),
                            has_cw1,
-                           tbs_cw1       = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].tb_size_bytes : units::bytes{0},
-                           mcs_cw1       = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].mcs_index : sch_mcs_index{0},
-                           rv_cw1        = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].rv_index : uint8_t{0},
-                           new_data_cw1  = has_cw1 && ue_grant.pdsch_cfg.codewords[1].new_data,
-                           dl_bo         = ue_grant.context.buffer_occupancy,
-                           olla          = ue_grant.context.olla_offset,
-                           lc_grants     = ue_grant.tb_list.empty() ? static_vector<dl_msg_lc_info, MAX_LC_PER_TB>{}
-                                                                    : ue_grant.tb_list[0].lc_chs_to_sched,
-                           lc_grants_cw1 = ue_grant.tb_list.size() > 1
-                                               ? ue_grant.tb_list[1].lc_chs_to_sched
-                                               : static_vector<dl_msg_lc_info, MAX_LC_PER_TB>{}](auto& ctx) {
+                           tbs_cw1        = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].tb_size_bytes : units::bytes{0},
+                           mcs_cw1        = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].mcs_index : sch_mcs_index{0},
+                           rv_cw1         = has_cw1 ? ue_grant.pdsch_cfg.codewords[1].rv_index : uint8_t{0},
+                           new_data_cw1   = has_cw1 && ue_grant.pdsch_cfg.codewords[1].new_data,
+                           dl_bo          = ue_grant.context.buffer_occupancy,
+                           olla           = ue_grant.context.olla_offset,
+                           nof_reps       = ue_grant.context.nof_repetitions,
+                           reps_remaining = ue_grant.context.nof_remaining_repetitions,
+                           lc_grants      = ue_grant.tb_list.empty() ? static_vector<dl_msg_lc_info, MAX_LC_PER_TB>{}
+                                                                     : ue_grant.tb_list[0].lc_chs_to_sched,
+                           lc_grants_cw1  = ue_grant.tb_list.size() > 1
+                                                ? ue_grant.tb_list[1].lc_chs_to_sched
+                                                : static_vector<dl_msg_lc_info, MAX_LC_PER_TB>{}](auto& ctx) {
     fmt::format_to(ctx.out(),
                    "\n- UE PDSCH: ue={} c-rnti={} h_id={} rb={} symb={} cw[0]: tbs={} mcs={} rv={} nrtx={} k1={}",
                    fmt::underlying(ue_idx),
@@ -587,6 +609,9 @@ static auto make_ue_dl_msg_debug_log_entry(const dl_msg_alloc& ue_grant)
     }
     if (olla.has_value()) {
       fmt::format_to(ctx.out(), " olla={:.3}", *olla);
+    }
+    if (nof_reps > 1) {
+      fmt::format_to(ctx.out(), " reps={} reps_remaining={}", nof_reps, reps_remaining);
     }
     if (not lc_grants.empty()) {
       for (const dl_msg_lc_info& lc : lc_grants) {

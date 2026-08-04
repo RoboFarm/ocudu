@@ -69,7 +69,7 @@ At **info** level the entries follow the summary on the *same line*, comma-separ
 |--------|--------|
 | `SIB1` / `SI-<n>` | `SIB1: rb=<prbs> tbs=<bytes>` |
 | `RAR` | `RAR: ra-rnti=<rnti> rb=<prbs> tbs=<bytes>` |
-| `DL` | `DL: ue=<idx> c-rnti=<rnti> h_id=<harq> ss_id=<ss> rb=<prbs> k1=<k1> newtx=<0/1> rv=<rv> tbs=<bytes>` — on new transmissions appends ` ri=<layers> dl_bo=<buffer-occupancy>` |
+| `DL` | `DL: ue=<idx> c-rnti=<rnti> h_id=<harq> ss_id=<ss> rb=<prbs> k1=<k1> newtx=<0/1> rv=<rv> tbs=<bytes>` — on new transmissions appends ` ri=<layers> dl_bo=<buffer-occupancy>`; when part of a Rel-16 PDSCH repetition bundle appends ` reps=<n> reps_remaining=<n>` |
 | `UL` | `UL: ue=<idx> rnti=<rnti> h_id=<harq> ss_id=<ss> rb=<prbs> newtx=<0/1> rv=<rv> tbs=<bytes>` — then ` k2=<k2>`, or ` msg3_delay=<n>` for a Msg3 grant (invalid UE index, first tx) |
 | `PG` | `PG: rb=<prbs> tbs=<bytes> ues: <cn\|ran>-pg-id=<0x..>, ...` |
 
@@ -77,7 +77,7 @@ At **info** level the entries follow the summary on the *same line*, comma-separ
 
 **Control channels:**
 ```
-- DL PDCCH: rnti=0x4601 type=c-rnti cs_id=1 ss_id=2 format=1_1 cce=8 al=2 dci: h_id=0 ndi=1 rv=0 mcs=3 res_ind=0 tpc=1 dai=0
+- DL PDCCH: rnti=0x4601 type=c-rnti cs_id=1 ss_id=2 format=1_1 cce=8 al=2 dci: h_id=0 ndi=1 rv=0 mcs=3 res_ind=0 tdra_idx=3 tpc=1 dai=0
 - UL PDCCH: rnti=0x4601 type=c-rnti cs_id=1 ss_id=2 format=0_1 cce=10 al=2 dci: h_id=0 ndi=1 rv=0 mcs=9 tpc=1 dai=0 mimo=0 ant=2
 ```
 | Field | Meaning |
@@ -86,7 +86,7 @@ At **info** level the entries follow the summary on the *same line*, comma-separ
 | `cs_id` / `ss_id` | CORESET id / SearchSpace id |
 | `format` | DCI format (`1_0`, `1_1`, `0_0`, `0_1`) |
 | `cce` / `al` | Starting CCE index / aggregation level (number of CCEs) |
-| `dci: ...` | Decoded DCI fields — `h_id` HARQ process, `ndi`, `rv`, `mcs`. DL adds `res_ind` (PUCCH resource indicator) and optional `tpc`/`dai`/`vrb_prb_map_used`. UL adds `tpc` and, for format 0_1, `dai`/`mimo` (layers)/`ant`/`csi_req` |
+| `dci: ...` | Decoded DCI fields — `h_id` HARQ process, `ndi`, `rv`, `mcs`. DL adds `res_ind` (PUCCH resource indicator), `tdra_idx` (PDSCH time-domain-resource-allocation row index; omitted for paging DCIs  short message) and optional `tpc`/`dai`/`vrb_prb_map_used`. UL adds `tpc` and, for format 0_1, `dai`/`mimo` (layers)/`ant`/`csi_req` |
 
 **DL shared channel:**
 ```
@@ -97,7 +97,7 @@ At **info** level the entries follow the summary on the *same line*, comma-separ
 - UE PDSCH: ue=0 c-rnti=0x4601 h_id=0 rb=[0..25) symb=[1..14) tbs=309 mcs=9 rv=0 nrtx=0 k1=4 ri=1 <pmi> dl_bo=1024 olla=0.03 grants: lcid=1: size=53, lcid=4: size=256
 - PCCH: rb=[0..4) symb=[2..14) tbs=40 mcs=5 rv=0 ues: cn-pg-id=0x1234
 ```
-- `UE PDSCH`: `nrtx` = retransmission count; `ri`/PMI printed only when precoding present; `dl_bo` (DL buffer occupancy) only on new data; `olla` (outer-loop link-adaptation offset) when set; per-logical-channel `grants:` list when a TB is built. RAR `result=successRAR|fallbackRAR` appears for 2-step grants.
+- `UE PDSCH`: `nrtx` = retransmission count; `ri`/PMI printed only when precoding present; `dl_bo` (DL buffer occupancy) only on new data; `olla` (outer-loop link-adaptation offset) when set; `reps`/`reps_remaining` only when the grant is part of a Rel-16 PDSCH repetition bundle (`reps` = nominal bundle size, `reps_remaining` = repetitions still to be transmitted after this occasion, decrementing to 0 at the last one); per-logical-channel `grants:` list when a TB is built. RAR `result=successRAR|fallbackRAR` appears for 2-step grants.
 
 **UL shared channel and control:**
 ```
@@ -170,12 +170,15 @@ Processed slot events pci=1:
 | `h_id` | HARQ process id |
 | `ndi` / `rv` | New-data indicator / redundancy version |
 | `mcs` | Modulation and coding scheme index |
+| `tdra_idx` | PDSCH/PUSCH time-domain-resource-allocation row index signalled in the DCI |
 | `tbs` | Transport block size, bytes |
 | `rb` | Allocated PRBs, half-open interval |
 | `symb` | Allocated OFDM symbols, half-open interval |
 | `k1` | PDSCH-to-HARQ-ACK slot offset |
 | `k2` | PDCCH/DCI-to-PUSCH slot offset |
 | `nrtx` / `nof_retxs` | HARQ retransmission count |
+| `reps` | Nominal number of occasions in a Rel-16 PDSCH repetition bundle (1 = no repetition) |
+| `reps_remaining` | Occasions of the bundle still to be transmitted after this one, counting only committed occasions |
 | `dl_bo` | DL buffer occupancy (pending bytes) |
 | `olla` | Outer-loop link-adaptation MCS offset |
 | `ss_id` / `cs_id` | SearchSpace id / CORESET id |
