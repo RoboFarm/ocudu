@@ -112,7 +112,8 @@ inline void retrieve_ue_context_request_to_asn1(asn1::xnap::retrieve_ue_context_
   asn1_request->new_ng_ran_cell_id.set_nr().from_number(request.target_nci.value());
 
   // The RRC Resume Cause IE only carries the RNA Update cause (TS 38.423 section 9.2.3.61), so no other resume cause
-  // is signalled.
+  // is signalled. No caller sets it yet, as an RNA update from a peer's I-RNTI falls back to RRC Setup instead of
+  // relocating the anchor; see the note in rrc_ue_impl::handle_rrc_resume_request.
   if (request.rrc_resume_cause.has_value() && request.rrc_resume_cause.value() == resume_cause_t::rna_upd) {
     asn1_request->rrc_resume_cause_present = true;
     asn1_request->rrc_resume_cause.value   = asn1::xnap::rrc_resume_cause_opts::rna_upd;

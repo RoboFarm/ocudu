@@ -97,6 +97,7 @@ rrc_du_impl::get_cell_info(const std::vector<cu_cp_du_served_cells_item>& served
     cell_info.timers.t301 = std::chrono::milliseconds{sib1_msg.ue_timers_and_consts.t301.to_number()};
     cell_info.timers.t310 = std::chrono::milliseconds{sib1_msg.ue_timers_and_consts.t310.to_number()};
     cell_info.timers.t311 = std::chrono::milliseconds{sib1_msg.ue_timers_and_consts.t311.to_number()};
+    cell_info.timers.t319 = std::chrono::milliseconds{sib1_msg.ue_timers_and_consts.t319.to_number()};
 
     // Store selectedPLMN-Identities. Iterate over all PLMN identities in SIB1 and store them in the cell info.
     // TS 38.331 section 6.3.2:
@@ -372,7 +373,8 @@ rrc_ue_interface* rrc_du_impl::add_ue(const rrc_ue_creation_message& msg)
                                                          rrc_cell,
                                                          ue_cfg,
                                                          msg.du_to_cu_container.copy(),
-                                                         msg.rrc_context));
+                                                         msg.rrc_context,
+                                                         msg.remote_resume_context));
 
   if (res.second) {
     auto& u = ue_db.at(ue_index);

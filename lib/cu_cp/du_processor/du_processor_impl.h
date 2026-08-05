@@ -105,7 +105,8 @@ private:
                      rnti_t                                 c_rnti,
                      const nr_cell_global_id_t&             cgi,
                      byte_buffer                            du_to_cu_rrc_container,
-                     std::optional<rrc_ue_transfer_context> rrc_context);
+                     std::optional<rrc_ue_transfer_context> rrc_context,
+                     std::optional<rrc_resume_context_t>    remote_resume_context = std::nullopt);
 
   // du_processor_ue_context_removal_handler
   void remove_ue_context(cu_cp_ue_index_t ue_index) override;

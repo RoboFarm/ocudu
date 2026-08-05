@@ -200,7 +200,8 @@ bool du_processor_impl::create_rrc_ue(cu_cp_ue&                              ue,
                                       rnti_t                                 c_rnti,
                                       const nr_cell_global_id_t&             cgi,
                                       byte_buffer                            du_to_cu_rrc_container,
-                                      std::optional<rrc_ue_transfer_context> rrc_context)
+                                      std::optional<rrc_ue_transfer_context> rrc_context,
+                                      std::optional<rrc_resume_context_t>    remote_resume_context)
 {
   const cu_cp_ue_index_t ue_index = ue.get_ue_index();
 
@@ -236,6 +237,7 @@ bool du_processor_impl::create_rrc_ue(cu_cp_ue&                              ue,
   rrc_ue_create_msg.pdcp_manager          = &srb_pdcp_contexts.at(ue_index);
   rrc_ue_create_msg.du_to_cu_container    = std::move(du_to_cu_rrc_container);
   rrc_ue_create_msg.rrc_context           = std::move(rrc_context);
+  rrc_ue_create_msg.remote_resume_context = std::move(remote_resume_context);
   auto* rrc_ue                            = rrc->add_ue(rrc_ue_create_msg);
   if (rrc_ue == nullptr) {
     logger.warning("Could not create RRC UE");
@@ -291,6 +293,10 @@ du_processor_impl::handle_ue_rrc_context_creation_request(const ue_rrc_context_c
 
   cu_cp_ue* ue = nullptr;
 
+  // Resume identity whose I-RNTI matched no local UE. Handed to the RRC UE, which asks the peer that allocated it
+  // for the context.
+  std::optional<rrc_resume_context_t> remote_resume_context;
+
   // Check if this is a RRC Resume request for an existing UE.
   if (not req.rrc_container.empty()) {
     std::optional<rrc_resume_context_t> resume_context = rrc->get_rrc_resume_context(req.rrc_container.copy());
@@ -315,7 +321,10 @@ du_processor_impl::handle_ue_rrc_context_creation_request(const ue_rrc_context_c
                      std::get<full_i_rnti_t>(resume_context->rrc_resume_id.value()));
       }
 
-      if (resume_ue_index != cu_cp_ue_index_t::invalid) {
+      if (resume_ue_index == cu_cp_ue_index_t::invalid) {
+        // The I-RNTI matched no local UE, so the node that suspended it holds the context.
+        remote_resume_context = resume_context;
+      } else {
         if (cfg.force_resume_fallback) {
           // RRC Resume fallback forced - do not resume. The DU doesn't have a F1AP UE context, so we also remove it
           // here.
@@ -379,7 +388,8 @@ du_processor_impl::handle_ue_rrc_context_creation_request(const ue_rrc_context_c
       return make_unexpected(default_error_t{});
     }
 
-    if (not create_rrc_ue(*ue, req.c_rnti, req.cgi, req.du_to_cu_rrc_container.copy(), req.prev_context)) {
+    if (not create_rrc_ue(
+            *ue, req.c_rnti, req.cgi, req.du_to_cu_rrc_container.copy(), req.prev_context, remote_resume_context)) {
       logger.warning("ue={}: Could not create RRC UE object", ue->get_ue_index());
       // Schedule UE context release and return error response.
       release_ue(ue->get_ue_index());

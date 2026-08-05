@@ -80,6 +80,9 @@ struct rrc_ue_creation_message {
   rrc_ue_srb_pdcp_manager*               pdcp_manager;
   byte_buffer                            du_to_cu_container;
   std::optional<rrc_ue_transfer_context> rrc_context;
+  /// Resume identity the UE presented, when the UL CCCH message was an RRCResumeRequest whose I-RNTI matched no local
+  /// UE. The RRC UE asks the peer that allocated the I-RNTI for the context.
+  std::optional<rrc_resume_context_t> remote_resume_context;
 };
 
 /// \brief Interface class to the main RRC DU object to manage RRC UEs.

@@ -31,7 +31,8 @@ public:
               const rrc_cell_context&                cell_,
               const rrc_ue_cfg_t&                    cfg_,
               const byte_buffer&                     du_to_cu_container_,
-              std::optional<rrc_ue_transfer_context> rrc_context);
+              std::optional<rrc_ue_transfer_context> rrc_context,
+              std::optional<rrc_resume_context_t>    remote_resume_context = std::nullopt);
   ~rrc_ue_impl();
 
   // rrc_ul_pdu_handler
