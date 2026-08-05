@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "rlc_stress_test_args.h"
 #include "rlc_stress_test_f1.h"
 #include "rlc_stress_test_mac.h"
 #include "rlc_stress_test_rrc.h"
@@ -19,9 +18,10 @@
 #include "ocudu/support/executors/task_worker.h"
 #include <condition_variable>
 #include <mutex>
-#include <unistd.h>
 
 namespace ocudu {
+class byte_buffer_chain;
+struct stress_test_args;
 
 class mock_pdcp_metrics_notifier : public pdcp_metrics_notifier
 {

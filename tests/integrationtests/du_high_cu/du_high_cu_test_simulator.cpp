@@ -10,7 +10,6 @@
 #include "tests/unittests/ngap/ngap_test_messages.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 #include "ocudu/cu_cp/cu_cp_factory.h"
-#include "ocudu/du/du_cell_config_helpers.h"
 #include "ocudu/du/du_high/du_high_clock_controller.h"
 #include "ocudu/du/du_high/du_high_factory.h"
 #include "ocudu/mac/mac_cell_timing_context.h"

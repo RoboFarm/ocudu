@@ -6,8 +6,11 @@
 
 #include "ocudu/phy/upper/channel_processors/pdsch/factories.h"
 #include "ocudu/phy/upper/channel_processors/pusch/factories.h"
+#include "ocudu/phy/upper/equalization/channel_equalizer_algorithm_type.h"
+#include "ocudu/phy/upper/signal_processors/channel_estimator/port_channel_estimator_parameters.h"
 
 namespace ocudu {
+class task_executor;
 
 /// \brief Creates a PDSCH processor factory.
 /// \param[in] executor        Asynchronous executor.

@@ -5,11 +5,11 @@
 #include "pxsch_bler_test_channel_emulator.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/ocuduvec/add.h"
-#include "ocudu/ocuduvec/copy.h"
-#include "ocudu/ocuduvec/dot_prod.h"
 #include "ocudu/ocuduvec/prod.h"
 #include "ocudu/ocuduvec/sc_prod.h"
-#include "ocudu/ocuduvec/zero.h"
+#include "ocudu/phy/support/resource_grid_reader.h"
+#include "ocudu/phy/support/resource_grid_writer.h"
+#include "ocudu/support/executors/task_executor.h"
 #include <algorithm>
 #include <cmath>
 #include <set>
