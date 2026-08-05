@@ -40,4 +40,25 @@ bool verify_short_mac_i(const security::sec_short_mac_i&  short_mac_i,
                         const security::security_context& sec_context,
                         rrc_ue_logger&                    logger);
 
+/// \brief Verify the ResumeMAC-I a UE included in an RRC Resume Request.
+///
+/// The token is computed over VarResumeMAC-Input (TS 38.331 section 5.3.13.3) with the AS keys of the cell the UE was
+/// suspended in, so it can only be verified by the node holding those keys: the same node for a local resume, the
+/// source NG-RAN node for a resume that requires UE context retrieval over Xn.
+///
+/// \param[in] resume_mac_i The ResumeMAC-I received from the UE.
+/// \param[in] source_pci PCI of the cell the UE was suspended in.
+/// \param[in] source_c_rnti C-RNTI the UE had in that cell.
+/// \param[in] target_nci Identity of the cell the UE is resuming on.
+/// \param[in] sec_context Security context of the UE in the source cell.
+/// \param[in] logger Logger of the UE holding the source AS keys.
+/// \return True if the ResumeMAC-I matches, false if it does not or if the security context has no selected
+/// algorithms.
+bool verify_resume_mac_i(const security::sec_short_mac_i&  resume_mac_i,
+                         pci_t                             source_pci,
+                         rnti_t                            source_c_rnti,
+                         nr_cell_identity                  target_nci,
+                         const security::security_context& sec_context,
+                         rrc_ue_logger&                    logger);
+
 } // namespace ocudu::ocucp

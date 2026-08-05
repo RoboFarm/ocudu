@@ -5,10 +5,9 @@
 #include "rrc_resume_procedure.h"
 #include "ue/rrc_asn1_converters.h"
 #include "ue/rrc_asn1_helpers.h"
+#include "ue/rrc_ue_security_helpers.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg.h"
-#include "ocudu/asn1/rrc_nr/nr_ue_variables.h"
-#include "ocudu/security/integrity.h"
 #include "ocudu/support/async/coroutine.h"
 
 using namespace ocudu;
@@ -125,42 +124,19 @@ async_task<void> rrc_resume_procedure::handle_rrc_resume_failure()
 
 bool rrc_resume_procedure::verify_and_update_security_context()
 {
-  bool valid = false;
-
-  // Get RX resume MAC.
-  security::sec_short_mac_i resume_mac     = {};
-  uint16_t                  resume_mac_int = htons(resume_request.rrc_resume_request.resume_mac_i.to_number());
-  std::memcpy(resume_mac.data(), &resume_mac_int, 2);
-
-  // Get packed varResumeMAC-Input.
-  asn1::rrc_nr::var_resume_mac_input_s var_resume_mac_input = {};
-  var_resume_mac_input.source_pci                           = context.cell.pci;
-  var_resume_mac_input.target_cell_id.from_number(context.cell.cgi.nci.value());
-  var_resume_mac_input.source_c_rnti        = to_value(context.c_rnti);
-  byte_buffer   var_resume_mac_input_packed = {};
-  asn1::bit_ref bref(var_resume_mac_input_packed);
-  var_resume_mac_input.pack(bref);
-
-  logger.log_debug(var_resume_mac_input_packed.begin(),
-                   var_resume_mac_input_packed.end(),
-                   "Packed varResumeMAC-Input. Source pci={}, target cell-id=0x{:x}, source c-rnti={}",
-                   var_resume_mac_input.source_pci,
-                   var_resume_mac_input.target_cell_id.to_number(),
-                   to_rnti(var_resume_mac_input.source_c_rnti));
-
-  // Verify ResumeMAC-I.
-  security::security_context sec_context = cu_cp_ue_notifier.get_security_context();
-  if (sec_context.sel_algos.algos_selected) {
-    security::sec_as_config source_as_config = sec_context.get_as_config(security::sec_domain::rrc);
-    valid = security::verify_short_mac(resume_mac, var_resume_mac_input_packed, source_as_config);
-    logger.log_debug("Received RRC resume request. resume_mac_valid={}", valid);
-  }
-
+  // The ResumeMAC-I is computed with the AS keys of the cell the UE was suspended in, which for a local resume is a
+  // cell of this node.
+  const bool valid = verify_resume_mac_i(to_short_mac_i(resume_request.rrc_resume_request.resume_mac_i.to_number()),
+                                         context.cell.pci,
+                                         context.c_rnti,
+                                         context.cell.cgi.nci,
+                                         cu_cp_ue_notifier.get_security_context(),
+                                         logger);
   if (not valid) {
-    logger.log_warning("Invalid ResumeMAC-I in resume request. Source pci={}, target cell-id=0x{:x}, source c-rnti={}",
-                       var_resume_mac_input.source_pci,
-                       var_resume_mac_input.target_cell_id.to_number(),
-                       to_rnti(var_resume_mac_input.source_c_rnti));
+    logger.log_warning("Invalid ResumeMAC-I in resume request. Source pci={}, target cell-id={}, source c-rnti={}",
+                       context.cell.pci,
+                       context.cell.cgi.nci,
+                       context.c_rnti);
   }
 
   // Update the security keys and reestablish the SRBs. This must be done directly after validating the RRC Resume
