@@ -104,6 +104,10 @@ public:
   /// the peer, which is what a UE context retrieval relies on.
   static constexpr pci_t xnc_peer_served_pci = 42;
 
+  /// Identity of that same cell. A peer retrieving one of our UEs reports it as the cell the UE accessed, and this
+  /// node has to resolve it to derive KgNB* for the target.
+  static nr_cell_identity xnc_peer_served_nci() { return nr_cell_identity::create(0x19b0).value(); }
+
   /// Enqueue PDUs to automatically respond to NG/XN setup procedures and starts the CU-CP.
   void enqueue_procedure_outcome_pdus_and_start_cu_cp();
 

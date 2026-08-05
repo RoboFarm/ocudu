@@ -1364,8 +1364,10 @@ cu_cp_ue_index_t cu_cp_impl::handle_xnap_ue_context_id_lookup(const xnap_ue_cont
     return ue_mng.get_ue_index(reest_id.fail_cell_pci, reest_id.c_rnti);
   }
 
-  // The RRC Resume UE Context ID resolves through the I-RNTI, which is not supported yet.
-  return cu_cp_ue_index_t::invalid;
+  // The RRC Resume UE Context ID identifies the UE by the I-RNTI this node allocated when it suspended the UE, so it
+  // resolves through the same lookup as a local resume.
+  const auto& resume_id = std::get<xnap_ue_context_id_for_rrc_resume>(ue_context_id);
+  return std::visit([this](const auto& i_rnti) { return ue_mng.get_ue_index(i_rnti); }, resume_id.i_rnti);
 }
 
 async_task<xnap_retrieve_ue_context_response>

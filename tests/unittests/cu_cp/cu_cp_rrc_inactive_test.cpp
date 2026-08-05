@@ -8,11 +8,14 @@
 #include "tests/test_doubles/ngap/ngap_test_message_validators.h"
 #include "tests/test_doubles/rrc/rrc_test_message_validators.h"
 #include "tests/test_doubles/rrc/rrc_test_messages.h"
+#include "tests/test_doubles/xnap/xnap_test_message_validators.h"
 #include "tests/unittests/e1ap/common/e1ap_cu_cp_test_messages.h"
 #include "tests/unittests/ngap/ngap_test_messages.h"
+#include "tests/unittests/xnap/xnap_test_messages.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/ngap/ngap_ies.h"
 #include "ocudu/asn1/ngap/ngap_pdu_contents.h"
+#include "ocudu/asn1/xnap/xnap_pdu_contents.h"
 #include "ocudu/cu_cp/cu_cp_configuration.h"
 #include "ocudu/e1ap/common/e1ap_message.h"
 #include "ocudu/ngap/ngap_message.h"
@@ -25,17 +28,28 @@ using namespace ocucp;
 class cu_cp_rrc_inactive_test : public cu_cp_test_environment, public ::testing::Test
 {
 public:
-  cu_cp_rrc_inactive_test() :
+  cu_cp_rrc_inactive_test() : cu_cp_rrc_inactive_test(false) {}
+
+  explicit cu_cp_rrc_inactive_test(bool enable_xnc_peer) :
     cu_cp_test_environment({/* max nof cu-ups */ 8,
                             /* max nof dus */ 8,
                             /* max nof ues */ 8192,
                             /* max nof drbs per ue */ 8,
                             /* amf config */ {{default_supported_tracking_area}},
                             /* trigger ho from measurements */ true,
-                            /* enable rrc inactive */ true})
+                            /* enable rrc inactive */ true,
+                            enable_xnc_peer})
   {
     // Run NG setup to completion.
     run_ng_setup();
+
+    if (enable_xnc_peer) {
+      // Wait for the XN-C gateway to be attached to the CU-CP.
+      sleep(1);
+
+      // Run XN setup to completion.
+      run_xn_setup();
+    }
 
     // Setup DU.
     std::optional<unsigned> ret = connect_new_du();
@@ -1336,4 +1350,61 @@ TEST_F(cu_cp_rrc_inactive_test,
 
   // No Location Report should be sent since the serving cell did not change.
   ASSERT_FALSE(this->wait_for_ngap_tx_pdu(ngap_pdu, std::chrono::milliseconds{5}));
+}
+
+/// Fixture for a peer retrieving one of our suspended UEs over Xn (TS 38.423 section 8.2.4), i.e. this node answering
+/// a Retrieve UE Context Request that identifies the UE by the I-RNTI it was suspended with.
+class cu_cp_rrc_inactive_xn_test : public cu_cp_rrc_inactive_test
+{
+public:
+  cu_cp_rrc_inactive_xn_test() : cu_cp_rrc_inactive_test(true) {}
+
+  /// Injects a Retrieve UE Context Request identifying the UE by an I-RNTI and returns the cause the CU-CP rejected it
+  /// with. The ResumeMAC-I is not the one the UE would have computed, so a resolved UE is always rejected -- but with
+  /// a different cause than an unresolved one.
+  [[nodiscard]] std::optional<asn1::xnap::cause_c> send_retrieve_request_and_get_rejection_cause(uint32_t i_rnti_value)
+  {
+    get_xnc_cu_cp(xnc_peer_idx)
+        .push_tx_pdu(generate_retrieve_ue_context_request_for_resume(
+            peer_xnap_ue_id_t::min, short_i_rnti_t::from_uint(i_rnti_value).value(), xnc_peer_served_nci()));
+
+    if (!this->wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu)) {
+      return std::nullopt;
+    }
+    if (!test_helpers::is_valid_retrieve_ue_context_failure(xnap_pdu)) {
+      return std::nullopt;
+    }
+
+    return xnap_pdu.pdu.unsuccessful_outcome().value.retrieve_ue_context_fail()->cause;
+  }
+
+  static constexpr unsigned xnc_peer_idx = 0;
+
+  xnap_message xnap_pdu;
+};
+
+TEST_F(cu_cp_rrc_inactive_xn_test, when_peer_retrieves_suspended_ue_by_i_rnti_then_ue_context_is_resolved)
+{
+  connect_ue_with_rrc_inactive_support();
+  ASSERT_TRUE(trigger_rrc_inactive(du_ue_id));
+
+  const std::optional<asn1::xnap::cause_c> cause = send_retrieve_request_and_get_rejection_cause(0x4d8000);
+  ASSERT_TRUE(cause.has_value()) << "CU-CP did not answer the Retrieve UE Context Request";
+
+  // The UE was resolved from the I-RNTI and rejected on the ResumeMAC-I, not for being unknown.
+  ASSERT_EQ(cause->type(), asn1::xnap::cause_c::types_opts::radio_network);
+  ASSERT_EQ(cause->radio_network(), asn1::xnap::cause_radio_network_layer_opts::unspecified)
+      << "The suspended UE was not resolved from its I-RNTI";
+}
+
+TEST_F(cu_cp_rrc_inactive_xn_test, when_peer_retrieves_ue_by_unknown_i_rnti_then_retrieval_is_rejected)
+{
+  connect_ue_with_rrc_inactive_support();
+  ASSERT_TRUE(trigger_rrc_inactive(du_ue_id));
+
+  const std::optional<asn1::xnap::cause_c> cause = send_retrieve_request_and_get_rejection_cause(0x668000);
+  ASSERT_TRUE(cause.has_value()) << "CU-CP did not answer the Retrieve UE Context Request";
+
+  ASSERT_EQ(cause->type(), asn1::xnap::cause_c::types_opts::radio_network);
+  ASSERT_EQ(cause->radio_network(), asn1::xnap::cause_radio_network_layer_opts::ue_context_id_not_known);
 }

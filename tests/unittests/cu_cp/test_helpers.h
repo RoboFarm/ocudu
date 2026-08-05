@@ -689,8 +689,17 @@ public:
                                           nr_cell_identity                 target_nci) override
   {
     logger.info("Received a request to verify a ShortMAC-I");
-    return short_mac_i_valid;
+    short_mac_i_verified = true;
+    return mac_i_valid;
   }
+
+  bool verify_resume_mac_i(const security::sec_short_mac_i& resume_mac_i, nr_cell_identity target_nci) override
+  {
+    logger.info("Received a request to verify a ResumeMAC-I");
+    resume_mac_i_verified = true;
+    return mac_i_valid;
+  }
+
   async_task<bool> handle_rrc_reconfiguration_request(const rrc_reconfiguration_procedure_request& msg) override
   {
     logger.info("Received a new RRC reconfiguration request");
@@ -868,8 +877,11 @@ public:
   std::optional<rrc_radio_bearer_config> last_radio_bearer_cfg;
   void                                   reset() { last_radio_bearer_cfg.reset(); }
 
-  /// Outcome the dummy reports for a ShortMAC-I verification.
-  bool short_mac_i_valid = true;
+  /// Outcome the dummy reports for a ShortMAC-I or ResumeMAC-I verification.
+  bool mac_i_valid = true;
+  /// Set when the corresponding token was verified, so a test can tell the two verification paths apart.
+  bool short_mac_i_verified  = false;
+  bool resume_mac_i_verified = false;
 
   unsigned    last_transaction_id;
   srb_id_t    last_srb_id;

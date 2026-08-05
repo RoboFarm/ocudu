@@ -261,6 +261,15 @@ public:
                                                   rnti_t                           source_c_rnti,
                                                   nr_cell_identity                 target_nci) = 0;
 
+  /// \brief Verify a ResumeMAC-I this UE computed for a resume attempt at another NG-RAN node.
+  /// The token is computed with the AS keys of this UE, so only this node can verify it
+  /// (TS 38.331 section 5.3.13.3, TS 33.501 section 6.11). The peer identifies the UE by its I-RNTI, so the source
+  /// cell and C-RNTI are taken from the context of the cell this UE was suspended in.
+  /// \param[in] resume_mac_i The ResumeMAC-I received from the peer NG-RAN node.
+  /// \param[in] target_nci Identity of the cell the UE is resuming on.
+  /// \returns True if the ResumeMAC-I matches, false otherwise.
+  virtual bool verify_resume_mac_i(const security::sec_short_mac_i& resume_mac_i, nr_cell_identity target_nci) = 0;
+
   /// \brief Handle an RRC Reconfiguration Request.
   /// \param[in] msg The new RRC Reconfiguration Request.
   /// \returns The result of the rrc reconfiguration.

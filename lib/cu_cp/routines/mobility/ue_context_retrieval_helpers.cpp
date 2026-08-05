@@ -7,20 +7,21 @@
 using namespace ocudu;
 using namespace ocucp;
 
-/// Verifies the token the UE computed with the AS keys it has here. Only the RRC Reestablishment identity is
-/// supported, as the RRC Resume identity requires verifying a ResumeMAC-I instead.
-static bool verify_mac_i(const xnap_retrieve_ue_context_request& request, cu_cp_ue& ue, ocudulog::basic_logger& logger)
+/// Verifies the token the UE computed with the AS keys it has here. Which token that is follows the UE Context ID: a
+/// ShortMAC-I for a reestablishment and a ResumeMAC-I for a resume.
+static bool verify_mac_i(const xnap_retrieve_ue_context_request& request, cu_cp_ue& ue)
 {
-  if (!std::holds_alternative<xnap_ue_context_id_for_rrc_reest>(request.ue_context_id)) {
-    logger.info("ue={}: Rejecting UE context retrieval. Cause: only the RRC Reestablishment UE Context ID is supported",
-                request.ue_index);
-    return false;
+  auto& rrc_handler = ue.get_rrc_ue()->get_rrc_ue_control_message_handler();
+
+  if (std::holds_alternative<xnap_ue_context_id_for_rrc_reest>(request.ue_context_id)) {
+    const auto& reest_id = std::get<xnap_ue_context_id_for_rrc_reest>(request.ue_context_id);
+    return rrc_handler.verify_reestablishment_short_mac_i(
+        request.mac_i, reest_id.fail_cell_pci, reest_id.c_rnti, request.target_nci);
   }
 
-  const auto& reest_id = std::get<xnap_ue_context_id_for_rrc_reest>(request.ue_context_id);
-
-  return ue.get_rrc_ue()->get_rrc_ue_control_message_handler().verify_reestablishment_short_mac_i(
-      request.mac_i, reest_id.fail_cell_pci, reest_id.c_rnti, request.target_nci);
+  // The resume identity carries no cell or C-RNTI of its own, so the RRC takes them from the context of the cell this
+  // UE was suspended in.
+  return rrc_handler.verify_resume_mac_i(request.mac_i, request.target_nci);
 }
 
 xnap_retrieve_ue_context_response
@@ -33,7 +34,7 @@ ocudu::ocucp::collect_ue_context_for_retrieval(const xnap_retrieve_ue_context_re
 {
   xnap_retrieve_ue_context_response response;
 
-  if (!verify_mac_i(request, ue, logger)) {
+  if (!verify_mac_i(request, ue)) {
     logger.info("ue={}: Rejecting UE context retrieval. Cause: MAC-I verification failed", request.ue_index);
     response.cause = xnap_cause_radio_network_t::unspecified;
     return response;

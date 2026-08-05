@@ -485,6 +485,12 @@ bool rrc_ue_impl::verify_reestablishment_short_mac_i(const security::sec_short_m
       short_mac_i, source_pci, source_c_rnti, target_nci, cu_cp_ue_notifier.get_security_context(), logger);
 }
 
+bool rrc_ue_impl::verify_resume_mac_i(const security::sec_short_mac_i& resume_mac_i, nr_cell_identity target_nci)
+{
+  return ocucp::verify_resume_mac_i(
+      resume_mac_i, context.cell.pci, context.c_rnti, target_nci, cu_cp_ue_notifier.get_security_context(), logger);
+}
+
 byte_buffer rrc_ue_impl::get_packed_ue_capability_rat_container_list() const
 {
   byte_buffer pdu{};

@@ -104,6 +104,18 @@ protected:
     return request;
   }
 
+  /// Builds a request identifying the UE by the RRC Resume UE Context ID, as a peer would send it.
+  xnap_retrieve_ue_context_request make_resume_request(cu_cp_ue_index_t ue_index) const
+  {
+    xnap_retrieve_ue_context_request request = make_request(ue_index);
+    request.ue_context_id    = xnap_ue_context_id_for_rrc_resume{.i_rnti = short_i_rnti_t::from_uint(0x1234).value(),
+                                                                 .allocated_c_rnti = to_rnti(0x4602),
+                                                                 .access_pci       = target_pci};
+    request.rrc_resume_cause = resume_cause_t::mo_data;
+
+    return request;
+  }
+
   static constexpr pci_t  source_pci    = 1;
   static constexpr pci_t  target_pci    = 42;
   static constexpr rnti_t source_c_rnti = to_rnti(0x4601);
@@ -163,7 +175,7 @@ TEST_F(cu_cp_ue_context_retrieval_test, when_mac_i_verification_fails_then_retri
 {
   cu_cp_ue* ue = create_attached_ue();
 
-  rrc_ue.short_mac_i_valid = false;
+  rrc_ue.mac_i_valid = false;
 
   const xnap_retrieve_ue_context_response response = collect_ue_context_for_retrieval(
       make_request(ue->get_ue_index()), *ue, guami, amf_ue_id_t::min, target_ssb_arfcn, logger);
@@ -172,20 +184,34 @@ TEST_F(cu_cp_ue_context_retrieval_test, when_mac_i_verification_fails_then_retri
   ASSERT_TRUE(response.cause.has_value());
 }
 
-TEST_F(cu_cp_ue_context_retrieval_test, when_ue_context_id_identifies_a_resume_then_retrieval_is_rejected)
+TEST_F(cu_cp_ue_context_retrieval_test, when_ue_context_id_identifies_a_resume_then_context_is_collected)
 {
   cu_cp_ue* ue = create_attached_ue();
 
-  // Verifying a ResumeMAC-I is not supported yet, so a resume identity must not be answered with a context.
-  xnap_retrieve_ue_context_request request = make_request(ue->get_ue_index());
-  request.ue_context_id = xnap_ue_context_id_for_rrc_resume{.i_rnti = short_i_rnti_t::from_uint(0x1234).value(),
-                                                            .allocated_c_rnti = to_rnti(0x4602),
-                                                            .access_pci       = target_pci};
+  const xnap_retrieve_ue_context_response response = collect_ue_context_for_retrieval(
+      make_resume_request(ue->get_ue_index()), *ue, guami, amf_ue_id_t::min, target_ssb_arfcn, logger);
 
-  const xnap_retrieve_ue_context_response response =
-      collect_ue_context_for_retrieval(request, *ue, guami, amf_ue_id_t::min, target_ssb_arfcn, logger);
+  ASSERT_TRUE(response.success);
+  ASSERT_EQ(response.ue_context_info.pdu_session_res_to_be_setup_list.size(), 1);
 
+  // A resume identity carries no source cell or C-RNTI, so the token is a ResumeMAC-I verified against the context of
+  // the cell the UE was suspended in.
+  ASSERT_TRUE(rrc_ue.resume_mac_i_verified) << "The ResumeMAC-I was not verified";
+  ASSERT_FALSE(rrc_ue.short_mac_i_verified) << "A resume identity was verified as a reestablishment";
+}
+
+TEST_F(cu_cp_ue_context_retrieval_test, when_resume_mac_i_verification_fails_then_retrieval_is_rejected)
+{
+  cu_cp_ue* ue = create_attached_ue();
+
+  rrc_ue.mac_i_valid = false;
+
+  const xnap_retrieve_ue_context_response response = collect_ue_context_for_retrieval(
+      make_resume_request(ue->get_ue_index()), *ue, guami, amf_ue_id_t::min, target_ssb_arfcn, logger);
+
+  ASSERT_TRUE(rrc_ue.resume_mac_i_verified);
   ASSERT_FALSE(response.success);
+  ASSERT_TRUE(response.cause.has_value());
 }
 
 TEST_F(cu_cp_ue_context_retrieval_test, when_ue_has_no_pdu_sessions_then_retrieval_is_rejected)

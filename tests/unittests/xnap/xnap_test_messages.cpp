@@ -290,6 +290,31 @@ xnap_message ocudu::ocucp::generate_retrieve_ue_context_request(peer_xnap_ue_id_
   return xnap_msg;
 }
 
+xnap_message ocudu::ocucp::generate_retrieve_ue_context_request_for_resume(peer_xnap_ue_id_t peer_xnap_ue_id,
+                                                                           short_i_rnti_t    i_rnti,
+                                                                           nr_cell_identity  target_nci,
+                                                                           uint16_t          resume_mac_i)
+{
+  xnap_message xnap_msg;
+  xnap_msg.pdu.set_init_msg();
+  xnap_msg.pdu.init_msg().load_info_obj(ASN1_XNAP_ID_RETRIEVE_UE_CONTEXT);
+
+  auto& request = xnap_msg.pdu.init_msg().value.retrieve_ue_context_request();
+
+  // This is sent from the target to the source, so the new NG-RAN node UE XnAP ID is the peer XNAP UE ID.
+  request->new_ng_ra_nnode_ue_xn_ap_id = peer_xnap_ue_id_to_uint(peer_xnap_ue_id);
+
+  auto& resume_id = request->ue_context_id.set_rrc_resume();
+  resume_id.i_rnti.set_i_rnti_short().from_number(i_rnti.value());
+  resume_id.allocated_c_rnti.from_number(to_value(rnti_t::MIN_CRNTI));
+  resume_id.access_pci.set_nr() = 0;
+
+  request->mac_i.from_number(resume_mac_i);
+  request->new_ng_ran_cell_id.set_nr().from_number(target_nci.value());
+
+  return xnap_msg;
+}
+
 xnap_message ocudu::ocucp::generate_retrieve_ue_context_response(local_xnap_ue_id_t local_xnap_ue_id,
                                                                  peer_xnap_ue_id_t  peer_xnap_ue_id)
 {

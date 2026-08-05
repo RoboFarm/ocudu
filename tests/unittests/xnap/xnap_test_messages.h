@@ -54,6 +54,12 @@ xnap_message generate_retrieve_ue_context_request(peer_xnap_ue_id_t peer_xnap_ue
                                                   pci_t             fail_cell_pci,
                                                   nr_cell_identity  target_nci);
 
+/// \brief Generate a dummy Retrieve UE Context Request message carrying an RRC Resume UE Context ID.
+xnap_message generate_retrieve_ue_context_request_for_resume(peer_xnap_ue_id_t peer_xnap_ue_id,
+                                                             short_i_rnti_t    i_rnti,
+                                                             nr_cell_identity  target_nci,
+                                                             uint16_t          resume_mac_i = 0xabcd);
+
 /// \brief Generate a dummy Retrieve UE Context Response message.
 xnap_message generate_retrieve_ue_context_response(local_xnap_ue_id_t local_xnap_ue_id,
                                                    peer_xnap_ue_id_t  peer_xnap_ue_id);
