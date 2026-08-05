@@ -468,8 +468,8 @@ void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_ce
     // SFN wrap (+/-5.12 s) regardless of the configured period.
     epoch_slot = sl;
   }
-  auto       slot_diff  = epoch_slot - sl;
-  time_point epoch_time = tp + std::chrono::milliseconds(slot_diff);
+  const auto       slot_diff  = epoch_slot - sl;
+  const time_point epoch_time = tp + std::chrono::milliseconds(slot_diff);
 
   // Propagate each serving cell satellite using its own OCM.
   ntn_orbital_state serving_ntn_info;
@@ -477,13 +477,6 @@ void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_ce
     const ntn_serving_cell_config& ntn_cfg                  = *cell_cfg.ntn_cfg;
     const unsigned                 ntn_ul_sync_validity_dur = ntn_cfg.ntn_ul_sync_validity_dur;
     const bool                     serving_use_state_vector = ntn_cfg.use_state_vector.value_or(false);
-
-    // Recompute epoch_time if an offset provided then with the offset.
-    if (ntn_cfg.epoch_sfn_offset) {
-      epoch_slot += *ntn_cfg.epoch_sfn_offset * sl.nof_slots_per_frame();
-      slot_diff  = epoch_slot - sl;
-      epoch_time = tp + std::chrono::milliseconds(slot_diff);
-    }
 
     per_satellite_context* sat_ctx = find_satellite_context(ntn_cfg.satellite_index);
     if (sat_ctx == nullptr) {

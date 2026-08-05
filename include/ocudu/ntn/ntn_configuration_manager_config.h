@@ -47,8 +47,6 @@ struct ntn_serving_cell_config {
   std::optional<ntn_cov_enh_t> coverage_enhancements;
 
   /// Metadata fields (not directly in SIB19, used for SIB19 generation):
-  /// Offset in SFN between SIB19 transmission and epoch time.
-  std::optional<uint64_t> epoch_sfn_offset;
   /// Use ECEF state vectors (true) or ECI orbital parameters (false) for ephemeris format.
   std::optional<bool> use_state_vector;
   /// Feeder link parameters for Doppler computation (backend).

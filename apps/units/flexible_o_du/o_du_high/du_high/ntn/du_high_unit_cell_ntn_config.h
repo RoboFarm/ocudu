@@ -74,10 +74,6 @@ struct du_high_unit_ntn_serving_cell_config {
   /// Indicates the time information on when a cell provided via NTN is going to stop serving the area it is currently
   /// covering. UTC timepoint.
   std::optional<std::chrono::system_clock::time_point> t_service;
-  /// Optional offset (in SFN) between the SIB19 transmission slot and the epoch time (EpochTime IE) of the NTN
-  /// assistance info. Allows sending NTN assistance information that will become valid epoch_sfn_offset number of
-  /// system frames after SIB19 Tx slot.
-  std::optional<uint64_t> epoch_sfn_offset;
   /// Scheduling offset used for timing relationships modified for NTN operation (see TS 38.213 and TS 38.300,
   /// Section 16.14.2). The unit is milliseconds.
   ///

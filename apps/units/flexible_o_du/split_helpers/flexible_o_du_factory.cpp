@@ -164,7 +164,6 @@ convert_ntn_config_to_serving_cell_config(const du_high_unit_cell_ntn_config&   
   info.ta_report             = serving.ta_report;
 
   // Metadata fields.
-  info.epoch_sfn_offset = serving.epoch_sfn_offset;
   info.feeder_link_info = serving.feeder_link_info;
 
   info.use_state_vector = derive_use_state_vector(

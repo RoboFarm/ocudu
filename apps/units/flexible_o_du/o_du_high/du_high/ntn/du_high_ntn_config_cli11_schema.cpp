@@ -203,12 +203,6 @@ static void configure_cli11_ntn_args(CLI::App&                             app,
          "Whether to broadcast EphemerisInfo as ECEF state vectors (if true) or ECI Orbital parameters (if false)")
       ->capture_default_str();
 
-  // Epoch time offset in nof SFNs.
-  app.add_option("--epoch_sfn_offset",
-                 serv_cell_ntn_config.epoch_sfn_offset,
-                 "Optional offset (in SFN) between the SIB19 tx slot and the epoch time of the NTN assistance info")
-      ->capture_default_str();
-
   // Feeder link info.
   static feeder_link_info_t feeder_link_info;
   CLI::App*                 feeder_link_subcmd =
