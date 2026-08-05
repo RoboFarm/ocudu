@@ -12,6 +12,7 @@
 #include "ocudu/ran/sib/system_info_config.h"
 #include "ocudu/support/ocudu_assert.h"
 #include "fmt/chrono.h"
+#include <cmath>
 
 using namespace ocudu;
 using namespace ocudu_ntn;
@@ -32,6 +33,61 @@ static double compute_doppler_hz(double ta_common_drift_us_per_s, double carrier
 static double compute_doppler_shift_rate_hz_per_s(double ta_common_drift_variant_us_per_s2, double carrier_freq_hz)
 {
   return ta_common_drift_variant_us_per_s2 * 1e-6 * carrier_freq_hz;
+}
+
+/// \brief Computes the uplink timing advance T_TA of a UE at the cell reference location.
+///
+/// Per TS 38.211, Section 4.3.1, uplink frame i starts T_TA before downlink frame i at the UE, where
+///
+///   T_TA = (N_TA + N_TA_offset + N_TA_adj_common + N_TA_adj_UE) * Tc
+///
+/// The NTN-specific terms are N_TA_adj_common and N_TA_adj_UE (TS 38.213, Section 4.2):
+///   - N_TA_adj_common is the feeder link round trip, i.e. ta-Common including ta-CommonOffset, which this gNB computes
+///     and broadcasts. Zero without a feeder link (regenerative payload).
+///   - N_TA_adj_UE is the service link round trip. Each UE derives it from the broadcast ephemeris and its own
+///     position, so the gNB can only approximate it at the cell reference location; the error is the differential delay
+///     across the cell footprint.
+///
+/// The two are not treated alike. Without a feeder link nothing broadcasts ta-Info and N_TA_adj_common is genuinely
+/// zero, so it contributes nothing. An absent service link round trip means the opposite: the gNB could not estimate a
+/// term the UE does apply, so reporting the partial sum would claim a T_TA that is wrong by the whole service link.
+///
+/// N_TA and N_TA_offset are left out. An NTN UE pre-compensates the propagation delay through the two terms above, so
+/// the closed-loop N_TA only corrects residual error and stays at a few tens of microseconds; N_TA_offset is at most
+/// 39936 Tc, i.e. ~20us. Both are well inside the one-slot margin that \c is_inside_ul_meas_gap applies anyway.
+///
+/// \return The reference location T_TA, or std::nullopt when the service link round trip is unavailable (no reference
+/// location).
+static std::optional<std::chrono::microseconds> compute_ref_location_ul_ta(const ntn_orbital_state& state,
+                                                                           const ntn_cell_config&   cell_cfg)
+{
+  if (not cell_cfg.ntn_cfg) {
+    return std::nullopt;
+  }
+  // A cell carries only the location matching its type: referenceLocation for a (quasi-)Earth fixed cell,
+  // movingReferenceLocation for an Earth-moving one (TS 38.331, SIB19 field descriptions).
+  const std::optional<geodetic_coordinates_t>& ref_location = cell_cfg.ntn_cfg->reference_location.has_value()
+                                                                  ? cell_cfg.ntn_cfg->reference_location
+                                                                  : cell_cfg.ntn_cfg->moving_reference_location;
+  if (not ref_location.has_value()) {
+    return std::nullopt;
+  }
+  const std::optional<std::chrono::microseconds> service_link_rtt = compute_service_link_rtt(state, *ref_location);
+  if (not service_link_rtt.has_value()) {
+    return std::nullopt;
+  }
+
+  std::chrono::microseconds ul_ta = *service_link_rtt;
+  // Only add N_TA_adj_common where SIB19 actually broadcasts ta-Info, and with the offset it folds into taCommon-r17:
+  // the cell-level one, falling back to the satellite TA-info override. The OCM computes ta-Info per satellite, so it
+  // is also present for a cell without a feeder link, whose UE applies no N_TA_adj_common at all.
+  if (cell_cfg.ntn_cfg->feeder_link_info.has_value() and state.ta_info.has_value()) {
+    const double ta_common_offset_us =
+        cell_cfg.ntn_cfg->ta_common_offset.value_or(state.ta_info->ta_common_offset.value_or(0.0));
+    const double ta_common_us = state.ta_info->ta_common + ta_common_offset_us;
+    ul_ta += std::chrono::microseconds{static_cast<int64_t>(std::lround(ta_common_us))};
+  }
+  return ul_ta;
 }
 
 /// \brief Merges a sparse cell config update into a full cell config snapshot.
@@ -568,12 +624,13 @@ void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_ce
     }
 
     ntn_sib19_update_request ntn_req;
-    ntn_req.nr_cgi         = cell_cfg.nr_cgi;
-    ntn_req.si_msg_idx     = cell_cfg.si_sched->si_msg_idx;
-    ntn_req.sib_idx        = 19;
-    ntn_req.slot           = next_si_win_start;
-    ntn_req.si_slot_period = cell_cfg.si_sched->si_period_rf * next_si_win_start.nof_slots_per_frame();
-    ntn_req.epoch_time     = epoch_time;
+    ntn_req.nr_cgi             = cell_cfg.nr_cgi;
+    ntn_req.si_msg_idx         = cell_cfg.si_sched->si_msg_idx;
+    ntn_req.sib_idx            = 19;
+    ntn_req.slot               = next_si_win_start;
+    ntn_req.si_slot_period     = cell_cfg.si_sched->si_period_rf * next_si_win_start.nof_slots_per_frame();
+    ntn_req.epoch_time         = epoch_time;
+    ntn_req.ref_location_ul_ta = compute_ref_location_ul_ta(serving_ntn_info, cell_cfg);
 
     ntn_req.sib19 = generate_sib19_info(cell_cfg,
                                         epoch_slot,
