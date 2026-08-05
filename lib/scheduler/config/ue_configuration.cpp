@@ -721,7 +721,10 @@ bool ue_cell_configuration::is_ul_enabled(slot_point ul_slot) const
     return false;
   }
   if (meas_gap_cfg.has_value()) {
-    if (is_inside_meas_gap(meas_gap_cfg.value(), ul_slot)) {
+    // The UE uplink is advanced by T_TA with respect to the downlink timing the gap is anchored to, so the gap has to
+    // be tested at the shifted position. In an NTN cell the shift is tens of slots; ignoring it makes us grant in
+    // slots where the UE drops the transmission (TS 38.321, Sections 5.4.2.2 and 5.4.4).
+    if (is_inside_ul_meas_gap(meas_gap_cfg.value(), ul_slot, cell_cfg_common.ntn_ref_location_ul_ta)) {
       return false;
     }
   }
