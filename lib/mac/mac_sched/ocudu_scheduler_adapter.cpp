@@ -327,6 +327,12 @@ void ocudu_scheduler_adapter::handle_slice_reconfiguration_request(const du_cell
   sched_impl->handle_slice_reconfiguration_request(req);
 }
 
+void ocudu_scheduler_adapter::handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& req)
+{
+  // Update the reference location uplink timing advance in the scheduler cell configuration.
+  sched_impl->handle_ntn_ul_ta_update(req);
+}
+
 void ocudu_scheduler_adapter::sched_config_notif_adapter::on_ue_config_complete(du_ue_index_t ue_index,
                                                                                 bool          ue_creation_result)
 {

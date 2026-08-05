@@ -65,6 +65,14 @@ void scheduler_impl::handle_slice_reconfiguration_request(const du_cell_slice_re
   cells[req.cell_index]->handle_slice_reconfiguration_request(req);
 }
 
+void scheduler_impl::handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& req)
+{
+  ocudu_assert(cells.contains(req.cell_index), "cell={} does not exist", fmt::underlying(req.cell_index));
+  // Only the cell configuration is affected: T_TA is read when placing the uplink measurement gap window. No cell
+  // scheduler needs to be notified.
+  cfg_mng.update_ntn_ul_ta(req);
+}
+
 void scheduler_impl::handle_si_update_request(const si_scheduling_update_request& req)
 {
   ocudu_assert(cells.contains(req.cell_index), "cell={} does not exist", fmt::underlying(req.cell_index));

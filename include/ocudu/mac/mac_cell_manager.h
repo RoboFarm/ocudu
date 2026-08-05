@@ -59,6 +59,8 @@ struct mac_cell_reconfig_request {
   std::optional<mac_cell_sys_info_pdu_update> new_si_pdu_info;
   /// If not empty, contains the updates to be applied to the RRM policies.
   std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
+  /// If not empty, contains a new reference location uplink timing advance for an NTN cell.
+  std::optional<sched_cell_ntn_ul_ta_update> ntn_ul_ta_update;
 };
 
 struct mac_cell_reconfig_response {

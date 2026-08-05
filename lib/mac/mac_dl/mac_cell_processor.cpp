@@ -156,13 +156,19 @@ async_task<mac_cell_reconfig_response> mac_cell_processor::reconfigure(const mac
       resp.si_pdus_enqueued = sib_assembler.handle_si_message_pdu_updates(*request.new_si_pdu_info);
     }
 
-    if (request.slice_reconf_req.has_value()) {
-      // Change to respective DL cell executor context.
+    if (request.slice_reconf_req.has_value() or request.ntn_ul_ta_update.has_value()) {
+      // Change to respective DL cell executor context. Both updates mutate the scheduler cell configuration, which is
+      // read on the slot indication critical path.
       CORO_AWAIT(execute_on_blocking(cell_exec, timers));
 
       {
         OCUDU_RTSAN_SCOPED_ENABLER;
-        sched.handle_slice_reconfiguration_request(request.slice_reconf_req.value());
+        if (request.slice_reconf_req.has_value()) {
+          sched.handle_slice_reconfiguration_request(request.slice_reconf_req.value());
+        }
+        if (request.ntn_ul_ta_update.has_value()) {
+          sched.handle_ntn_ul_ta_update(request.ntn_ul_ta_update.value());
+        }
       }
 
       // Change back to CTRL executor context.

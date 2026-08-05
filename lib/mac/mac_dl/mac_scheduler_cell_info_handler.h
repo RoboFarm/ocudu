@@ -17,6 +17,7 @@ namespace ocudu {
 
 struct si_scheduling_update_request;
 struct sched_result;
+struct sched_cell_ntn_ul_ta_update;
 
 /// \brief Interface used by MAC Cell Processor to interact with the MAC scheduler.
 class mac_scheduler_cell_info_handler : public mac_ue_control_information_handler
@@ -67,6 +68,10 @@ public:
   /// \param[in] cell_index Index of the cell for which the measurement is directed.
   /// \param[in] req Request to update the RRM policies.
   virtual void handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& req) = 0;
+
+  /// \brief Handle an update of the uplink timing advance at the reference location of an NTN cell.
+  /// \param[in] req New reference location T_TA for the cell.
+  virtual void handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& req) = 0;
 
   /// \brief Gets the RACH handler for a given cell.
   /// \param cell_index DU-specific index of the cell for which a RACH handler is being retrieved.

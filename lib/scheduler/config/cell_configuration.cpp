@@ -53,7 +53,8 @@ cell_configuration::cell_configuration(const scheduler_expert_config&           
   ntn_cs_koffset(params.ntn_params.has_value()
                      ? params.ntn_params->ntn_cfg.cell_specific_koffset.value_or(std::chrono::milliseconds{0}).count() *
                            get_nof_slots_per_subframe(scs_common())
-                     : 0)
+                     : 0),
+  ntn_ref_location_ul_ta(get_ref_location_ul_ta(params.ntn_params))
 {
   // Initialize BWP resources.
   bwp_res.emplace(to_bwp_id(0), params, to_bwp_id(0));

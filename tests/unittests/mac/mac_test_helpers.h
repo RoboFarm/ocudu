@@ -121,6 +121,7 @@ public:
   void handle_positioning_measurement_request(const positioning_measurement_request& req) override {}
   void handle_positioning_measurement_stop(const positioning_measurement_stop_request& req) override {}
   void handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& req) override {}
+  void handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& req) override {}
 };
 
 class dummy_mac_sfn_time_mapper : public mac_subframe_time_mapper
@@ -202,6 +203,8 @@ public:
   }
 
   void handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& req) override {}
+
+  void handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& req) override {}
 
   mac_cell_rach_handler& get_cell_rach_handler(du_cell_index_t cell_index) override { return rach_handler; }
 };

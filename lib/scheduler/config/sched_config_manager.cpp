@@ -121,6 +121,12 @@ void sched_config_manager::update_cell(const sched_cell_reconfiguration_request_
   }
 }
 
+void sched_config_manager::update_ntn_ul_ta(const sched_cell_ntn_ul_ta_update& req)
+{
+  ocudu_assert(added_cells.contains(req.cell_index), "cell={} does not exist", fmt::underlying(req.cell_index));
+  added_cells[req.cell_index]->ntn_ref_location_ul_ta = req.ref_location_ul_ta;
+}
+
 void sched_config_manager::rem_cell(du_cell_index_t cell_index)
 {
   const du_cell_group_index_t group_index = added_cells[cell_index]->cell_group_index;

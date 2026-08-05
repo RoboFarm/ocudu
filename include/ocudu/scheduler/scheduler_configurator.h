@@ -50,6 +50,16 @@ struct sched_cell_configuration_request_message {
   metrics_config metrics;
 };
 
+/// \brief Update of the uplink timing advance at the reference location of an NTN cell.
+///
+/// Sent whenever the NTN configuration manager recomputes T_TA, which tracks the satellite movement. See
+/// \c ntn_cell_params::ref_location_ul_ta.
+struct sched_cell_ntn_ul_ta_update {
+  du_cell_index_t cell_index;
+  /// Uplink timing advance T_TA of a UE at the cell reference location (TS 38.211, Section 4.3.1).
+  std::chrono::microseconds ref_location_ul_ta;
+};
+
 /// Cell Reconfiguration Request.
 struct sched_cell_reconfiguration_request_message {
   std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
@@ -151,6 +161,10 @@ public:
 
   /// \brief Handle slice reconfiguration request of a cell.
   virtual void handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& msg) = 0;
+
+  /// \brief Handle an update of the uplink timing advance at the reference location of an NTN cell.
+  /// \remark This method needs to be called in the same thread as the slot_indication() method.
+  virtual void handle_ntn_ul_ta_update(const sched_cell_ntn_ul_ta_update& msg) = 0;
 };
 
 class scheduler_ue_configurator
