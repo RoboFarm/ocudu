@@ -6,9 +6,9 @@
 
 #include "ocudu/adt/expected.h"
 #include "ocudu/ran/plmn_identity.h"
-#include "ocudu/ran/s_nssai.h"
 
 namespace ocudu {
+struct s_nssai_t;
 
 namespace odu {
 class du_configurator;

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "ocudu/f1ap/f1ap_message.h"
 #include "ocudu/f1ap/f1ap_ue_id_types.h"
 #include "ocudu/ran/nr_cgi.h"
 #include "ocudu/ran/rb_id.h"

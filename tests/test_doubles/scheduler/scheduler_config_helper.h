@@ -5,9 +5,13 @@
 #pragma once
 
 #include "lib/scheduler/ue_context/ue_fsm_states.h"
+#include "ocudu/ran/logical_channel/lcid.h"
 #include "ocudu/scheduler/config/cell_config_builder_params.h"
-#include "ocudu/scheduler/config/ran_cell_config.h"
 #include "ocudu/scheduler/scheduler_configurator.h"
+
+namespace ocudu {
+struct ran_cell_config;
+} // namespace ocudu
 
 namespace ocudu::sched_config_helper {
 

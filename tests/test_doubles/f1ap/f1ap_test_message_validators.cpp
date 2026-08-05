@@ -9,6 +9,8 @@
 #include "ocudu/asn1/f1ap/f1ap_pdu_contents.h"
 #include "ocudu/f1ap/du/f1ap_du_connection_manager.h"
 #include "ocudu/f1ap/f1ap_message.h"
+#include "ocudu/f1ap/f1ap_ue_id_types.h"
+#include "ocudu/ran/rnti.h"
 
 using namespace ocudu;
 using namespace asn1::f1ap;

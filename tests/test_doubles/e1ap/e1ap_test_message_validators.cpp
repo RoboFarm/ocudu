@@ -7,6 +7,7 @@
 #include "ocudu/asn1/e1ap/e1ap.h"
 #include "ocudu/asn1/e1ap/e1ap_pdu_contents.h"
 #include "ocudu/e1ap/common/e1ap_message.h"
+#include "ocudu/ran/cu_types.h"
 
 using namespace ocudu;
 

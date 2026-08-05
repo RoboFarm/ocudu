@@ -4,9 +4,11 @@
 
 #pragma once
 
+#include "ocudu/ran/rnti.h"
 #include "ocudu/scheduler/result/sched_result.h"
 
 namespace ocudu {
+struct csi_report_configuration;
 
 inline const pdcch_dl_information* find_ue_dl_pdcch(rnti_t rnti, const dl_sched_result& res)
 {

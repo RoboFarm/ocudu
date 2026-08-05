@@ -4,10 +4,13 @@
 
 #pragma once
 
+#include "ocudu/ran/bs_channel_bandwidth.h"
 #include "ocudu/ran/duplex_mode.h"
+#include "ocudu/ran/nr_band.h"
 #include "ocudu/scheduler/config/cell_config_builder_params.h"
 
 namespace ocudu {
+
 namespace cell_config_builder_profiles {
 
 /// Create basic cell build parameters with given duplex mode, frequency range and bandwidth.

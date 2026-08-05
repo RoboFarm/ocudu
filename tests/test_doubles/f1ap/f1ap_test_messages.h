@@ -10,13 +10,12 @@
 #include "../rrc/rrc_packed_test_messages.h"
 #include "ocudu/adt/byte_buffer.h"
 #include "ocudu/asn1/f1ap/f1ap_ies.h"
-#include "ocudu/f1ap/common/interface_management.h"
 #include "ocudu/f1ap/f1ap_message.h"
 #include "ocudu/f1ap/f1ap_ue_id_types.h"
 #include "ocudu/ran/arfcn.h"
 #include "ocudu/ran/gnb_du_id.h"
 #include "ocudu/ran/nr_band.h"
-#include "ocudu/ran/nr_cgi.h"
+#include "ocudu/ran/nr_cell_identity.h"
 #include "ocudu/ran/pci.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/ran/positioning/positioning_ids.h"
@@ -26,6 +25,8 @@
 #include "ocudu/ran/tac.h"
 
 namespace ocudu {
+struct f1ap_cell_failed_to_activate;
+struct nr_cell_global_id_t;
 
 struct f1ap_message;
 

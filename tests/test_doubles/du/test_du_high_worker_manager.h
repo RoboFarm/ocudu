@@ -5,12 +5,14 @@
 #pragma once
 
 #include "ocudu/adt/span.h"
-#include "ocudu/du/du_high/du_high_executor_mapper.h"
-#include "ocudu/support/executors/unique_thread.h"
 
 namespace ocudu {
 
 class timer_manager;
+class task_executor;
+namespace odu {
+class du_high_executor_mapper;
+} // namespace odu
 
 namespace test_helpers {
 
