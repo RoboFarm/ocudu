@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ocudu/adt/byte_buffer.h"
+#include "ocudu/ran/cause/common.h"
 #include "ocudu/ran/cause/e1ap_cause.h"
 #include "ocudu/ran/cause/f1ap_cause.h"
 #include "ocudu/ran/cause/ngap_cause.h"
@@ -15,6 +16,7 @@
 #include "ocudu/ran/tai.h"
 #include "fmt/format.h"
 #include <cstdint>
+#include <optional>
 #include <type_traits>
 
 namespace ocudu {

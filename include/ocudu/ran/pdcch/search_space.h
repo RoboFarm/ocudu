@@ -9,6 +9,7 @@
 #include "ocudu/ran/nr_band.h"
 #include "ocudu/ran/pdcch/coreset.h"
 #include "ocudu/ran/slot_point.h"
+#include "ocudu/ran/subcarrier_spacing.h"
 #include "ocudu/scheduler/sched_consts.h"
 #include <variant>
 

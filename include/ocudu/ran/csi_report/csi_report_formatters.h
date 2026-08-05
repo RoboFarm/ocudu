@@ -8,6 +8,7 @@
 #include "ocudu/ran/csi_report/csi_report_data.h"
 #include "ocudu/ran/csi_report/csi_report_size.h"
 #include "ocudu/ran/uci/uci_formatters.h"
+#include "ocudu/support/format/delimited_formatter.h"
 #include "fmt/std.h"
 
 /// Custom formatter for \c ocudu::csi_report_configuration.

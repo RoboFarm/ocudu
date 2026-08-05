@@ -9,7 +9,6 @@
 #include "ocudu/adt/static_vector.h"
 #include "ocudu/ran/precoding/precoding_matrix_indicator.h"
 #include <optional>
-#include <variant>
 
 namespace ocudu {
 

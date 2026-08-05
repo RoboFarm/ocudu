@@ -9,7 +9,6 @@
 #include "ocudu/ran/prach/prach_configuration.h"
 #include "ocudu/ran/prach/restricted_set_config.h"
 #include "ocudu/ran/sch/sch_mcs.h"
-#include "ocudu/ran/subcarrier_spacing.h"
 #include <chrono>
 #include <optional>
 #include <vector>

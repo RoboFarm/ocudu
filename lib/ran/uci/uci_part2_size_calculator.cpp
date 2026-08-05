@@ -3,7 +3,6 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ocudu/ran/uci/uci_part2_size_calculator.h"
-#include "ocudu/support/math/math_utils.h"
 
 using namespace ocudu;
 

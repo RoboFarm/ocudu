@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ocudu/ran/subcarrier_spacing.h"
+#include <cstdint>
 
 namespace ocudu {
 

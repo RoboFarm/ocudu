@@ -4,7 +4,6 @@
 
 #include "ocudu/ran/csi_report/csi_report_on_pusch_helpers.h"
 #include "csi_report_on_puxch_helpers.h"
-#include "ocudu/adt/interval.h"
 #include "ocudu/ran/csi_report/csi_report_config_helpers.h"
 #include "ocudu/support/error_handling.h"
 

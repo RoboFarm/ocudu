@@ -5,7 +5,6 @@
 #pragma once
 
 #include "ocudu/support/ocudu_assert.h"
-#include "fmt/std.h"
 #include <cstdint>
 
 namespace ocudu {

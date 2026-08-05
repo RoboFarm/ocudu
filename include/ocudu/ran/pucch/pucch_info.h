@@ -5,7 +5,6 @@
 #pragma once
 
 #include "ocudu/adt/bounded_integer.h"
-#include "ocudu/adt/to_array.h"
 #include "ocudu/ran/pucch/pucch_configuration.h"
 #include "ocudu/ran/pucch/pucch_constants.h"
 #include "ocudu/ran/resource_block.h"

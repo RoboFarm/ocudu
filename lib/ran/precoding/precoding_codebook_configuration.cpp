@@ -5,6 +5,7 @@
 #include "ocudu/ran/precoding/precoding_codebook_configuration.h"
 #include "ocudu/adt/to_array.h"
 #include "ocudu/ran/precoding/precoding_codebook_helpers.h"
+#include "ocudu/ran/precoding/precoding_codebook_properties.h"
 #include "ocudu/support/ocudu_assert.h"
 
 using namespace ocudu;

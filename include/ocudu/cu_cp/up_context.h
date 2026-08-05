@@ -11,6 +11,7 @@
 #include "ocudu/ran/rb_id.h"
 #include "ocudu/ran/rlc_mode.h"
 #include "ocudu/ran/up_transport_layer_info.h"
+#include <bitset>
 #include <map>
 
 namespace ocudu::ocucp {

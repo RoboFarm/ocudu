@@ -6,7 +6,6 @@
 
 #include "ocudu/adt/interval.h"
 #include "ocudu/ran/uci/uci_constants.h"
-#include "ocudu/support/math/math_utils.h"
 #include "ocudu/support/ocudu_assert.h"
 #include <array>
 

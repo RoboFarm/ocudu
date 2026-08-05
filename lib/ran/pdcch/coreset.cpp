@@ -4,6 +4,7 @@
 
 #include "ocudu/ran/pdcch/coreset.h"
 #include "ocudu/ran/pdcch/pdcch_type0_css_coreset_config.h"
+#include "ocudu/ran/ssb/ssb_properties.h"
 
 using namespace ocudu;
 

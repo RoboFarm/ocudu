@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ocudu/ran/antenna_topology.h"
 #include "ocudu/ran/beamforming/beam_identifier.h"
 
 namespace ocudu {

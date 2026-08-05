@@ -7,7 +7,6 @@
 #include "ocudu/ran/srs/srs_bandwidth_configuration.h"
 #include "ocudu/ran/srs/srs_resource_configuration.h"
 #include "ocudu/support/ocudu_assert.h"
-#include <cmath>
 
 using namespace ocudu;
 

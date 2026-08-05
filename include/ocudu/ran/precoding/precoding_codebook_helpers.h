@@ -13,6 +13,7 @@
 /// This file contains structures that extend the information from the PMI codebooks.
 
 namespace ocudu {
+struct pmi_codebook_typeI_single_panel;
 
 /// Single-panel codebook configuration of \f$(N_1, N_2)\f$ and \f$(O_1, O_2)\f$
 struct pmi_codebook_single_panel_info {

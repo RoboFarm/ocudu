@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ocudu/ran/prach/prach_configuration.h"
+#include "ocudu/ran/duplex_mode.h"
 
 using namespace ocudu;
 

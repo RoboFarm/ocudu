@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "ocudu/adt/span.h"
 #include "ocudu/ran/uci/uci_part2_size_description.h"
 #include "ocudu/ran/uci/uci_payload_type.h"
 #include "ocudu/support/units.h"

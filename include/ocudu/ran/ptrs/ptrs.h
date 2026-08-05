@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "ocudu/adt/bounded_integer.h"
-
 namespace ocudu {
 
 /// Phase Tracking Reference Signals (PT-RS) frequency domain density.
