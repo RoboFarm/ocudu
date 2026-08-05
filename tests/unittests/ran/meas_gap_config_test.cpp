@@ -56,3 +56,75 @@ TEST(is_inside_meas_gap_test, gap_spans_exactly_mgl_slots)
   }
   EXPECT_FALSE(is_inside_meas_gap(test_gap, slot_at_gap_phase(6)));
 }
+
+TEST(is_inside_ul_meas_gap_test, untracked_timing_advance_still_covers_the_trailing_slot)
+{
+  // An untracked T_TA gets no leading guard, but keeps the trailing slot: a terrestrial UE is advanced by its own round
+  // trip, which the caller does not report. So the window is MGL + 1 slots at phases 0..6, unshifted.
+  constexpr std::optional<std::chrono::microseconds> no_ul_ta = std::nullopt;
+
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(79), no_ul_ta));
+  for (unsigned phase = 0; phase != 7; ++phase) {
+    EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(phase), no_ul_ta)) << "phase " << phase;
+  }
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(7), no_ul_ta));
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(14), no_ul_ta));
+}
+
+TEST(is_inside_ul_meas_gap_test, ul_gap_is_shifted_by_the_ue_timing_advance)
+{
+  // NTN cell with a feeder link: T_TA is ta-Common (7.3ms, feeder link round trip) plus the service link round trip
+  // (7.3ms). The UE transmits uplink slot S at position S - T_TA on its downlink grid (TS 38.211, Section 4.3.1), so
+  // the slots it cannot transmit in are those whose phase falls at T_TA past the gap offset, not at the gap offset.
+  constexpr std::chrono::microseconds ul_ta{14600};
+
+  // Phase 14 is where the UE actually drops the transmission.
+  EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(14), ul_ta));
+  // Phase 0 is where an unshifted check would wrongly withhold the grant: the UE can transmit there.
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(0), ul_ta));
+}
+
+TEST(is_inside_ul_meas_gap_test, ul_gap_is_guarded_at_each_edge)
+{
+  // A guard slot at each edge on top of the slot the trailing edge gets for the truncation of T_TA, so the window spans
+  // MGL + 3 slots: phases 13..21 for a T_TA of 14 slots.
+  constexpr std::chrono::microseconds ul_ta{14600};
+
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(12), ul_ta));
+  for (unsigned phase = 13; phase != 22; ++phase) {
+    EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(phase), ul_ta)) << "phase " << phase;
+  }
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(22), ul_ta));
+}
+
+TEST(is_inside_ul_meas_gap_test, the_guard_keeps_its_duration_when_the_cell_scs_grows)
+{
+  // The 1ms guard spans 2 slots at 30kHz, not 1. T_TA is a whole number of milliseconds here, so that it truncates to
+  // the same physical time on either grid.
+  constexpr std::chrono::microseconds ul_ta{14000};
+  constexpr unsigned                  slots_per_sf = 2;
+
+  // The first slot of the subframe sitting \c phase_ms after the gap offset, on a 30kHz grid.
+  auto slot_at_30khz_gap_phase_ms = [](unsigned phase_ms) {
+    const unsigned slot_idx = (70 * static_cast<unsigned>(test_gap.mgrp) + test_gap.offset + phase_ms) * slots_per_sf;
+    return slot_point{subcarrier_spacing::kHz30, slot_idx / (10 * slots_per_sf), slot_idx % (10 * slots_per_sf)};
+  };
+
+  // The same subframes are protected as at 15kHz. A guard of one 30kHz slot would leave phases 13 and 21 exposed.
+  EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_30khz_gap_phase_ms(13), ul_ta)) << "leading guard";
+  EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_30khz_gap_phase_ms(21), ul_ta)) << "trailing guard";
+  // One subframe further out on each side is free again.
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_30khz_gap_phase_ms(12), ul_ta));
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_30khz_gap_phase_ms(22), ul_ta));
+}
+
+TEST(is_inside_ul_meas_gap_test, timing_advance_longer_than_the_gap_period_wraps)
+{
+  // A GEO cell has a T_TA of several hundred milliseconds, well beyond one MGRP. Only T_TA modulo MGRP determines the
+  // position of the window, so a large T_TA does not widen it beyond the usual MGL + 3 slots.
+  constexpr std::chrono::microseconds geo_ul_ta{480000};
+
+  // 480ms modulo 80ms is 0, so the uplink window lands back on the gap offset.
+  EXPECT_TRUE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(0), geo_ul_ta));
+  EXPECT_FALSE(is_inside_ul_meas_gap(test_gap, slot_at_gap_phase(14), geo_ul_ta));
+}
