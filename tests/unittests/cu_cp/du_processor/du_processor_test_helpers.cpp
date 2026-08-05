@@ -152,7 +152,6 @@ du_processor_test::du_processor_test() :
                           .force_resume_fallback          = cu_cp_cfg.rrc.force_resume_fallback,
                           .rrc_procedure_guard_time_ms    = cu_cp_cfg.rrc.rrc_procedure_guard_time_ms,
                           .rrc_version                    = cu_cp_cfg.rrc.rrc_version,
-                          .nof_i_rnti_ue_bits             = cu_cp_cfg.ue.nof_i_rnti_ue_bits,
                           .f1ap                           = cu_cp_cfg.f1ap},
       du_processor_dependencies{.cu_cp_executor           = ctrl_worker,
                                 .timers                   = timers,

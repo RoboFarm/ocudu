@@ -26,7 +26,6 @@ struct du_processor_config {
   std::chrono::milliseconds                rrc_procedure_guard_time_ms;
   std::optional<std::chrono::seconds>      rrc_reject_wait_time;
   unsigned                                 rrc_version;
-  uint8_t                                  nof_i_rnti_ue_bits;
   f1ap_configuration                       f1ap;
 };
 

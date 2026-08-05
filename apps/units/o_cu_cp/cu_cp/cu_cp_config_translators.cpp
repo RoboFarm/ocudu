@@ -478,13 +478,21 @@ generate_security_conf(const cu_cp_unit_security_config& security_config)
 /// Generates the UE configuration and returns it.
 static ocucp::ue_configuration generate_ue_conf(const cu_cp_unit_config& cu_cfg)
 {
-  return ocucp::ue_configuration{.inactivity_timer = std::chrono::seconds{cu_cfg.inactivity_timer},
+  ocucp::ue_configuration ue_cfg{.inactivity_timer = std::chrono::seconds{cu_cfg.inactivity_timer},
                                  .request_pdu_session_timeout =
                                      std::chrono::seconds{cu_cfg.request_pdu_session_timeout},
                                  .enable_rrc_inactive = cu_cfg.enable_rrc_inactive,
                                  .ran_paging_cycle    = cu_cfg.ran_paging_cycle,
-                                 .t380                = std::chrono::minutes{cu_cfg.t380},
-                                 .nof_i_rnti_ue_bits  = cu_cfg.nof_i_rnti_ue_bits};
+                                 .t380                = std::chrono::minutes{cu_cfg.t380}};
+
+  if (!from_string(ue_cfg.full_i_rnti_prof, cu_cfg.full_i_rnti_profile)) {
+    report_error("Invalid value for full_i_rnti_profile={}.\n", cu_cfg.full_i_rnti_profile);
+  }
+  if (!from_string(ue_cfg.short_i_rnti_prof, cu_cfg.short_i_rnti_profile)) {
+    report_error("Invalid value for short_i_rnti_profile={}.\n", cu_cfg.short_i_rnti_profile);
+  }
+
+  return ue_cfg;
 }
 
 /// Generates the metrics configuration and returns it.

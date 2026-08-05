@@ -232,7 +232,7 @@ public:
         crnti_2,
         plmn_identity::test_value(),
         {},
-        test_helpers::pack_ul_ccch_msg(test_helpers::create_rrc_resume_request(0x36000)));
+        test_helpers::pack_ul_ccch_msg(test_helpers::create_rrc_resume_request(0x4d8000)));
     test_logger.info("c-rnti={} du_ue={}: Injecting Initial UL RRC message", crnti_2, fmt::underlying(du_ue_id_2));
     get_du(du_idx).push_ul_pdu(init_ul_rrc_msg);
     report_fatal_error_if_not(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu),
@@ -252,7 +252,7 @@ public:
         plmn_identity::test_value(),
         {},
         test_helpers::pack_ul_ccch_msg(test_helpers::create_rrc_resume_request(
-            0x36000, "1111010001000010", asn1::rrc_nr::resume_cause_opts::rna_upd)));
+            0x4d8000, "1111010001000010", asn1::rrc_nr::resume_cause_opts::rna_upd)));
     test_logger.info("c-rnti={} du_ue={}: Injecting Initial UL RRC message", crnti_2, fmt::underlying(du_ue_id_2));
     get_du(du_idx).push_ul_pdu(init_ul_rrc_msg);
     report_fatal_error_if_not(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu),
@@ -264,7 +264,7 @@ public:
   }
 
   [[nodiscard]] bool
-  send_init_ul_rrc_message_transfer_and_await_rrc_setup(uint64_t           resume_id    = 0x36000,
+  send_init_ul_rrc_message_transfer_and_await_rrc_setup(uint64_t           resume_id    = 0x4d8000,
                                                         const std::string& resume_mac_i = "1111010001000010")
   {
     // Inject Initial UL RRC message and await DL RRC Message Transfer with RRC Setup.
@@ -285,7 +285,7 @@ public:
   }
 
   [[nodiscard]] bool send_init_ul_rrc_message_transfer_and_await_ngap_ue_context_release_request(
-      uint64_t           resume_id    = 0x36000,
+      uint64_t           resume_id    = 0x4d8000,
       const std::string& resume_mac_i = "1111010001000010")
   {
     // Inject Initial UL RRC message and await NGAP UE Context Release Request.
@@ -866,7 +866,7 @@ TEST_F(cu_cp_rrc_inactive_test, when_ue_becomes_inactive_after_resume_then_resum
 
   // Successfully resume UE.
   ASSERT_TRUE(
-      resume_ue(du_ue_id_2, crnti_2, 0x36000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
 
   // Check metrics for attempted/successful RRC resume.
   report = this->get_cu_cp().get_metrics_handler().request_metrics_report();
@@ -893,7 +893,7 @@ TEST_F(cu_cp_rrc_inactive_test, when_ue_becomes_inactive_after_resume_then_resum
 
   // Successfully resume UE.
   ASSERT_TRUE(
-      resume_ue(du_ue_id_3, crnti_3, 0x36001, "1010101010011111", make_byte_buffer("00002240006f0cba6b").value()));
+      resume_ue(du_ue_id_3, crnti_3, 0x4d8001, "1010101010011111", make_byte_buffer("00002240006f0cba6b").value()));
 
   // Check metrics for successful RRC resume.
   report = this->get_cu_cp().get_metrics_handler().request_metrics_report();
@@ -945,7 +945,8 @@ TEST_F(cu_cp_rrc_inactive_test, when_rrc_resume_request_with_invalid_resume_mac_
 
   // Send Initial UL RRC Message containing RRC Resume Request with invalid ResumeMAC-I and await NGAP UE Context
   // Release Request.
-  ASSERT_TRUE(send_init_ul_rrc_message_transfer_and_await_ngap_ue_context_release_request(0x36000, "0000000000000000"));
+  ASSERT_TRUE(
+      send_init_ul_rrc_message_transfer_and_await_ngap_ue_context_release_request(0x4d8000, "0000000000000000"));
 
   // Inject NGAP UE Context Release Command and await Bearer Context Release Command.
   ASSERT_TRUE(send_ngap_ue_context_release_command_and_await_bearer_context_release_command());
@@ -1153,7 +1154,7 @@ TEST_F(cu_cp_rrc_inactive_test, when_ue_resumes_after_rna_update_resume_then_sec
   gnb_du_ue_f1ap_id_t du_ue_id_3 = int_to_gnb_du_ue_f1ap_id(2);
   rnti_t              crnti_3    = to_rnti(0x4603);
   ASSERT_TRUE(
-      resume_ue(du_ue_id_3, crnti_3, 0x36001, "1010101010011111", make_byte_buffer("00002040001dca1c36").value()));
+      resume_ue(du_ue_id_3, crnti_3, 0x4d8001, "1010101010011111", make_byte_buffer("00002040001dca1c36").value()));
 
   // Check metrics for successful RRC resume.
   report = this->get_cu_cp().get_metrics_handler().request_metrics_report();
@@ -1221,7 +1222,7 @@ TEST_F(
 
   // Successfully resume UE.
   ASSERT_TRUE(
-      resume_ue(du_ue_id_2, crnti_2, 0x36000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
 
   // Await DL RRC Message Transfer containing the DL NAS Transport.
   ASSERT_TRUE(await_dl_rrc_message_transfer(du_idx));
@@ -1250,7 +1251,7 @@ TEST_F(
 
   // Successfully resume UE.
   ASSERT_TRUE(
-      resume_ue(du_ue_id_2, crnti_2, 0x36000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
 
   // Await first DL RRC Message Transfer containing the DL NAS Transport.
   ASSERT_TRUE(await_dl_rrc_message_transfer(du_idx));
@@ -1301,7 +1302,7 @@ TEST_F(cu_cp_rrc_inactive_test, when_location_reporting_is_configured_and_ue_res
 
   // Resume UE from RRC Inactive (UE connects from a new cell with new C-RNTI).
   ASSERT_TRUE(
-      resume_ue(du_ue_id_2, crnti_2, 0x36000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
 
   // Expect a Location Report to be sent to the AMF after the resume.
   ASSERT_TRUE(this->wait_for_ngap_tx_pdu(ngap_pdu));
@@ -1331,7 +1332,7 @@ TEST_F(cu_cp_rrc_inactive_test,
 
   // Resume UE from RRC Inactive on the same cell — no cell change occurred.
   ASSERT_TRUE(
-      resume_ue(du_ue_id_2, crnti_2, 0x36000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
 
   // No Location Report should be sent since the serving cell did not change.
   ASSERT_FALSE(this->wait_for_ngap_tx_pdu(ngap_pdu, std::chrono::milliseconds{5}));

@@ -33,7 +33,6 @@ struct du_repository_config {
   std::optional<std::chrono::seconds>           rrc_reject_wait_time;
   unsigned                                      rrc_version;
   bool                                          enable_rrc_metrics;
-  uint8_t                                       nof_i_rnti_ue_bits;
   f1ap_configuration                            f1ap;
 };
 

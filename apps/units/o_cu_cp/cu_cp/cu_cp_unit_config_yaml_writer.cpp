@@ -349,8 +349,9 @@ static void fill_cu_cp_section(YAML::Node node, const cu_cp_unit_config& config)
   node["inactivity_timer"]            = config.inactivity_timer;
   node["enable_rrc_inactive"]         = config.enable_rrc_inactive;
   node["ran_paging_cycle"]            = static_cast<unsigned>(config.ran_paging_cycle);
+  node["full_i_rnti_profile"]         = config.full_i_rnti_profile;
+  node["short_i_rnti_profile"]        = config.short_i_rnti_profile;
   node["t380"]                        = config.t380;
-  node["nof_i_rnti_ue_bits"]          = static_cast<unsigned>(config.nof_i_rnti_ue_bits);
   node["request_pdu_session_timeout"] = config.request_pdu_session_timeout;
 
   node["amf"] = build_cu_cp_amf_section(config.amf_config);

@@ -91,11 +91,9 @@ public:
 
   /// \brief Get the RRC Resume context containing the resume ID and resume cause from a RRC container.
   /// \param[in] rrc_container The RRC container from the DU.
-  /// \param[in] nof_i_rnti_ue_bits Number of bits used for the I-RNTI UE.
   /// \returns The RRC Resume context if the container contains a valid UL CCCH Message, std::nullopt if an error
   /// occured e.g. during unpacking.
-  virtual std::optional<rrc_resume_context_t> get_rrc_resume_context(byte_buffer rrc_container,
-                                                                     uint8_t     nof_i_rnti_ue_bits) = 0;
+  virtual std::optional<rrc_resume_context_t> get_rrc_resume_context(byte_buffer rrc_container) = 0;
 
   /// Creates a new RRC UE object and returns a handle to it.
   virtual rrc_ue_interface* add_ue(const rrc_ue_creation_message& msg) = 0;

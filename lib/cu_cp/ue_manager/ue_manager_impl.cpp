@@ -15,9 +15,12 @@ void cu_cp_ue::stop()
 }
 
 ue_manager::ue_manager(const ue_manager_config& cfg, const ue_manager_dependencies& dependencies) :
-  next_i_rntis({short_i_rnti_t{cfg.gnb_id.id, 0, cfg.ue.nof_i_rnti_ue_bits},
-                full_i_rnti_t{cfg.gnb_id.id, 0, cfg.ue.nof_i_rnti_ue_bits}}),
-  gnb_id(cfg.gnb_id),
+  next_i_rntis({short_i_rnti_t{cfg.ue.short_i_rnti_prof,
+                               short_i_rnti_t::to_local_node_id(cfg.ue.short_i_rnti_prof, cfg.gnb_id.id),
+                               0},
+                full_i_rnti_t{cfg.ue.full_i_rnti_prof,
+                              full_i_rnti_t::to_local_node_id(cfg.ue.full_i_rnti_prof, cfg.gnb_id.id),
+                              0}}),
   enable_rrc_metrics(cfg.enable_rrc_metrics),
   ue_config(cfg.ue),
   up_config(up_resource_manager_cfg{cfg.drb_config, cfg.max_nof_drbs_per_ue}),

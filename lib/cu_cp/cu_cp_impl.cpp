@@ -137,7 +137,6 @@ cu_cp_impl::cu_cp_impl(const cu_cp_configuration& config_) :
                              .rrc_reject_wait_time           = cfg.rrc.rrc_reject_wait_time,
                              .rrc_version                    = cfg.rrc.rrc_version,
                              .enable_rrc_metrics             = cfg.metrics.layers_cfg.enable_rrc_metrics,
-                             .nof_i_rnti_ue_bits             = cfg.ue.nof_i_rnti_ue_bits,
                              .f1ap                           = cfg.f1ap},
         du_repository_dependencies{.cu_cp_executor           = *cfg.services.cu_cp_executor,
                                    .timers                   = *cfg.services.timers,

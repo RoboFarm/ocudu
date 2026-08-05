@@ -293,8 +293,7 @@ du_processor_impl::handle_ue_rrc_context_creation_request(const ue_rrc_context_c
 
   // Check if this is a RRC Resume request for an existing UE.
   if (not req.rrc_container.empty()) {
-    std::optional<rrc_resume_context_t> resume_context =
-        rrc->get_rrc_resume_context(req.rrc_container.copy(), cfg.nof_i_rnti_ue_bits);
+    std::optional<rrc_resume_context_t> resume_context = rrc->get_rrc_resume_context(req.rrc_container.copy());
     if (!resume_context.has_value()) {
       logger.warning("ue={}: Could not extract RRC Resume context from UL CCCH Message", req.ue_index);
       // Schedule UE context release and return error response.

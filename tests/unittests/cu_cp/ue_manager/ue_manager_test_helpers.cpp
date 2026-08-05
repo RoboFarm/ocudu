@@ -12,13 +12,16 @@
 using namespace ocudu;
 using namespace ocucp;
 
-ue_manager_test::ue_manager_test() :
-  cu_cp_cfg([this]() {
+ue_manager_test::ue_manager_test() : ue_manager_test(config_helpers::make_default_cu_cp_config().node.gnb_id) {}
+
+ue_manager_test::ue_manager_test(gnb_id_t gnb_id_) :
+  cu_cp_cfg([this, gnb_id_]() {
     cu_cp_configuration cucfg     = config_helpers::make_default_cu_cp_config();
     cucfg.services.timers         = &timers;
     cucfg.services.cu_cp_executor = &cu_worker;
     cucfg.admission.max_nof_dus   = 6;
     cucfg.admission.max_nof_ues   = cucfg.admission.max_nof_dus * ues_per_du;
+    cucfg.node.gnb_id             = gnb_id_;
     return cucfg;
   }()),
   ue_cfg([this]() {

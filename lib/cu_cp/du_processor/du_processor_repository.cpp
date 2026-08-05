@@ -63,7 +63,6 @@ cu_cp_du_index_t du_processor_repository::add_du(std::unique_ptr<f1ap_message_no
                                                  .rrc_procedure_guard_time_ms    = cfg.rrc_procedure_guard_time_ms,
                                                  .rrc_reject_wait_time           = cfg.rrc_reject_wait_time,
                                                  .rrc_version                    = cfg.rrc_version,
-                                                 .nof_i_rnti_ue_bits             = cfg.nof_i_rnti_ue_bits,
                                                  .f1ap                           = cfg.f1ap};
   du_processor_dependencies     du_processor_deps{.cu_cp_executor           = cu_cp_executor,
                                                   .timers                   = timers,

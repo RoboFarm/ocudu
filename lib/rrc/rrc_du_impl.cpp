@@ -211,8 +211,7 @@ byte_buffer rrc_du_impl::pack_meas_config(const rrc_meas_cfg& meas_cfg)
   return pack_into_pdu(meas_config_to_rrc_asn1(meas_cfg), "RRCMeasConfig");
 }
 
-std::optional<rrc_resume_context_t> rrc_du_impl::get_rrc_resume_context(byte_buffer rrc_container,
-                                                                        uint8_t     nof_i_rnti_ue_bits)
+std::optional<rrc_resume_context_t> rrc_du_impl::get_rrc_resume_context(byte_buffer rrc_container)
 {
   if (rrc_container.empty()) {
     return std::nullopt;
@@ -242,8 +241,7 @@ std::optional<rrc_resume_context_t> rrc_du_impl::get_rrc_resume_context(byte_buf
 
     // Extract Short-I-RNTI.
     expected<short_i_rnti_t> resume_id = short_i_rnti_t::from_uint(
-        static_cast<uint32_t>(ul_ccch_msg.msg.c1().rrc_resume_request().rrc_resume_request.resume_id.to_number()),
-        nof_i_rnti_ue_bits);
+        static_cast<uint32_t>(ul_ccch_msg.msg.c1().rrc_resume_request().rrc_resume_request.resume_id.to_number()));
     if (!resume_id.has_value()) {
       logger.error("Invalid Resume ID in RRC Resume Request (ASN.1 short-i-rnti=0x{:x})",
                    ul_ccch_msg.msg.c1().rrc_resume_request().rrc_resume_request.resume_id.to_number());
@@ -274,8 +272,8 @@ std::optional<rrc_resume_context_t> rrc_du_impl::get_rrc_resume_context(byte_buf
   }
 
   // Extract Full-I-RNTI.
-  expected<full_i_rnti_t> resume_id = full_i_rnti_t::from_uint(
-      ul_ccch1_msg.msg.c1().rrc_resume_request1().rrc_resume_request1.resume_id.to_number(), nof_i_rnti_ue_bits);
+  expected<full_i_rnti_t> resume_id =
+      full_i_rnti_t::from_uint(ul_ccch1_msg.msg.c1().rrc_resume_request1().rrc_resume_request1.resume_id.to_number());
   if (!resume_id.has_value()) {
     logger.error("Invalid Resume ID in RRC Resume Request (ASN.1 full-i-rnti=0x{:x})",
                  ul_ccch1_msg.msg.c1().rrc_resume_request1().rrc_resume_request1.resume_id.to_number());

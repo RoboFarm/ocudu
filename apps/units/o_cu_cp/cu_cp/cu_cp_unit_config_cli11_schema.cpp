@@ -780,11 +780,18 @@ static void configure_cli11_cu_cp_args(CLI::App& app, cu_cp_unit_config& cu_cp_p
       ->check(CLI::IsMember({5, 10, 20, 30, 60, 120, 360, 720}));
 
   add_option(app,
-             "--nof_i_rnti_ue_bits",
-             cu_cp_params.nof_i_rnti_ue_bits,
-             "Number of bits used for the UE id in short and full I-RNTI")
+             "--full_i_rnti_profile",
+             cu_cp_params.full_i_rnti_profile,
+             "I-RNTI profile of the Full-I-RNTI, which sets the width of the Local NG-RAN Node Identifier it carries")
       ->capture_default_str()
-      ->check(CLI::Range(1, 18));
+      ->check(CLI::IsMember({"profile0", "profile1", "profile2", "profile3"}));
+
+  add_option(app,
+             "--short_i_rnti_profile",
+             cu_cp_params.short_i_rnti_profile,
+             "I-RNTI profile of the Short-I-RNTI, which sets the width of the Local NG-RAN Node Identifier it carries")
+      ->capture_default_str()
+      ->check(CLI::IsMember({"profile0", "profile1"}));
 
   add_option(app,
              "--request_pdu_session_timeout",

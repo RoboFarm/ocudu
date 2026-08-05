@@ -467,10 +467,12 @@ struct cu_cp_unit_config {
   bool enable_rrc_inactive = false;
   /// RAN Paging cycle for RRC inactive UEs in number of radio frames.
   uint8_t ran_paging_cycle = 32;
+  /// I-RNTI profile used to compose the Full-I-RNTI of a suspended UE (TS 38.300 table F-1).
+  std::string full_i_rnti_profile = "profile0";
+  /// I-RNTI profile used to compose the Short-I-RNTI of a suspended UE (TS 38.300 table F-2).
+  std::string short_i_rnti_profile = "profile0";
   /// T380 timer value in minutes.
   int t380 = 10;
-  /// Number of bits used for the UE id in short and full I-RNTI.
-  uint8_t nof_i_rnti_ue_bits = 13;
   /// PDU session request timeout in seconds (must be larger than T310).
   unsigned request_pdu_session_timeout = 3;
   /// Loggers configuration.
