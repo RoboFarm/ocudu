@@ -59,6 +59,8 @@ public:
 
   /// Outcome and payload the dummy answers a UE context retrieval with, plus the last request it saw.
   bool                                            context_retrieval_succeeds = false;
+  bool                                            path_switch_requested      = false;
+  bool                                            path_switch_succeeds       = true;
   security::security_context                      retrieved_sec_context;
   byte_buffer                                     retrieved_rrc_context;
   std::optional<rrc_ue_context_retrieval_request> last_context_retrieval_request;
@@ -77,8 +79,7 @@ public:
   async_task<rrc_ue_context_retrieval_response>
   on_ue_context_retrieval_required(const rrc_ue_context_retrieval_request& request) override
   {
-    logger.info(
-        "old_pci={} old_c-rnti={}: Received UE Context Retrieval Required", request.old_pci, request.old_c_rnti);
+    logger.info("Received UE Context Retrieval Required");
     last_context_retrieval_request = request;
 
     rrc_ue_context_retrieval_response response;
@@ -91,6 +92,17 @@ public:
           CORO_BEGIN(ctx);
           CORO_RETURN(std::move(resp));
         });
+  }
+
+  async_task<bool> on_retrieved_context_path_switch_required() override
+  {
+    logger.info("Received Retrieved Context Path Switch Required");
+    path_switch_requested = true;
+
+    return launch_async([this](coro_context<async_task<bool>>& ctx) mutable {
+      CORO_BEGIN(ctx);
+      CORO_RETURN(path_switch_succeeds);
+    });
   }
 
   async_task<bool> on_rrc_reestablishment_context_modification_required() override

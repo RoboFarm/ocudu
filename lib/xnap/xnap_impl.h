@@ -58,6 +58,11 @@ public:
     return peer_ctxt.has_value() && peer_ctxt->gnb_id == peer_gnb_id;
   }
 
+  bool has_peer_local_node_id(uint32_t node_id, unsigned nof_node_id_bits) const override
+  {
+    return peer_ctxt.has_value() && (peer_ctxt->gnb_id.id & ((1U << nof_node_id_bits) - 1)) == node_id;
+  }
+
   bool has_peer_pci(pci_t peer_pci) const override
   {
     if (!peer_ctxt.has_value()) {

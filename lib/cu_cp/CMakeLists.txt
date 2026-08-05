@@ -56,6 +56,7 @@ set(SOURCES
         routines/mobility/ue_context_retrieval_new_node_routine.cpp
         routines/mobility/retrieved_context_helpers.cpp
         routines/mobility/retrieved_context_path_switch_routine.cpp
+        routines/mobility/retrieved_context_resume_routine.cpp
         routines/mobility/retrieved_context_setup_routine.cpp
         routines/mobility/intra_cu_handover_routine.cpp
         routines/mobility/intra_cu_handover_target_routine.cpp

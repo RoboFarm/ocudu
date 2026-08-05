@@ -105,6 +105,17 @@ std::optional<xnc_peer_index_t> xnap_repository::find_xnap_index_by_served_pci(p
   return std::nullopt;
 }
 
+std::optional<xnc_peer_index_t> xnap_repository::find_xnap_index_by_local_node_id(uint32_t node_id,
+                                                                                  unsigned nof_node_id_bits)
+{
+  for (const auto& [idx, xn] : xnap_db) {
+    if (xn.xnap->has_peer_local_node_id(node_id, nof_node_id_bits)) {
+      return idx;
+    }
+  }
+  return std::nullopt;
+}
+
 std::optional<xnc_peer_index_t> xnap_repository::find_xnap_index(const gnb_id_t& peer_gnb_id)
 {
   for (const auto& [idx, xn] : xnap_db) {

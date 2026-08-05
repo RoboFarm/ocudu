@@ -232,10 +232,11 @@ rrc_reestablishment_procedure::is_local_reestablishment_accepted()
 rrc_ue_context_retrieval_request rrc_reestablishment_procedure::make_context_retrieval_request() const
 {
   rrc_ue_context_retrieval_request request{
-      .old_pci     = reestablishment_request.rrc_reest_request.ue_id.pci,
-      .old_c_rnti  = to_rnti(reestablishment_request.rrc_reest_request.ue_id.c_rnti),
-      .short_mac_i = to_short_mac_i(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number()),
-      .target_nci  = context.cell.cgi.nci};
+      .ue_id = rrc_ue_context_retrieval_id_for_reest{.old_pci    = reestablishment_request.rrc_reest_request.ue_id.pci,
+                                                     .old_c_rnti = to_rnti(
+                                                         reestablishment_request.rrc_reest_request.ue_id.c_rnti)},
+      .mac_i = to_short_mac_i(reestablishment_request.rrc_reest_request.ue_id.short_mac_i.to_number()),
+      .target_nci = context.cell.cgi.nci};
 
   // T301 is the timer the retrieval runs inside: the UE stopped T311 and started T301 when it sent the
   // RRCReestablishmentRequest (TS 38.331 section 5.3.7.3), and stops T301 only once it receives a Msg4, be it the

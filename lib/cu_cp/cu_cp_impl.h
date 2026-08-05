@@ -87,6 +87,7 @@ public:
                    handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
                                                         const rrc_ue_context_retrieval_request& request) override;
   async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) override;
+  async_task<bool> handle_retrieved_context_path_switch_required(cu_cp_ue_index_t ue_index) override;
 
   void             handle_rrc_reestablishment_failure(const cu_cp_ue_context_release_request& request) override;
   void             handle_rrc_reestablishment_complete(cu_cp_ue_index_t old_ue_index) override;

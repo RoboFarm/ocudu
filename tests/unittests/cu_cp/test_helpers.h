@@ -601,11 +601,14 @@ public:
   handle_ue_context_retrieval_required(cu_cp_ue_index_t                        ue_index,
                                        const rrc_ue_context_retrieval_request& request) override
   {
-    logger.info("ue={} old_pci={} old_c-rnti={}: Received UE Context Retrieval Required",
-                ue_index,
-                request.old_pci,
-                request.old_c_rnti);
+    logger.info("ue={}: Received UE Context Retrieval Required", ue_index);
     return launch_no_op_task(rrc_ue_context_retrieval_response{});
+  }
+
+  async_task<bool> handle_retrieved_context_path_switch_required(cu_cp_ue_index_t ue_index) override
+  {
+    logger.info("ue={}: Received Retrieved Context Path Switch Required", ue_index);
+    return launch_no_op_task(true);
   }
 
   async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) override

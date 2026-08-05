@@ -59,6 +59,12 @@ public:
   /// the wrong one makes the retrieval fail and leaves the caller to fall back.
   std::optional<xnc_peer_index_t> find_xnap_index_by_served_pci(pci_t peer_pci);
 
+  /// \brief Find the index of an XNAP object in the repository by the Local NG-RAN Node Identifier its gNB ID carries.
+  /// \param[in] node_id Local NG-RAN Node Identifier read out of an I-RNTI.
+  /// \param[in] nof_node_id_bits Width the I-RNTI profile gives the identifier.
+  /// \return The index of the XN-C peer if found, std::nullopt otherwise.
+  std::optional<xnc_peer_index_t> find_xnap_index_by_local_node_id(uint32_t node_id, unsigned nof_node_id_bits);
+
   /// \brief Find the index of an XNAP object in the repository by gNB ID.
   /// \param[in] peer_gnb_id GNB ID of the XN-C peer to which the XNAP object is connected.
   /// \return The index of the XN-C peer if found, std::nullopt otherwise.

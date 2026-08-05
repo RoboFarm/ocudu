@@ -266,6 +266,12 @@ public:
   /// \param[in] ue_index The index of the UE that needs the context modification.
   virtual async_task<bool> handle_rrc_reestablishment_context_modification_required(cu_cp_ue_index_t ue_index) = 0;
 
+  /// \brief Move the user plane of a UE whose context was retrieved from a peer over to this node and release the
+  /// context at the peer.
+  /// \param[in] ue_index Index of the UE.
+  /// \return True if the path was switched, false otherwise.
+  virtual async_task<bool> handle_retrieved_context_path_switch_required(cu_cp_ue_index_t ue_index) = 0;
+
   /// \brief Handle reestablishment failure by releasing the old UE.
   /// \param[in] request The release request.
   virtual void handle_rrc_reestablishment_failure(const cu_cp_ue_context_release_request& request) = 0;

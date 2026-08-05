@@ -13,13 +13,17 @@ namespace ocudu::ocucp {
 
 /// \brief New NG-RAN node side of the UE context retrieval procedure (TS 38.423 section 8.2.4).
 ///
-/// Runs when a UE reestablishes at this node but no local UE context matches its reestablishment identity, because the
-/// context is still held by a peer NG-RAN node. Resolves that peer from the PCI of the cell the UE declared the failure
-/// on, retrieves the context over Xn and stores what the subsequent bearer setup, Path Switch and release towards the
-/// peer need.
+/// Runs when a UE reestablishes or resumes at this node but no local UE context matches the identity it presented,
+/// because the context is still held by a peer NG-RAN node. Resolves that peer, retrieves the context over Xn and
+/// stores what the subsequent bearer setup, Path Switch and release towards the peer need.
 ///
-/// The retrieval must complete before this node answers the UE, as the RRCReestablishment is integrity protected with
-/// keys derived from the retrieved KgNB*. It therefore runs inside the UE's T301.
+/// How the peer is resolved follows the identity: a reestablishing UE reports the PCI of the cell it failed on, which
+/// the peer advertised in its served cell list at XN setup, while a resuming UE reports an I-RNTI, which encodes the
+/// gNB ID of the node that allocated it (TS 38.300 Annex F).
+///
+/// The retrieval must complete before this node answers the UE, as Msg4 is integrity protected with keys derived from
+/// the retrieved KgNB*. It therefore runs inside the timer the UE started when it sent Msg3: T301 for a
+/// reestablishment, T319 for a resume.
 class ue_context_retrieval_new_node_routine
 {
 public:
@@ -34,6 +38,9 @@ public:
   static const char* name() { return "UE Context Retrieval New NG-RAN Node Routine"; }
 
 private:
+  /// Resolves the peer holding the UE context from the identity the UE presented.
+  std::optional<xnc_peer_index_t> find_peer() const;
+
   /// Removes the XNAP UE context created for a retrieval that did not succeed.
   void release_xnap_ue_context();
 

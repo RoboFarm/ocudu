@@ -102,8 +102,10 @@ TEST_F(rrc_ue_reest, when_no_local_context_matches_then_context_is_retrieved_fro
   // The retrieval must carry the identity the UE used, so the peer can verify the ShortMAC-I against it.
   ASSERT_TRUE(rrc_ue_cu_cp_notifier.last_context_retrieval_request.has_value())
       << "No UE context retrieval was requested";
-  ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_pci, 1);
-  ASSERT_EQ(rrc_ue_cu_cp_notifier.last_context_retrieval_request->old_c_rnti, to_rnti(0x4601));
+  const auto& retrieval_id = rrc_ue_cu_cp_notifier.last_context_retrieval_request->ue_id;
+  ASSERT_TRUE(std::holds_alternative<rrc_ue_context_retrieval_id_for_reest>(retrieval_id));
+  ASSERT_EQ(std::get<rrc_ue_context_retrieval_id_for_reest>(retrieval_id).old_pci, 1);
+  ASSERT_EQ(std::get<rrc_ue_context_retrieval_id_for_reest>(retrieval_id).old_c_rnti, to_rnti(0x4601));
 
   // The wait for the peer is spent out of the UE's running T301, so it must leave room for the RRC Setup fallback.
   const std::chrono::milliseconds max_response_time =

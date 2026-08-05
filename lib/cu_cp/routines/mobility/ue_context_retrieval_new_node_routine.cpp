@@ -23,12 +23,10 @@ void ue_context_retrieval_new_node_routine::operator()(coro_context<async_task<r
 
   logger.info("ue={}: \"{}\" started...", ue_index, name());
 
-  // Resolve the peer that serves the cell the UE declared the failure on. Without one there is nobody to retrieve the
-  // context from, and the caller falls back to RRC Setup.
+  // The caller falls back to RRC Setup when no peer holds the context.
   {
-    std::optional<xnc_peer_index_t> peer_index = xnap_db.find_xnap_index_by_served_pci(request.old_pci);
+    std::optional<xnc_peer_index_t> peer_index = find_peer();
     if (!peer_index.has_value()) {
-      logger.debug("ue={}: \"{}\" failed. Cause: No XN-C peer serves pci={}", ue_index, name(), request.old_pci);
       CORO_EARLY_RETURN(rrc_ue_context_retrieval_response{});
     }
     xnc_index = peer_index.value();
@@ -40,10 +38,19 @@ void ue_context_retrieval_new_node_routine::operator()(coro_context<async_task<r
     CORO_EARLY_RETURN(rrc_ue_context_retrieval_response{});
   }
 
-  xnap_request.ue_index = ue_index;
-  xnap_request.ue_context_id =
-      xnap_ue_context_id_for_rrc_reest{.c_rnti = request.old_c_rnti, .fail_cell_pci = request.old_pci};
-  xnap_request.mac_i             = request.short_mac_i;
+  xnap_request.ue_index      = ue_index;
+  xnap_request.ue_context_id = std::visit(
+      [](const auto& ue_id) -> xnap_ue_context_id {
+        using id_type = std::decay_t<decltype(ue_id)>;
+        if constexpr (std::is_same_v<id_type, rrc_ue_context_retrieval_id_for_reest>) {
+          return xnap_ue_context_id_for_rrc_reest{.c_rnti = ue_id.old_c_rnti, .fail_cell_pci = ue_id.old_pci};
+        } else {
+          return xnap_ue_context_id_for_rrc_resume{
+              .i_rnti = ue_id.i_rnti, .allocated_c_rnti = ue_id.allocated_c_rnti, .access_pci = ue_id.access_pci};
+        }
+      },
+      request.ue_id);
+  xnap_request.mac_i             = request.mac_i;
   xnap_request.target_nci        = request.target_nci;
   xnap_request.max_response_time = request.max_response_time;
 
@@ -60,6 +67,36 @@ void ue_context_retrieval_new_node_routine::release_xnap_ue_context()
   if (xnap != nullptr) {
     xnap->get_xnap_ue_context_removal_handler().remove_ue_context(ue_index);
   }
+}
+
+std::optional<xnc_peer_index_t> ue_context_retrieval_new_node_routine::find_peer() const
+{
+  if (std::holds_alternative<rrc_ue_context_retrieval_id_for_reest>(request.ue_id)) {
+    // The peer advertised the failure cell in its served cell list at XN setup.
+    const pci_t                     old_pci    = std::get<rrc_ue_context_retrieval_id_for_reest>(request.ue_id).old_pci;
+    std::optional<xnc_peer_index_t> peer_index = xnap_db.find_xnap_index_by_served_pci(old_pci);
+    if (!peer_index.has_value()) {
+      logger.debug("ue={}: \"{}\" failed. Cause: No XN-C peer serves pci={}", ue_index, name(), old_pci);
+    }
+    return peer_index;
+  }
+
+  // The I-RNTI carries the Local NG-RAN Node Identifier of the node that allocated it, which is matched against the
+  // gNB IDs of the connected peers (TS 38.300 Annex C). TS 38.300 section 9.2.2.6 has the node retrieve the context
+  // "if able to resolve the gNB identity contained in the I-RNTI", so an unresolved peer leaves the caller to fall
+  // back to RRC Setup.
+  const auto& resume_id = std::get<rrc_ue_context_retrieval_id_for_resume>(request.ue_id);
+  const auto  node_id   = std::visit([](const auto& i_rnti) { return i_rnti.node_id(); }, resume_id.i_rnti);
+  const auto  nof_node_id_bits =
+      std::visit([](const auto& i_rnti) { return std::decay_t<decltype(i_rnti)>::nof_node_id_bits(i_rnti.profile()); },
+                 resume_id.i_rnti);
+
+  std::optional<xnc_peer_index_t> peer_index = xnap_db.find_xnap_index_by_local_node_id(node_id, nof_node_id_bits);
+  if (!peer_index.has_value()) {
+    logger.debug(
+        "ue={}: \"{}\" failed. Cause: No XN-C peer carries node-id={:#x} of the I-RNTI", ue_index, name(), node_id);
+  }
+  return peer_index;
 }
 
 rrc_ue_context_retrieval_response

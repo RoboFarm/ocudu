@@ -64,6 +64,10 @@ struct dummy_cu_cp_rrc_ue_interface : public cu_cp_rrc_ue_interface {
   {
     return launch_no_op_task(true);
   }
+  async_task<bool> handle_retrieved_context_path_switch_required(cu_cp_ue_index_t ue_index) override
+  {
+    return launch_no_op_task(true);
+  }
   void             handle_rrc_reestablishment_failure(const cu_cp_ue_context_release_request& request) override {}
   void             handle_rrc_reestablishment_complete(cu_cp_ue_index_t old_ue_index) override {}
   async_task<bool> handle_ue_context_transfer(cu_cp_ue_index_t ue_index, cu_cp_ue_index_t old_ue_index) override

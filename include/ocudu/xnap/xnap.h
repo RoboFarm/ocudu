@@ -190,6 +190,11 @@ public:
   /// \brief Check if the connected XN-C peer has the given GNB ID.
   virtual bool has_peer_gnb_id(const gnb_id_t& peer_gnb_id) const = 0;
 
+  /// \brief Check if the gNB ID of the connected XN-C peer carries the given Local NG-RAN Node Identifier.
+  /// \param[in] node_id Local NG-RAN Node Identifier read out of an I-RNTI.
+  /// \param[in] nof_node_id_bits Width the I-RNTI profile gives the identifier.
+  virtual bool has_peer_local_node_id(uint32_t node_id, unsigned nof_node_id_bits) const = 0;
+
   /// \brief Check if the connected XN-C peer serves a NR cell with the given PCI.
   /// \remark The served cell list is only known once the XN setup procedure has completed with the peer.
   virtual bool has_peer_pci(pci_t peer_pci) const = 0;

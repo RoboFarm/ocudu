@@ -22,6 +22,8 @@
 #include "routines/mobility/intra_cu_handover_routine.h"
 #include "routines/mobility/intra_cu_handover_target_routine.h"
 #include "routines/mobility/mobility_helpers.h"
+#include "routines/mobility/retrieved_context_path_switch_routine.h"
+#include "routines/mobility/retrieved_context_resume_routine.h"
 #include "routines/mobility/retrieved_context_setup_routine.h"
 #include "routines/mobility/ue_context_retrieval_helpers.h"
 #include "routines/mobility/ue_context_retrieval_new_node_routine.h"
@@ -904,6 +906,31 @@ async_task<rrc_resume_request_response> cu_cp_impl::handle_rrc_resume_request(co
     rna_update_timer.stop();
   }
 
+  // A context retrieved from a peer is established at the CU-UP and the DU from the retrieved PDU sessions
+  // (TS 38.423 section 8.2.4).
+  if (ue->get_context_retrieval_context().has_value()) {
+    // A CU-UP is selected on the first bearer setup for this UE.
+    if (ue->get_cu_up_index() == cu_cp_cu_up_index_t::invalid) {
+      ue->set_cu_up_index(cu_up_db.select_cu_up());
+    }
+    if (ue->get_cu_up_index() == cu_cp_cu_up_index_t::invalid) {
+      logger.warning("ue={}: Could not find a CU-UP to serve the UE", request.ue_index);
+      return launch_no_op_task(rrc_resume_request_response{});
+    }
+
+    return launch_async<retrieved_context_resume_routine>(
+        request,
+        *ue,
+        cu_up_db.find_cu_up_processor(ue->get_cu_up_index())->get_e1ap_bearer_context_manager(),
+        du_db.get_du_processor(ue->get_du_index()),
+        cfg.ue,
+        cfg.security.default_security_indication,
+        logger);
+  }
+
+  ocudu_assert(
+      ue->get_cu_up_index() != cu_cp_cu_up_index_t::invalid, "ue={}: could not find CU-UP of the UE", request.ue_index);
+
   return launch_async<ue_resume_routine>(request,
                                          cfg.ue,
                                          du_db.get_du_processor(ue->get_du_index()),
@@ -912,6 +939,35 @@ async_task<rrc_resume_request_response> cu_cp_impl::handle_rrc_resume_request(co
                                          ue_mng,
                                          get_cu_cp_location_manager_handler(),
                                          logger);
+}
+
+async_task<bool> cu_cp_impl::handle_retrieved_context_path_switch_required(cu_cp_ue_index_t ue_index)
+{
+  cu_cp_ue* ue = ue_mng.find_du_ue(ue_index);
+  ocudu_assert(ue != nullptr, "ue={}: Could not find DU UE", ue_index);
+
+  if (!ue->get_context_retrieval_context().has_value() ||
+      !ue->get_context_retrieval_context()->path_switch_request.has_value()) {
+    logger.warning("ue={}: No retrieved context to switch the path for", ue_index);
+    return launch_no_op_task(false);
+  }
+
+  ngap_interface* ngap = ngap_db.find_ngap(ue->get_ue_context().plmn);
+  if (ngap == nullptr) {
+    logger.warning("ue={}: Could not find NGAP for the UE's PLMN", ue_index);
+    return launch_no_op_task(false);
+  }
+
+  ocudu_assert(
+      ue->get_cu_up_index() != cu_cp_cu_up_index_t::invalid, "ue={}: could not find CU-UP of the UE", ue_index);
+
+  return launch_async<retrieved_context_path_switch_routine>(
+      *ue,
+      ue->get_context_retrieval_context()->path_switch_request.value(),
+      cu_up_db.find_cu_up_processor(ue->get_cu_up_index())->get_e1ap_bearer_context_manager(),
+      *ngap,
+      xnap_db.find_xnap(ue->get_xnc_peer_index()),
+      logger);
 }
 
 void cu_cp_impl::handle_ran_paging_required(cu_cp_ue_index_t ue_index)
