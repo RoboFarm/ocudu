@@ -55,6 +55,7 @@ void du_high_ntn_sib19_update_handler_impl::handle_sib19_msg_update(const ocudu_
     ntn_info.ta_info                  = req.sib19.ntn_cfg->ta_info;
     ntn_info.epoch_time               = req.sib19.ntn_cfg->epoch_time;
     ntn_info.ntn_ul_sync_validity_dur = req.sib19.ntn_cfg->ntn_ul_sync_validity_dur;
+    ntn_info.ref_location_ul_ta       = req.ref_location_ul_ta;
     cell_req.ntn_assistance_info      = ntn_info;
   }
 

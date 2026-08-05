@@ -8,6 +8,7 @@
 #include "ocudu/du/du_high/du_manager/du_manager_params.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/support/async/async_no_op_task.h"
+#include <chrono>
 
 using namespace ocudu;
 using namespace odu;
@@ -65,6 +66,7 @@ bool du_mac_ntn_param_update_procedure::update_ntn_assistance_info(
   cell_cfg.ran.ntn_params->ntn_cfg.ta_info                  = cell_req.ntn_assistance_info->ta_info;
   cell_cfg.ran.ntn_params->ntn_cfg.epoch_time               = cell_req.ntn_assistance_info->epoch_time;
   cell_cfg.ran.ntn_params->ntn_cfg.ntn_ul_sync_validity_dur = cell_req.ntn_assistance_info->ntn_ul_sync_validity_dur;
+  cell_cfg.ran.ntn_params->ref_location_ul_ta                 = cell_req.ntn_assistance_info->ref_location_ul_ta;
 
   return true;
 }
