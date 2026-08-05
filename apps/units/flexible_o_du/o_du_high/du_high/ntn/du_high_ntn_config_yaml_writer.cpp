@@ -30,13 +30,6 @@ void ocudu::fill_ntn_config_in_yaml_schema(YAML::Node& node, const du_high_unit_
       ntn_node["feeder_link_info"]           = fl_node;
     }
 
-    if (serving.epoch_time) {
-      YAML::Node epoch_node;
-      epoch_node["sfn"]             = serving.epoch_time->sfn;
-      epoch_node["subframe_number"] = serving.epoch_time->subframe_number;
-      ntn_node["epoch_time"]        = epoch_node;
-    }
-
     if (serving.epoch_sfn_offset) {
       ntn_node["epoch_sfn_offset"] = *serving.epoch_sfn_offset;
     }

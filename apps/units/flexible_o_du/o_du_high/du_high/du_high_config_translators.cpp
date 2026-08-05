@@ -289,7 +289,6 @@ static sib19_info create_sib19_info(const du_high_unit_cell_ntn_config& config)
     sib19.ntn_cfg.emplace();
     sib19.ntn_cfg->cell_specific_koffset    = serving.cell_specific_koffset;
     sib19.ntn_cfg->ephemeris_info           = serving.sat_ref.ephemeris_info;
-    sib19.ntn_cfg->epoch_time               = serving.epoch_time;
     sib19.ntn_cfg->k_mac                    = serving.k_mac;
     sib19.ntn_cfg->ta_info                  = serving.sat_ref.ta_info;
     sib19.ntn_cfg->ntn_ul_sync_validity_dur = serving.ntn_ul_sync_validity_dur;
@@ -438,7 +437,6 @@ static ntn_cell_params make_ntn_cell_params(const du_high_unit_ntn_serving_cell_
   ntn.ntn_cfg.cell_specific_koffset    = cfg.cell_specific_koffset;
   ntn.ntn_cfg.k_mac                    = cfg.k_mac;
   ntn.ntn_cfg.ntn_ul_sync_validity_dur = cfg.ntn_ul_sync_validity_dur;
-  ntn.ntn_cfg.epoch_time               = cfg.epoch_time;
   ntn.ntn_cfg.ta_info                  = cfg.sat_ref.ta_info;
   ntn.ntn_cfg.polarization             = cfg.polarization;
   ntn.ntn_cfg.ta_report                = cfg.ta_report;

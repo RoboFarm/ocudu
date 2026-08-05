@@ -22,8 +22,6 @@ struct ntn_serving_cell_config {
   std::optional<geodetic_coordinates_t> moving_reference_location;
   /// Cell-level constant offset added to ta_common in SIB19, modelling fixed system delays (e.g. cable, processing).
   std::optional<double> ta_common_offset;
-  /// If present, overrides the epoch time SFN/subframe broadcast in SIB19. Usually not needed.
-  std::optional<epoch_time_t> epoch_time;
   /// Validity duration for UL sync assistance info in seconds. Exempt from SI change determination.
   /// Per TS 38.331, ntn-UlSyncValidityDuration is mandatory present for the serving cell in SIB19 (Cond SIB19), so
   /// this field is not optional.

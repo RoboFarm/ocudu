@@ -78,8 +78,6 @@ struct du_high_unit_ntn_serving_cell_config {
   /// assistance info. Allows sending NTN assistance information that will become valid epoch_sfn_offset number of
   /// system frames after SIB19 Tx slot.
   std::optional<uint64_t> epoch_sfn_offset;
-  /// If provided it will be used to fill the EpochTime section in SIB19.
-  std::optional<epoch_time_t> epoch_time;
   /// Scheduling offset used for timing relationships modified for NTN operation (see TS 38.213 and TS 38.300,
   /// Section 16.14.2). The unit is milliseconds.
   ///

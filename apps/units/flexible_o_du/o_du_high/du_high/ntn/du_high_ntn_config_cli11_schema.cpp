@@ -52,14 +52,6 @@ static void configure_cli11_ncells(CLI::App& app, std::vector<du_high_unit_ntn_n
       "List of NTN neighbor cells");
 }
 
-static void configure_cli11_epoch_time(CLI::App& app, epoch_time_t& epoch_time)
-{
-  add_option(app, "--sfn", epoch_time.sfn, "SFN Part")->capture_default_str()->check(CLI::Range(0, 1023));
-  add_option(app, "--subframe_number", epoch_time.subframe_number, "Sub-frame number Part")
-      ->capture_default_str()
-      ->check(CLI::Range(0, 9));
-}
-
 static void configure_cli11_ntn_neighbor_cell_args(CLI::App& app, du_high_unit_ntn_neighbor_cell_config& ncell)
 {
   configure_cli11_ntn_satellite_args(app, ncell.sat_ref);
@@ -180,16 +172,6 @@ static void configure_cli11_ntn_args(CLI::App&                             app,
 
   // Satellite reference (satellite_idx or inline ephemeris/gateway_location/ta_info).
   configure_cli11_ntn_satellite_args(app, serv_cell_ntn_config.sat_ref);
-
-  // Epoch time.
-  static epoch_time_t epoch_time;
-  CLI::App* epoch_time_subcmd = add_subcommand(app, "epoch_time", "Epoch time for the NTN assistance information");
-  configure_cli11_epoch_time(*epoch_time_subcmd, epoch_time);
-  epoch_time_subcmd->parse_complete_callback([&]() {
-    if (app.get_subcommand("epoch_time")->count() != 0) {
-      serv_cell_ntn_config.epoch_time = epoch_time;
-    }
-  });
 
   // Distance from the serving cell reference location.
   app.add_option(

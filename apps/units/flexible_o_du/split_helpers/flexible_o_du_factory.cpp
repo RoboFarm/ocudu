@@ -152,7 +152,6 @@ convert_ntn_config_to_serving_cell_config(const du_high_unit_cell_ntn_config&   
   if (serving.sat_ref.ta_info) {
     info.ta_common_offset = serving.sat_ref.ta_info->ta_common_offset;
   }
-  info.epoch_time               = serving.epoch_time;
   info.ntn_ul_sync_validity_dur = serving.ntn_ul_sync_validity_dur;
 
   // SIB19 fields tracked by valuetag.
