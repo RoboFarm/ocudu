@@ -148,14 +148,16 @@ private:
   pattern_bitset supported;
 };
 
-/// Determines whether a slot is inside the measurement gap.
+/// Determines whether a slot of the UE downlink timing grid is inside the measurement gap.
+/// \note mgta is not modelled, as the DU always signals mgta=ms0; otherwise the window would start mgta earlier.
 inline bool is_inside_meas_gap(const meas_gap_config& gap, slot_point sl)
 {
   const unsigned slot_per_sf  = sl.nof_slots_per_subframe();
-  unsigned       period_slots = static_cast<uint8_t>(gap.mgrp) * slot_per_sf;
-  unsigned       length_slots = std::ceil(meas_gap_length_to_msec(gap.mgl) * slot_per_sf);
-  unsigned       slot_mod     = (sl - gap.offset * slot_per_sf).to_uint() % period_slots;
-  return slot_mod <= length_slots;
+  const unsigned period_slots = static_cast<uint8_t>(gap.mgrp) * slot_per_sf;
+  const unsigned length_slots = std::ceil(meas_gap_length_to_msec(gap.mgl) * slot_per_sf);
+  const unsigned slot_mod     = (sl - gap.offset * slot_per_sf).to_uint() % period_slots;
+  // The gap starts at the gap offset and spans MGL, hence slot_mod in [0, length_slots).
+  return slot_mod < length_slots;
 }
 
 } // namespace ocudu
