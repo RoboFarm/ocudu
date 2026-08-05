@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 # Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
-
 set(SOURCES config/mac_cell_group_config_factory.cpp config/mac_config_helpers.cpp)
 add_library(mac_configuration_helpers STATIC ${SOURCES})
 target_link_libraries(mac_configuration_helpers ocudu_support ocudu_ran)
@@ -18,6 +17,7 @@ set(SOURCES mac_factory.cpp
         mac_dl/mac_dl_processor.cpp
         mac_dl/mac_subframe_time_mapper_impl.cpp
         mac_dl/mac_cell_processor.cpp
+        mac_dl/mac_cell_pcap_writer.cpp
         mac_dl/rar_pdu_assembler.cpp
         mac_dl/dl_sch_pdu_assembler.cpp
         mac_dl/paging_pdu_assembler.cpp
