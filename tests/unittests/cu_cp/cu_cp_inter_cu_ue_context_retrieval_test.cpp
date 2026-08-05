@@ -28,14 +28,16 @@ using namespace ocucp;
 class cu_cp_inter_cu_ue_context_retrieval_test : public cu_cp_test_environment, public ::testing::Test
 {
 public:
-  cu_cp_inter_cu_ue_context_retrieval_test() :
+  cu_cp_inter_cu_ue_context_retrieval_test() : cu_cp_inter_cu_ue_context_retrieval_test(false) {}
+
+  explicit cu_cp_inter_cu_ue_context_retrieval_test(bool enable_rrc_inactive) :
     cu_cp_test_environment({/* max nof cu-ups */ 8,
                             /* max nof dus */ 8,
                             /* max nof ues */ 8192,
                             /* max nof drbs per ue */ 8,
                             /* amf config */ {{default_supported_tracking_area}},
                             /* trigger ho from measurements */ true,
-                            /* enable rrc inactive */ false,
+                            enable_rrc_inactive,
                             /* enable xnc peer */ true})
   {
     run_ng_setup();
@@ -319,4 +321,244 @@ TEST_F(cu_cp_inter_cu_ue_context_retrieval_test, when_no_peer_serves_failure_cel
   ASSERT_FALSE(wait_for_msg4_and_check_reestablishment_accepted()) << "Unexpected reestablishment";
   ASSERT_FALSE(this->get_xnc_cu_cp(xnc_peer_idx).try_pop_rx_pdu(xnap_pdu))
       << "A retrieval was attempted for a cell no peer serves";
+}
+
+/// Fixture for a UE resuming at this node while the peer that suspended it still holds its context
+/// (TS 38.300 section 9.2.2.4.1). The peer is resolved from the gNB ID inside the I-RNTI, and the bearers are up
+/// before the RRCResume, because the UE resumes its DRBs on receiving it.
+class cu_cp_inter_cu_ue_context_retrieval_resume_test : public cu_cp_inter_cu_ue_context_retrieval_test
+{
+public:
+  cu_cp_inter_cu_ue_context_retrieval_resume_test() : cu_cp_inter_cu_ue_context_retrieval_test(true) {}
+
+  /// Builds a Short-I-RNTI the way the peer would have allocated it, from the node identifier its gNB ID carries.
+  uint64_t make_peer_i_rnti(uint32_t ue_ref = 0) const
+  {
+    const short_i_rnti_profile profile = get_cu_cp_cfg().ue.short_i_rnti_prof;
+    return short_i_rnti_t{profile, short_i_rnti_t::to_local_node_id(profile, get_xnc_peer_gnb_id().id), ue_ref}.value();
+  }
+
+  /// Builds a Short-I-RNTI carrying a node identifier no connected peer has.
+  uint64_t make_unknown_i_rnti() const
+  {
+    const short_i_rnti_profile profile = get_cu_cp_cfg().ue.short_i_rnti_prof;
+    const uint32_t             node_id = short_i_rnti_t::to_local_node_id(profile, get_xnc_peer_gnb_id().id + 1);
+    return short_i_rnti_t{profile, node_id, 0}.value();
+  }
+
+  /// Injects an RRCResumeRequest for a UE this node has no context for. The ResumeMAC-I is only verifiable by the peer
+  /// holding the UE's source keys, so any value gets as far as the retrieval.
+  void ue_sends_rrc_resume_request(uint64_t                     i_rnti,
+                                   asn1::rrc_nr::resume_cause_e resume_cause = asn1::rrc_nr::resume_cause_opts::mo_data)
+  {
+    byte_buffer rrc_container = test_helpers::pack_ul_ccch_msg(
+        test_helpers::create_rrc_resume_request(i_rnti, "1111010001000010", resume_cause));
+
+    get_du(du_idx).push_ul_pdu(test_helpers::generate_init_ul_rrc_message_transfer(
+        du_ue_id, crnti, plmn_identity::test_value(), {}, std::move(rrc_container)));
+  }
+
+  /// Retrieves the UE context from the peer the I-RNTI points at.
+  [[nodiscard]] bool retrieve_ue_context_for_resume()
+  {
+    ue_sends_rrc_resume_request(make_peer_i_rnti());
+    report_fatal_error_if_not(this->wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu),
+                              "No Retrieve UE Context Request was sent");
+    report_fatal_error_if_not(
+        test_helpers::is_pdu_type(xnap_pdu,
+                                  asn1::xnap::xnap_elem_procs_o::init_msg_c::types::retrieve_ue_context_request),
+        "Unexpected XNAP message sent to the peer");
+
+    // The UE is identified towards the peer by the I-RNTI it allocated, not by a failure cell.
+    const auto& request = *xnap_pdu.pdu.init_msg().value.retrieve_ue_context_request();
+    report_fatal_error_if_not(request.ue_context_id.type() == asn1::xnap::ue_context_id_c::types_opts::rrc_resume,
+                              "The retrieval did not carry the RRC Resume UE Context ID");
+    report_fatal_error_if_not(request.ue_context_id.rrc_resume().i_rnti.i_rnti_short().to_number() ==
+                                  make_peer_i_rnti(),
+                              "The retrieval did not carry the I-RNTI the UE presented");
+
+    get_xnc_cu_cp(xnc_peer_idx).push_tx_pdu(generate_retrieve_ue_context_response(local_xnap_ue_id, peer_xnap_ue_id));
+    return true;
+  }
+
+  /// Establishes the bearers the RRCResume needs and returns once Msg4 was sent to the UE.
+  [[nodiscard]] bool setup_bearers_and_await_rrc_resume()
+  {
+    // The retrieved PDU sessions are established at the CU-UP, which holds nothing for this UE.
+    report_fatal_error_if_not(this->wait_for_e1ap_tx_pdu(cu_up_idx, e1ap_pdu), "No Bearer Context Setup Request");
+    report_fatal_error_if_not(e1ap_pdu.pdu.init_msg().value.type().value ==
+                                  asn1::e1ap::e1ap_elem_procs_o::init_msg_c::types_opts::bearer_context_setup_request,
+                              "Expected a Bearer Context Setup Request for a retrieved context");
+    cu_cp_e1ap_id =
+        int_to_gnb_cu_cp_ue_e1ap_id(e1ap_pdu.pdu.init_msg().value.bearer_context_setup_request()->gnb_cu_cp_ue_e1ap_id);
+    get_cu_up(cu_up_idx).push_tx_pdu(ocucp::generate_bearer_context_setup_response(cu_cp_e1ap_id, cu_up_e1ap_id));
+
+    // The UE performed a fresh random access, so the DU holds no SRBs or DRBs for it and the context is set up.
+    report_fatal_error_if_not(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu), "No UE Context Setup Request");
+    report_fatal_error_if_not(f1ap_pdu.pdu.init_msg().value.type().value ==
+                                  asn1::f1ap::f1ap_elem_procs_o::init_msg_c::types_opts::ue_context_setup_request,
+                              "Expected a UE Context Setup Request for a resuming UE");
+
+    const auto& ue_ctxt_setup = *f1ap_pdu.pdu.init_msg().value.ue_context_setup_request();
+    cu_ue_id                  = int_to_gnb_cu_ue_f1ap_id(ue_ctxt_setup.gnb_cu_ue_f1ap_id);
+    report_fatal_error_if_not(ue_ctxt_setup.srbs_to_be_setup_list_present, "No SRBs were set up at the DU");
+    report_fatal_error_if_not(ue_ctxt_setup.srbs_to_be_setup_list.size() == 2,
+                              "Expected SRB1 and SRB2 to be set up at the DU");
+    report_fatal_error_if_not(ue_ctxt_setup.drbs_to_be_setup_list_present, "No DRBs were set up at the DU");
+
+    get_du(du_idx).push_ul_pdu(test_helpers::generate_ue_context_setup_response(
+        cu_ue_id, du_ue_id, crnti, test_helpers::create_cell_group_config(), {drb_id_t::drb1}));
+
+    // The CU-UP is told about the DL F1-U tunnels the DU allocated.
+    report_fatal_error_if_not(this->wait_for_e1ap_tx_pdu(cu_up_idx, e1ap_pdu),
+                              "No Bearer Context Modification Request");
+    report_fatal_error_if_not(e1ap_pdu.pdu.init_msg().value.type().value ==
+                                  asn1::e1ap::e1ap_elem_procs_o::init_msg_c::types_opts::bearer_context_mod_request,
+                              "Expected a Bearer Context Modification Request");
+    get_cu_up(cu_up_idx).push_tx_pdu(
+        ocucp::generate_bearer_context_modification_response(cu_cp_e1ap_id, cu_up_e1ap_id));
+
+    // Only now can Msg4 be sent, as the UE resumes its DRBs upon receiving it.
+    report_fatal_error_if_not(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu), "Msg4 was not sent to the DU");
+    report_fatal_error_if_not(test_helpers::is_valid_dl_rrc_message_transfer(f1ap_pdu), "Invalid DL RRC message");
+
+    const auto& dl_rrc_msg = *f1ap_pdu.pdu.init_msg().value.dl_rrc_msg_transfer();
+    report_fatal_error_if_not(int_to_srb_id(dl_rrc_msg.srb_id) == srb_id_t::srb1,
+                              "Msg4 was not an RRCResume on SRB1 but an RRC Setup fallback on SRB0");
+
+    return true;
+  }
+
+  [[nodiscard]] bool ue_sends_rrc_resume_complete()
+  {
+    return ue_sends_ul_dcch(test_helpers::pack_ul_dcch_msg(test_helpers::create_rrc_resume_complete()), 0);
+  }
+};
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_i_rnti_points_at_peer_then_ue_context_is_retrieved_over_xn)
+{
+  ASSERT_TRUE(retrieve_ue_context_for_resume());
+  ASSERT_TRUE(setup_bearers_and_await_rrc_resume()) << "The UE was not resumed with the retrieved context";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_context_is_retrieved_then_rrc_resume_carries_a_full_config)
+{
+  ASSERT_TRUE(retrieve_ue_context_for_resume());
+  ASSERT_TRUE(setup_bearers_and_await_rrc_resume());
+
+  const byte_buffer packed_dl_dcch = test_helpers::extract_dl_dcch_msg(test_helpers::get_rrc_container(f1ap_pdu));
+  asn1::cbit_ref    bref{packed_dl_dcch};
+  asn1::rrc_nr::dl_dcch_msg_s dl_dcch_msg;
+  ASSERT_EQ(dl_dcch_msg.unpack(bref), asn1::OCUDUASN_SUCCESS);
+  ASSERT_TRUE(test_helpers::is_valid_rrc_resume(dl_dcch_msg));
+
+  // The configuration the UE stored while suspended is the one of the peer, which this node cannot signal a delta on
+  // top of (TS 38.331 section 5.3.13.4).
+  const auto& resume_ies = dl_dcch_msg.msg.c1().rrc_resume().crit_exts.rrc_resume();
+  ASSERT_TRUE(resume_ies.full_cfg_present) << "The UE was told to apply the configuration of the peer as a delta";
+
+  // The UE releases the bearers it stored, so they carry the configuration to set them up anew.
+  ASSERT_TRUE(resume_ies.radio_bearer_cfg_present);
+  ASSERT_EQ(resume_ies.radio_bearer_cfg.drb_to_add_mod_list.size(), 1);
+  const auto& asn1_drb = resume_ies.radio_bearer_cfg.drb_to_add_mod_list[0];
+  ASSERT_FALSE(asn1_drb.reestablish_pdcp_present) << "A released DRB cannot re-establish its PDCP entity";
+  ASSERT_TRUE(asn1_drb.pdcp_cfg_present) << "The DRB was set up without a PDCP configuration";
+  ASSERT_TRUE(asn1_drb.cn_assoc_present) << "The DRB was set up without an SDAP configuration";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_context_is_retrieved_on_resume_then_path_is_switched)
+{
+  ASSERT_TRUE(retrieve_ue_context_for_resume());
+  ASSERT_TRUE(setup_bearers_and_await_rrc_resume());
+
+  // The path is only switched once the UE confirms the RRCResume (TS 38.300 section 9.2.2.4.1, steps 7 and 8).
+  ASSERT_FALSE(this->wait_for_ngap_tx_pdu(ngap_pdu, std::chrono::milliseconds{5}))
+      << "The path was switched before the UE confirmed the RRCResume";
+
+  ASSERT_TRUE(ue_sends_rrc_resume_complete());
+
+  ASSERT_TRUE(this->wait_for_ngap_tx_pdu(ngap_pdu)) << "No Path Switch Request was sent";
+  ASSERT_TRUE(test_helpers::is_valid_path_switch_request(ngap_pdu)) << "Invalid Path Switch Request";
+
+  const auto& path_switch = *ngap_pdu.pdu.init_msg().value.path_switch_request();
+  ASSERT_EQ(path_switch.source_amf_ue_ngap_id, peer_reported_amf_ue_id)
+      << "Path Switch did not carry the AMF UE ID the peer reported";
+
+  get_amf().push_tx_pdu(generate_path_switch_request_ack(uint_to_amf_ue_id(peer_reported_amf_ue_id),
+                                                         uint_to_ran_ue_id(path_switch.ran_ue_ngap_id)));
+
+  // The peer is told to drop its context, which is what signals the takeover.
+  ASSERT_TRUE(this->wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu)) << "No UE Context Release was sent to the peer";
+  ASSERT_TRUE(test_helpers::is_pdu_type(xnap_pdu, asn1::xnap::xnap_elem_procs_o::init_msg_c::types::ue_context_release))
+      << "Expected a UE Context Release towards the peer";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_context_is_retrieved_on_resume_then_nas_is_carried_on_srb2)
+{
+  ASSERT_TRUE(retrieve_ue_context_for_resume());
+  ASSERT_TRUE(setup_bearers_and_await_rrc_resume());
+  ASSERT_TRUE(ue_sends_rrc_resume_complete());
+
+  // The path switch is what gives the AMF the RAN UE ID it addresses the UE with.
+  ASSERT_TRUE(this->wait_for_ngap_tx_pdu(ngap_pdu)) << "No Path Switch Request was sent";
+  const auto& path_switch = *ngap_pdu.pdu.init_msg().value.path_switch_request();
+  get_amf().push_tx_pdu(generate_path_switch_request_ack(uint_to_amf_ue_id(peer_reported_amf_ue_id),
+                                                         uint_to_ran_ue_id(path_switch.ran_ue_ngap_id)));
+  ASSERT_TRUE(this->wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu)) << "No UE Context Release was sent to the peer";
+
+  // A UE that resumed with a retrieved context reaches an RRC UE this node created, which carries NAS on the SRB2 it
+  // set up for it.
+  get_amf().push_tx_pdu(ocucp::generate_downlink_nas_transport_message(uint_to_amf_ue_id(peer_reported_amf_ue_id),
+                                                                       uint_to_ran_ue_id(path_switch.ran_ue_ngap_id)));
+
+  ASSERT_TRUE(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu)) << "The NAS message was not forwarded to the UE";
+  ASSERT_TRUE(test_helpers::is_valid_dl_rrc_message_transfer(f1ap_pdu));
+  ASSERT_EQ(int_to_srb_id(f1ap_pdu.pdu.init_msg().value.dl_rrc_msg_transfer()->srb_id), srb_id_t::srb2)
+      << "The NAS message was not carried on SRB2";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_i_rnti_points_at_no_peer_then_no_retrieval_is_attempted)
+{
+  // An I-RNTI allocated by a node this one has no XN-C link to cannot be resolved, so the UE gets a new connection
+  // instead (TS 38.300 section 9.2.2.6 step 2).
+  ue_sends_rrc_resume_request(make_unknown_i_rnti());
+
+  ASSERT_FALSE(this->get_xnc_cu_cp(xnc_peer_idx).try_pop_rx_pdu(xnap_pdu))
+      << "A retrieval was attempted for an I-RNTI no peer allocated";
+
+  ASSERT_TRUE(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu)) << "Msg4 was not sent to the DU";
+  ASSERT_TRUE(test_helpers::is_valid_dl_rrc_message_transfer(f1ap_pdu));
+  ASSERT_EQ(int_to_srb_id(f1ap_pdu.pdu.init_msg().value.dl_rrc_msg_transfer()->srb_id), srb_id_t::srb0)
+      << "Expected an RRC Setup fallback on SRB0";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test,
+       when_peer_rejects_retrieval_on_resume_then_fallback_to_rrc_setup)
+{
+  ue_sends_rrc_resume_request(make_peer_i_rnti());
+  ASSERT_TRUE(this->wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu));
+
+  // The peer refuses, e.g. because the ResumeMAC-I did not verify against the UE's source keys.
+  get_xnc_cu_cp(xnc_peer_idx).push_tx_pdu(generate_retrieve_ue_context_failure(local_xnap_ue_id));
+
+  ASSERT_TRUE(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu)) << "Msg4 was not sent to the DU";
+  ASSERT_TRUE(test_helpers::is_valid_dl_rrc_message_transfer(f1ap_pdu));
+  ASSERT_EQ(int_to_srb_id(f1ap_pdu.pdu.init_msg().value.dl_rrc_msg_transfer()->srb_id), srb_id_t::srb0)
+      << "Expected an RRC Setup fallback on SRB0 after the peer rejected the retrieval";
+}
+
+TEST_F(cu_cp_inter_cu_ue_context_retrieval_resume_test, when_resume_cause_is_rna_update_then_no_retrieval_is_attempted)
+{
+  // An RNA update does not move the UE to RRC_CONNECTED, so it would need an anchor relocation rather than a resume
+  // (TS 38.300 section 9.2.2.5). Until that exists the UE gets a new connection instead of a retrieval, so no bearers
+  // are set up for a UE that is never answered with an RRCResume.
+  ue_sends_rrc_resume_request(make_peer_i_rnti(), asn1::rrc_nr::resume_cause_opts::rna_upd);
+
+  ASSERT_FALSE(this->get_xnc_cu_cp(xnc_peer_idx).try_pop_rx_pdu(xnap_pdu))
+      << "A retrieval was attempted for an RNA update";
+
+  ASSERT_TRUE(this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu)) << "Msg4 was not sent to the DU";
+  ASSERT_TRUE(test_helpers::is_valid_dl_rrc_message_transfer(f1ap_pdu));
+  ASSERT_EQ(int_to_srb_id(f1ap_pdu.pdu.init_msg().value.dl_rrc_msg_transfer()->srb_id), srb_id_t::srb0)
+      << "Expected an RRC Setup fallback on SRB0 for an RNA update from a peer's I-RNTI";
 }

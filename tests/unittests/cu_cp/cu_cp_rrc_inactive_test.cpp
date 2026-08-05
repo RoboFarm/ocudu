@@ -44,9 +44,6 @@ public:
     run_ng_setup();
 
     if (enable_xnc_peer) {
-      // Wait for the XN-C gateway to be attached to the CU-CP.
-      sleep(1);
-
       // Run XN setup to completion.
       run_xn_setup();
     }
@@ -1407,4 +1404,17 @@ TEST_F(cu_cp_rrc_inactive_xn_test, when_peer_retrieves_ue_by_unknown_i_rnti_then
 
   ASSERT_EQ(cause->type(), asn1::xnap::cause_c::types_opts::radio_network);
   ASSERT_EQ(cause->radio_network(), asn1::xnap::cause_radio_network_layer_opts::ue_context_id_not_known);
+}
+
+TEST_F(cu_cp_rrc_inactive_xn_test, when_i_rnti_was_allocated_locally_then_resume_is_handled_without_a_retrieval)
+{
+  connect_ue_with_rrc_inactive_support();
+  ASSERT_TRUE(trigger_rrc_inactive(du_ue_id));
+
+  // The I-RNTI carries the node identifier of this node, so the context is here and no peer has to be asked for it.
+  ASSERT_TRUE(
+      resume_ue(du_ue_id_2, crnti_2, 0x4d8000, "1111010001000010", make_byte_buffer("000020400033b01cab").value()));
+
+  ASSERT_FALSE(this->get_xnc_cu_cp(xnc_peer_idx).try_pop_rx_pdu(xnap_pdu))
+      << "A retrieval was attempted for an I-RNTI this node allocated itself";
 }

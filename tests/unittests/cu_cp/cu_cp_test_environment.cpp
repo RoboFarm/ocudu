@@ -406,7 +406,7 @@ void cu_cp_test_environment::enqueue_procedure_outcome_pdus_and_start_cu_cp()
   for (const auto& [xnc_peer_idx, xnc_peer] : xnc_peers) {
     get_xnc_cu_cp(xnc_peer_idx)
         .enqueue_next_tx_pdu(generate_xn_setup_response_with_served_cell(
-            xnap_configuration{.gnb_id = gnb_id_t{cu_cp_cfg.node.gnb_id.id + 2, cu_cp_cfg.node.gnb_id.bit_length},
+            xnap_configuration{.gnb_id           = get_xnc_peer_gnb_id(),
                                .tai_support_list = amf_configs.begin()->second.supported_tas},
             xnc_peer_served_pci,
             nr_cell_global_id_t{plmn_identity::test_value(), xnc_peer_served_nci()}));

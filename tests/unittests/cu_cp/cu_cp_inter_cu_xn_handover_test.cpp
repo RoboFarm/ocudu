@@ -23,7 +23,6 @@
 #include "ocudu/ran/cu_types.h"
 #include "ocudu/xnap/xnap_types.h"
 #include <gtest/gtest.h>
-#include <unistd.h>
 
 using namespace ocudu;
 using namespace ocucp;
@@ -43,9 +42,6 @@ public:
   {
     // Run NG setup to completion.
     run_ng_setup();
-
-    // Wait for the XN-C gateway to be attached to the CU-CP.
-    sleep(1);
 
     // Run XN setup to completion.
     run_xn_setup();
