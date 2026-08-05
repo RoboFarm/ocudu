@@ -78,6 +78,9 @@ public:
 ///
 /// Any registered value type may draw from the same underlying allocation, keeping total
 /// memory usage bounded. The segment size is provided as a runtime argument to the constructor.
+/// When ForcePower2SegSize is true, the constructor asserts that segment_size is a power of 2,
+/// enabling segmented_circular_map instances that also set ForcePower2SegSize=true to use
+/// bit-wise AND and shifts instead of division and modulo for intra-segment indexing.
 ///
 /// Use get_pool_of_type<V>() to obtain a map_segment_pool_interface<K, V> suitable for
 /// constructing a segmented_circular_map<K, V>. The call fails to compile if V was not listed
@@ -86,9 +89,10 @@ public:
 /// The pool is non-copyable and non-movable; construct it in a stable location (heap or
 /// class member) before handing out interface references.
 ///
-/// \tparam K   Key type.
-/// \tparam Vs  Value types sharing this pool (non-empty, pairwise distinct).
-template <typename K, typename... Vs>
+/// \tparam K                  Key type.
+/// \tparam ForcePower2SegSize If true, the constructor asserts that segment_size is a power of 2.
+/// \tparam Vs                 Value types sharing this pool (non-empty, pairwise distinct).
+template <typename K, bool ForcePower2SegSize = true, typename... Vs>
 class shared_map_segment_pool
 {
   static_assert(sizeof...(Vs) > 0, "shared_map_segment_pool requires at least one value type");
@@ -148,6 +152,11 @@ public:
   explicit shared_map_segment_pool(size_t num_slots, size_t segment_size) :
     elem_slots(num_slots * segment_size), seg_size(segment_size), adapters(typed_adapter<Vs>(*this)...)
   {
+    if constexpr (ForcePower2SegSize) {
+      report_fatal_error_if_not((segment_size & (segment_size - 1)) == 0,
+                                "segment_size should be a power of 2, but a value of '{}' was used",
+                                segment_size);
+    }
     free_list.reserve(num_slots);
     for (size_t i = 0; i < num_slots; ++i) {
       free_list.push_back(&elem_slots[i * segment_size]);
@@ -180,12 +189,20 @@ public:
 /// A null data pointer (default-constructed span) means the segment slot has not been acquired.
 ///
 /// Key mapping: flat = K % map_size, primary_idx = flat / seg_size, slot_idx = flat % seg_size.
+/// When ForcePower2MapSize is true, the map_size modulo is replaced by a bit-wise AND.
+/// When ForcePower2SegSize is true, seg_size division and modulo are replaced by a right shift
+/// and bit-wise AND respectively.
 /// Collision semantics are identical to circular_map: no resolution, insertion fails on collision.
 /// There is no pointer or iterator invalidation.
 ///
-/// \tparam K Key type (must be an unsigned integer).
-/// \tparam V Mapped value type.
-template <typename K, typename V>
+/// \tparam K                  Key type (must be an unsigned integer).
+/// \tparam V                  Mapped value type.
+/// \tparam ForcePower2MapSize If true, map_size must be a power of 2; the key-to-flat-index
+///                            conversion uses bit-wise AND instead of modulo.
+/// \tparam ForcePower2SegSize If true, seg_size must be a power of 2; flat-to-segment and
+///                            flat-to-slot conversions use bit shift and bit-wise AND instead of
+///                            division and modulo.
+template <typename K, typename V, bool ForcePower2MapSize = true, bool ForcePower2SegSize = true>
 class segmented_circular_map
 {
   static_assert(std::is_integral_v<K> and std::is_unsigned_v<K>, "Container key must be an unsigned integer");
@@ -218,13 +235,12 @@ public:
 
     constexpr iterator& operator++()
     {
-      const size_t seg_sz = ptr->seg_size;
       ++flat_idx;
       while (flat_idx < ptr->total_capacity()) {
-        size_t p = flat_idx / seg_sz;
+        size_t p = ptr->get_primary_idx(flat_idx);
         if (ptr->entries[p].segment.data() == nullptr) {
-          flat_idx = (p + 1) * seg_sz;
-        } else if (not ptr->entries[p].segment[flat_idx % seg_sz]) {
+          flat_idx = ptr->get_segment_start(p + 1);
+        } else if (not ptr->entries[p].segment[ptr->get_slot_idx(flat_idx)]) {
           ++flat_idx;
         } else {
           break;
@@ -237,28 +253,28 @@ public:
     {
       ocudu_assert(
           flat_idx < ptr->total_capacity(), "Iterator out-of-bounds ({} >= {})", flat_idx, ptr->total_capacity());
-      return ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr const obj_t& operator*() const
     {
       ocudu_assert(
           flat_idx < ptr->total_capacity(), "Iterator out-of-bounds ({} >= {})", flat_idx, ptr->total_capacity());
-      return ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr obj_t* operator->()
     {
       ocudu_assert(
           flat_idx < ptr->total_capacity(), "Iterator out-of-bounds ({} >= {})", flat_idx, ptr->total_capacity());
-      return &ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return &ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr const obj_t* operator->() const
     {
       ocudu_assert(
           flat_idx < ptr->total_capacity(), "Iterator out-of-bounds ({} >= {})", flat_idx, ptr->total_capacity());
-      return &ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return &ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr bool operator==(const iterator& other) const { return ptr == other.ptr and flat_idx == other.flat_idx; }
@@ -286,13 +302,12 @@ public:
 
     constexpr const_iterator& operator++()
     {
-      const size_t seg_sz = ptr->seg_size;
       ++flat_idx;
       while (flat_idx < ptr->total_capacity()) {
-        size_t p = flat_idx / seg_sz;
+        size_t p = ptr->get_primary_idx(flat_idx);
         if (ptr->entries[p].segment.data() == nullptr) {
-          flat_idx = (p + 1) * seg_sz;
-        } else if (not ptr->entries[p].segment[flat_idx % seg_sz]) {
+          flat_idx = ptr->get_segment_start(p + 1);
+        } else if (not ptr->entries[p].segment[ptr->get_slot_idx(flat_idx)]) {
           ++flat_idx;
         } else {
           break;
@@ -303,12 +318,12 @@ public:
 
     constexpr const obj_t& operator*() const
     {
-      return ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr const obj_t* operator->() const
     {
-      return &ptr->get_obj(flat_idx / ptr->seg_size, flat_idx % ptr->seg_size);
+      return &ptr->get_obj(ptr->get_primary_idx(flat_idx), ptr->get_slot_idx(flat_idx));
     }
 
     constexpr bool operator==(const const_iterator& other) const
@@ -325,10 +340,22 @@ public:
   };
 
   segmented_circular_map(size_t size, map_segment_pool_interface<K, V>& pool_) :
-    seg_size(pool_.segment_size()), map_size(size), entries((size + seg_size - 1) / seg_size), pool(pool_)
+    seg_size(pool_.segment_size()),
+    seg_shift(compute_seg_shift(pool_.segment_size())),
+    map_size(size),
+    entries((size + seg_size - 1) / seg_size),
+    pool(pool_)
   {
     ocudu_assert(size > 0, "segmented_circular_map requires at least one segment slot");
     ocudu_assert(seg_size > 0, "pool segment_size() must be greater than zero");
+    if constexpr (ForcePower2MapSize) {
+      report_fatal_error_if_not(
+          (size & (size - 1)) == 0, "map_size should be a power of 2, but a value of '{}' was used", size);
+    }
+    if constexpr (ForcePower2SegSize) {
+      report_fatal_error_if_not(
+          (seg_size & (seg_size - 1)) == 0, "seg_size should be a power of 2, but a value of '{}' was used", seg_size);
+    }
   }
 
   ~segmented_circular_map() { clear(); }
@@ -338,6 +365,7 @@ public:
 
   segmented_circular_map(segmented_circular_map&& other) noexcept :
     seg_size(other.seg_size),
+    seg_shift(other.seg_shift),
     map_size(other.map_size),
     entries(std::move(other.entries)),
     pool(other.pool),
@@ -349,8 +377,8 @@ public:
   constexpr bool contains(K key) const noexcept
   {
     size_t      flat = get_flat_idx(key);
-    size_t      p    = flat / seg_size;
-    size_t      s    = flat % seg_size;
+    size_t      p    = get_primary_idx(flat);
+    size_t      s    = get_slot_idx(flat);
     const auto& seg  = entries[p].segment;
     return seg.data() != nullptr and seg[s] and seg[s]->first == key;
   }
@@ -362,8 +390,8 @@ public:
   {
     static_assert(std::is_constructible_v<V, Args...>, "Invalid argument types");
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     if (entries[p].segment.data() == nullptr) {
       entries[p].segment = pool.get_segment();
       if (entries[p].segment.data() == nullptr) {
@@ -383,8 +411,8 @@ public:
   constexpr bool insert(K key, const V& obj)
   {
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     if (entries[p].segment.data() == nullptr) {
       entries[p].segment = pool.get_segment();
       if (entries[p].segment.data() == nullptr) {
@@ -404,8 +432,8 @@ public:
   constexpr expected<iterator, V> insert(K key, V&& obj)
   {
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     if (entries[p].segment.data() == nullptr) {
       entries[p].segment = pool.get_segment();
       if (entries[p].segment.data() == nullptr) {
@@ -425,8 +453,8 @@ public:
   constexpr bool overwrite(K key, const V& obj)
   {
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     if (entries[p].segment.data() != nullptr and entries[p].segment[s]) {
       erase(get_obj(p, s).first);
     }
@@ -438,8 +466,8 @@ public:
   constexpr expected<iterator, V> overwrite(K key, V&& obj)
   {
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     if (entries[p].segment.data() != nullptr and entries[p].segment[s]) {
       erase(get_obj(p, s).first);
     }
@@ -453,8 +481,8 @@ public:
       return false;
     }
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     entries[p].segment[s].reset();
     --entries[p].count;
     --elem_count;
@@ -471,8 +499,8 @@ public:
                  total_capacity());
     iterator next = it;
     ++next;
-    size_t p = it.flat_idx / seg_size;
-    size_t s = it.flat_idx % seg_size;
+    size_t p = get_primary_idx(it.flat_idx);
+    size_t s = get_slot_idx(it.flat_idx);
     entries[p].segment[s].reset();
     --entries[p].count;
     --elem_count;
@@ -498,7 +526,7 @@ public:
   {
     ocudu_assert(contains(key), "Accessing non-existent ID={}", (size_t)key);
     size_t flat = get_flat_idx(key);
-    return get_obj(flat / seg_size, flat % seg_size).second;
+    return get_obj(get_primary_idx(flat), get_slot_idx(flat)).second;
   }
 
   /// Returns a const reference to the value mapped to the given key. Asserts if not present.
@@ -506,7 +534,7 @@ public:
   {
     ocudu_assert(contains(key), "Accessing non-existent ID={}", (size_t)key);
     size_t flat = get_flat_idx(key);
-    return get_obj(flat / seg_size, flat % seg_size).second;
+    return get_obj(get_primary_idx(flat), get_slot_idx(flat)).second;
   }
 
   /// Returns the number of elements in the container.
@@ -525,8 +553,8 @@ public:
   constexpr bool has_space(K key) const noexcept
   {
     size_t flat = get_flat_idx(key);
-    size_t p    = flat / seg_size;
-    size_t s    = flat % seg_size;
+    size_t p    = get_primary_idx(flat);
+    size_t s    = get_slot_idx(flat);
     return entries[p].segment.data() == nullptr or not entries[p].segment[s];
   }
 
@@ -555,15 +583,54 @@ public:
 
 private:
   size_t total_capacity() const noexcept { return map_size; }
-  size_t get_flat_idx(K key) const noexcept { return static_cast<size_t>(key) % map_size; }
+
+  /// Converts key to flat index: key % map_size, or key & (map_size-1) when ForcePower2MapSize.
+  size_t get_flat_idx(K key) const noexcept
+  {
+    if constexpr (ForcePower2MapSize) {
+      return static_cast<size_t>(key) & (map_size - 1);
+    } else {
+      return static_cast<size_t>(key) % map_size;
+    }
+  }
+
+  /// Returns the segment (primary) index from a flat index: flat / seg_size, or flat >> seg_shift.
+  size_t get_primary_idx(size_t flat) const noexcept
+  {
+    if constexpr (ForcePower2SegSize) {
+      return flat >> seg_shift;
+    } else {
+      return flat / seg_size;
+    }
+  }
+
+  /// Returns the slot index within a segment from a flat index: flat % seg_size, or flat & (seg_size-1).
+  size_t get_slot_idx(size_t flat) const noexcept
+  {
+    if constexpr (ForcePower2SegSize) {
+      return flat & (seg_size - 1);
+    } else {
+      return flat % seg_size;
+    }
+  }
+
+  /// Returns the flat index of the first slot of a segment: primary * seg_size, or primary << seg_shift.
+  size_t get_segment_start(size_t primary) const noexcept
+  {
+    if constexpr (ForcePower2SegSize) {
+      return primary << seg_shift;
+    } else {
+      return primary * seg_size;
+    }
+  }
 
   obj_t&       get_obj(size_t primary, size_t slot) { return *entries[primary].segment[slot]; }
   const obj_t& get_obj(size_t primary, size_t slot) const { return *entries[primary].segment[slot]; }
 
   bool is_occupied(size_t flat) const noexcept
   {
-    size_t p = flat / seg_size;
-    size_t s = flat % seg_size;
+    size_t p = get_primary_idx(flat);
+    size_t s = get_slot_idx(flat);
     return entries[p].segment.data() != nullptr and entries[p].segment[s].has_value();
   }
 
@@ -575,7 +642,17 @@ private:
     }
   }
 
+  /// Returns __builtin_ctzll(seg_sz) when ForcePower2SegSize is true, 0 otherwise.
+  static size_t compute_seg_shift(size_t seg_sz) noexcept
+  {
+    if constexpr (ForcePower2SegSize) {
+      return static_cast<size_t>(__builtin_ctzll(static_cast<unsigned long long>(seg_sz)));
+    }
+    return 0;
+  }
+
   size_t                            seg_size;
+  size_t                            seg_shift;
   size_t                            map_size;
   std::vector<segment_entry<K, V>>  entries;
   map_segment_pool_interface<K, V>& pool;
