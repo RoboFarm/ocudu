@@ -11,10 +11,12 @@ Subcommands, each reading a file the wrapper produced:
       Exit 0 if the analysis scheduled at least one action (a non-empty JSON list), 1 otherwise. CodeChecker writes
       this file only when it has work to do, so its absence or emptiness marks a 0%-coverage run.
 
-  metadata <metadata.json> <expected_analyzer>
-      Exit 0 if the requested analyzer ran with no failures and at least one success, 1 otherwise (reason on stderr).
-      Keyed on the analyzer this job requested, so a metadata that names a different analyzer, duplicates the analyzer
-      across tools[] (hiding a failure via last-writer-wins), or records a failed/zero-execution run is rejected.
+  metadata <metadata.json> <unique_compile_commands.json> <expected_analyzer> <allow_ctu_skip>
+      Exit 0 if the requested analyzer accounted for every scheduled action, 1 otherwise (reason on stderr). Requires
+      metadata action_num == manifest length (both are len(the same actions list), so a mismatch means the two files
+      describe different runs), exactly one record for the requested analyzer, no failures, and 0 < successful <=
+      action_num. successful must equal action_num unless allow_ctu_skip is "1" (set by the wrapper only for the actual
+      clangsa --ctu + skiplist path, where CodeChecker counts skip-listed actions in action_num but does not run them).
 
   report <code-quality-report.json>
       Validate the GitLab Code Quality report and look for major-or-higher findings. Disjoint exit codes that skip 1, so
@@ -54,15 +56,26 @@ def cmd_manifest(path):
     return 0 if isinstance(data, list) and data else 1
 
 
-def cmd_metadata(path, expected):
+def cmd_metadata(meta_path, manifest_path, expected, allow_ctu_skip):
     def die(msg):
         print("ERROR: incomplete CodeChecker analysis: " + msg, file=sys.stderr)
         return 1
 
     if not expected:
         return die("no expected analyzer given; cannot verify completeness")
+    # The manifest and metadata action_num both come from the same CodeChecker `actions` list
+    # (unique_compile_commands.json is json.dump(actions); action_num is len(actions)), so they must agree. Reading the
+    # manifest here proves the metadata describes THIS run instead of validating the two files independently.
     try:
-        meta = _load(path)
+        manifest = _load(manifest_path)
+    except (OSError, ValueError) as error:
+        return die("action manifest not readable as JSON (%s)" % error)
+    if not isinstance(manifest, list) or not manifest:
+        return die("action manifest is empty or not a list")
+    action_count = len(manifest)
+
+    try:
+        meta = _load(meta_path)
     except (OSError, ValueError) as error:
         return die("metadata.json not readable as JSON (%s)" % error)
 
@@ -75,11 +88,9 @@ def cmd_metadata(path, expected):
         for tool in tools:
             if not isinstance(tool, dict):
                 return die("metadata.tools entry is not an object")
-            # action_num is validated for shape but deliberately NOT compared to successful + failed. Under --ctu,
-            # CodeChecker keeps the skip-listed actions in action_num (CTU pre-analysis needs the full set) but skips
-            # them in the analysis itself, so successful + failed < action_num on a healthy run. Incomplete runs are
-            # caught by the failed/ directory and the analyze exit code, not here.
-            _nonneg_int(tool.get("action_num"), "action_num")
+            action_num = _nonneg_int(tool.get("action_num"), "action_num")
+            if action_num != action_count:
+                return die("metadata action_num=%d but the manifest lists %d actions" % (action_num, action_count))
             analyzers = tool.get("analyzers")
             if not isinstance(analyzers, dict):
                 return die("metadata.tools entry has no analyzers object")
@@ -103,6 +114,14 @@ def cmd_metadata(path, expected):
         return die("%s reported %d failed action(s)" % (expected, failed))
     if successful == 0:
         return die("%s executed zero actions" % expected)
+    if successful > action_count:
+        return die("%s reported %d successes for %d scheduled actions" % (expected, successful, action_count))
+    # Completeness: normally every scheduled action runs, so successful == action_count. clangsa --ctu is the exception:
+    # it keeps the skip-listed actions in action_num for CTU pre-analysis but the analysis itself skips them, so
+    # successful < action_count is healthy there. allow_ctu_skip is set by the wrapper only when the invocation is
+    # actually clangsa with --ctu and a skip list; every other run must account for every scheduled action.
+    if not allow_ctu_skip and successful != action_count:
+        return die("%s executed %d of %d scheduled actions" % (expected, successful, action_count))
     return 0
 
 
@@ -169,14 +188,17 @@ def cmd_report(path):
 
 def main(argv):
     if len(argv) < 2:
-        print("usage: validate_analysis.py {manifest|metadata|report} <file> [analyzer]", file=sys.stderr)
+        print("usage: validate_analysis.py manifest <manifest> | "
+              "metadata <metadata> <manifest> <analyzer> <allow_ctu_skip> | report <report>", file=sys.stderr)
         return EXIT_INTERNAL_ERROR
     sub = argv[1]
     try:
         if sub == "manifest":
             return cmd_manifest(argv[2])
         if sub == "metadata":
-            return cmd_metadata(argv[2], argv[3] if len(argv) > 3 else os.environ.get("ANALYZER", ""))
+            expected = argv[4] if len(argv) > 4 else os.environ.get("ANALYZER", "")
+            allow_ctu_skip = len(argv) > 5 and argv[5] == "1"
+            return cmd_metadata(argv[2], argv[3], expected, allow_ctu_skip)
         if sub == "report":
             cmd_report(argv[2])  # raises SystemExit with the tri-state code
             return EXIT_INTERNAL_ERROR  # unreachable

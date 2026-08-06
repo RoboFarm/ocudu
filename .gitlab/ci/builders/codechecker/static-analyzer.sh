@@ -66,15 +66,39 @@ script_dir="$(cd "$(dirname "$self")" && pwd)"
 resolve_helper() { if [[ -x "${script_dir}/$1" ]]; then echo "${script_dir}/$1"; else command -v "$1"; fi; }
 validator="$(resolve_helper validate_analysis.py)"
 
-# Expected analyzer for the completeness gate: take it from the actual --analyzers passed through to CodeChecker so the
-# gate checks what really ran, not a separate variable. Fall back to $ANALYZER when the flag is absent, so a standalone
-# caller of the image that only sets one of the two still works.
+# Derive the completeness-gate inputs from the actual CodeChecker arguments so the gate checks what really ran:
+#   expected_analyzer - the single value after --analyzers (falls back to $ANALYZER when the flag is absent).
+#   allow_ctu_skip    - 1 only for clangsa with --ctu and a skip list, the one case where CodeChecker counts
+#                       skip-listed actions in metadata action_num but does not execute them (successful < action_num).
+# CodeChecker's --analyzers is nargs='+', but this wrapper's completeness gate can only key on one analyzer, so reject a
+# multi-analyzer invocation up front rather than silently validating only the first.
 expected_analyzer="${ANALYZER:-}"
-prev=""
+analyzer_values=0
+in_analyzers=0
+has_ctu=0
+has_skip=0
 for arg in "$@"; do
-    [[ "$prev" == "--analyzers" ]] && expected_analyzer="$arg"
-    prev="$arg"
+    if [[ "$in_analyzers" == 1 ]]; then
+        if [[ "$arg" == -* ]]; then
+            in_analyzers=0
+        else
+            expected_analyzer="$arg"
+            analyzer_values=$((analyzer_values + 1))
+            continue
+        fi
+    fi
+    case "$arg" in
+    --analyzers) in_analyzers=1 ;;
+    --ctu | --ctu-all | --ctu-collect) has_ctu=1 ;;
+    -i | --ignore | --skip) has_skip=1 ;;
+    esac
 done
+if [[ "$analyzer_values" -gt 1 ]]; then
+    echo "ERROR: this wrapper supports exactly one --analyzers value, got $analyzer_values" >&2
+    exit 1
+fi
+allow_ctu_skip=0
+[[ "$expected_analyzer" == "clangsa" && "$has_ctu" == 1 && "$has_skip" == 1 ]] && allow_ctu_skip=1
 
 # Setup
 cd "$FOLDER" || exit
@@ -112,10 +136,11 @@ if [[ -z $DRYRUN ]]; then
     actions_rc=0
     python3 "$validator" manifest codechecker_output/unique_compile_commands.json || actions_rc=$?
     # Reject an incomplete analysis: a non-empty manifest only proves actions were scheduled, not that the requested
-    # analyzer ran them. Verify metadata.json for the expected analyzer (exactly one record, no failures, at least one
-    # executed action). See validate_analysis.py.
+    # analyzer ran them. Cross-check metadata against the manifest (action_num == manifest length, exactly one record,
+    # no failures, every scheduled action executed unless this is the clangsa --ctu skip path). See validate_analysis.py.
     execution_rc=0
-    python3 "$validator" metadata codechecker_output/metadata.json "$expected_analyzer" || execution_rc=$?
+    python3 "$validator" metadata codechecker_output/metadata.json codechecker_output/unique_compile_commands.json \
+        "$expected_analyzer" "$allow_ctu_skip" || execution_rc=$?
 else
     analyze_rc=0
     suppress_rc=0
@@ -190,18 +215,19 @@ mv -f -- "$report_tmp" "$report" || {
 }
 
 # Print summary (best-effort diagnostics, after the report is safely published). "parse" shares the tri-state exit
-# code, so 2 just means findings are present; only surface a genuine error.
+# code, so 2 just means findings are present; only surface a genuine error. Bounded by a timeout: the Code Quality
+# report is uploaded only after this script (and after_script) finish, so a hung parse here must not consume the job.
 summary_rc=0
-CodeChecker parse ./codechecker_output/ || summary_rc=$?
+timeout 60s CodeChecker parse ./codechecker_output/ || summary_rc=$?
 case "$summary_rc" in
 0 | 2) ;;
-*) echo "WARNING: CodeChecker summary parse failed (exit=${summary_rc})" >&2 ;;
+*) echo "WARNING: CodeChecker summary parse failed or timed out (exit=${summary_rc})" >&2 ;;
 esac
 
-# HTML report, so a user can browse the findings. Best-effort and generated after the Code Quality report is published,
-# so a slow HTML export can never delay or block the core report.
+# HTML report, so a user can browse the findings. Best-effort, generated after the Code Quality report is published, and
+# bounded by a timeout, so a slow or hung HTML export cannot consume the job timeout and block the report artifact upload.
 mkdir -p ../codechecker_html
-CodeChecker parse --trim-path-prefix "$FOLDER" -e html ./codechecker_output -o ../codechecker_html &>/dev/null || true
+timeout 300s CodeChecker parse --trim-path-prefix "$FOLDER" -e html ./codechecker_output -o ../codechecker_html &>/dev/null || true
 
 if [[ "$validate_rc" -eq 10 ]]; then
     echo "ERROR: CodeChecker reported major-or-higher findings" >&2

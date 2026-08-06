@@ -60,7 +60,18 @@ analyze)
         elif [[ "${CC_BAD_MANIFEST:-0}" == 1 ]]; then
             printf '{ not a json array' >"$out/unique_compile_commands.json"
         else
-            printf '[{"directory":"/b","command":"cc -c a.c","file":"a.c"}]' >"$out/unique_compile_commands.json"
+            # The manifest is len(the same actions list) that feeds metadata action_num, so model that count. Default
+            # to CC_ACTION_NUM so the two agree; CC_MANIFEST_LEN overrides it independently to test a manifest/metadata
+            # mismatch.
+            manifest_len="${CC_MANIFEST_LEN:-${CC_ACTION_NUM:-1}}"
+            {
+                printf '['
+                for ((mi = 0; mi < manifest_len; mi++)); do
+                    [[ $mi -gt 0 ]] && printf ','
+                    printf '{"directory":"/b","command":"cc -c a%d.c","file":"a%d.c"}' "$mi" "$mi"
+                done
+                printf ']'
+            } >"$out/unique_compile_commands.json"
         fi
     fi
     # Model CodeChecker's metadata.json (analyzer worker execution statistics). Written alongside the manifest on a run
@@ -81,9 +92,9 @@ analyze)
         elif [[ "${CC_NO_STATS:-0}" == 1 ]]; then
             printf '{"tools":[{"action_num":1,"analyzers":{"%s":{}}}]}' "$analyzer" >"$out/metadata.json"
         else
-            # Real 6.28.2 shape: one tools[] record for the requested analyzer. Without --ctu action_num == successful
-            # + failed; clangsa --ctu keeps the skip-listed actions in action_num (pre-analysis needs the full set) so
-            # action_num >= successful + failed (driven per-case via CC_ACTION_NUM).
+            # Real 6.28.2 shape: one tools[] record for the requested analyzer. action_num defaults to the manifest
+            # length; successful/failed are driven per-case. Without --ctu successful == action_num; clangsa --ctu keeps
+            # skip-listed actions in action_num but does not run them, so successful < action_num is healthy there.
             printf '{"tools":[{"action_num":%s,"analyzers":{"%s":{"analyzer_statistics":{"successful":%s,"failed":%s}}}}]}' "${CC_ACTION_NUM:-1}" "$analyzer" "${CC_SUCCESSFUL:-1}" "${CC_FAILED:-0}" >"$out/metadata.json"
         fi
     fi
@@ -261,19 +272,41 @@ CC_FAILED=1 run_case 1 n - "metadata records a failed analyzer job -> fail, no r
 CC_SUCCESSFUL=true run_case 1 n - "metadata successful is a bool (not coerced by int()) -> fail closed, no report"
 CC_SUCCESSFUL='"1"' run_case 1 n - "metadata successful is a string (not coerced by int()) -> fail closed, no report"
 
-# The metadata completeness gate keys on the requested analyzer, so it rejects metadata that names a different analyzer,
-# duplicates the analyzer across tools[] (hiding a failure via last-writer-wins), or records missing analyzer_statistics.
-# It deliberately does NOT compare successful + failed against action_num: under clangsa --ctu, CodeChecker keeps the
-# skip-listed actions in action_num (CTU pre-analysis needs the full set) but skips them in the analysis, so a clean
-# run legitimately has successful + failed < action_num and must pass (see the skip case below).
+# The metadata completeness gate cross-checks metadata against the manifest and keys on the requested analyzer. It
+# rejects a different analyzer, a duplicated analyzer across tools[] (last-writer-wins hiding a failure), missing
+# analyzer_statistics, a metadata/manifest action-count mismatch, successful > action_num, and any incomplete run. The
+# one relaxation is clangsa --ctu with a skip list, where CodeChecker counts skip-listed actions in action_num but does
+# not run them, so successful < action_num is healthy (the wrapper sets allow_ctu_skip only for that exact invocation).
 CC_WRONG_ANALYZER=1 run_case 1 n - "metadata records a different analyzer than requested -> fail, no report"
 CC_ANALYZER=clang-tidy CC_DUP_ANALYZER=1 run_case 1 n - "analyzer duplicated across tools[] (earlier failure hidden) -> fail, no report"
 CC_NO_STATS=1 run_case 1 n - "analyzer record missing analyzer_statistics -> fail, no report"
-CC_ACTION_NUM=100 CC_SUCCESSFUL=1 CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
-    run_case 0 y - "action_num=100 but only 1 executed, no failures (clangsa --ctu shape) -> pass, report published"
+# clangsa --ctu + skip list: skip-listed actions are counted in action_num but not executed, so successful < action_num
+# is healthy. The wrapper must actually see clangsa + --ctu + a skipfile for the relaxation to apply.
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clangsa --ctu -i /tmp/skip" \
+    CC_ACTION_NUM=100 CC_SUCCESSFUL=1 CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
+    run_case 0 y - "clangsa --ctu + skipfile: 1 of 100 executed (skip-listed counted, not run) -> pass"
+# The same incomplete count WITHOUT the CTU + skip context is a genuinely incomplete run and must fail closed.
+CC_ACTION_NUM=100 CC_SUCCESSFUL=1 run_case 1 n - "non-CTU: only 1 of 100 scheduled actions executed -> fail, no report"
+# Metadata and manifest must describe the same run: action_num == manifest length (both are len(the same actions list)).
+# successful is kept equal to the manifest length in both so the ONLY failing check is the action_num/manifest mismatch.
+CC_ACTION_NUM=3 CC_MANIFEST_LEN=1 CC_SUCCESSFUL=1 run_case 1 n - "metadata action_num=3 but manifest lists 1 action -> fail, no report"
+CC_ACTION_NUM=1 CC_MANIFEST_LEN=3 CC_SUCCESSFUL=3 run_case 1 n - "manifest lists 3 actions but metadata action_num=1 -> fail, no report"
+# successful can never exceed the scheduled action count, even under the CTU relaxation.
+CC_ACTION_NUM=1 CC_SUCCESSFUL=2 run_case 1 n - "successful (2) exceeds action_num (1) -> fail, no report"
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clangsa --ctu -i /tmp/skip" \
+    CC_ACTION_NUM=100 CC_SUCCESSFUL=101 \
+    run_case 1 n - "clangsa --ctu but successful (101) exceeds action_num (100) -> fail even with skip relaxation"
+# The relaxation needs all three of clangsa + --ctu + a skiplist; drop either --ctu or the skiplist and the same
+# incomplete count must fail, because without them a partial clangsa run is genuinely incomplete.
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clangsa -i /tmp/skip" \
+    CC_ACTION_NUM=100 CC_SUCCESSFUL=1 \
+    run_case 1 n - "clangsa with skiplist but no --ctu: 1 of 100 -> fail (relaxation needs --ctu)"
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clangsa --ctu" \
+    CC_ACTION_NUM=100 CC_SUCCESSFUL=1 \
+    run_case 1 n - "clangsa --ctu but no skiplist: 1 of 100 -> fail (relaxation needs a skiplist)"
 
-# Real 6.28.2 shape passes: one tools[] record for the requested analyzer with action_num == successful + failed and no
-# failures. Modelled for each analyzer the CI runs (clang-tidy / cppcheck / clangsa), including a multi-action run.
+# Complete runs pass: one tools[] record for the requested analyzer, action_num == manifest length, and every scheduled
+# action executed (successful == action_num, failed == 0). Modelled for each analyzer the CI runs, plus a multi-action run.
 CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
     run_case 0 y - "real-shaped clang-tidy metadata (1 action) -> pass"
 CC_ACTION_NUM=3 CC_SUCCESSFUL=3 CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
@@ -293,6 +326,13 @@ CC_ANALYZER=clangsa CC_ENV_ANALYZER=clang-tidy CC_WRAPPER_ARGS="--analyzers clan
     run_case 0 y - "--analyzers on the CLI overrides a mismatched \$ANALYZER env -> pass, gate keys on clangsa"
 CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clang-tidy" \
     run_case 1 n - "--analyzers names an analyzer absent from metadata -> fail closed, no report"
+
+# Blocker 2: CodeChecker's --analyzers is nargs='+', but this wrapper can only key the completeness gate on one analyzer,
+# so a multi-analyzer invocation is rejected up front rather than silently validating only the first requested one. The
+# last value (clang-tidy) matches the metadata, so without the rejection this run would pass -- the rejection is what
+# makes it fail closed.
+CC_WRAPPER_ARGS="--analyzers cppcheck clang-tidy" \
+    run_case 1 n - "multiple --analyzers values -> fail closed before analysis, no report"
 
 # Schema validation rejects malformed or non-repo-relative reports.
 CC_REPORT_JSON="$truncated" run_case 1 n - "truncated JSON -> schema fail, no report"
