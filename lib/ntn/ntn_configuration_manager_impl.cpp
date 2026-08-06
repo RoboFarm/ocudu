@@ -198,7 +198,7 @@ ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configu
     auto period_ms = cell_config.si_sched ? std::chrono::milliseconds(cell_config.si_sched->si_period_rf * 10)
                                           : *cell_config.update_period;
     ctx.timer      = timers.create_unique_timer(executor);
-    ctx.timer.set(period_ms, [this, nr_cgi = cell_config.nr_cgi]() {
+    ctx.timer.set(period_ms, [this, nr_cgi = cell_config.nr_cgi, common_scs = cell_config.common_scs]() {
       // Check if cell context still exists before processing.
       auto ctx_it = cells.find(nr_cgi);
       if (ctx_it == cells.end()) {
@@ -206,7 +206,7 @@ ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configu
         return;
       }
 
-      auto cur_tp_sl = time_provider->get_last_mapping(nr_cgi, subcarrier_spacing::kHz15);
+      auto cur_tp_sl = time_provider->get_last_mapping(nr_cgi, common_scs);
       if (cur_tp_sl and cur_tp_sl->slot_tx.valid()) {
         logger.debug("Run periodic config update task cell={:#x} slot={} time={:%T}",
                      nr_cgi.nci,
@@ -437,6 +437,16 @@ ntn_orbital_state ntn_configuration_manager_impl::compute_orbital_state(per_sate
   return result;
 }
 
+// Wall-clock offset from the current slot to the start of epoch_slot's subframe: a slot lasts
+// 1 ms / nof_slots_per_subframe() and the SIB19 EpochTime is subframe-granular, so drop the part of slot_delta below
+// a subframe. slot_delta can be negative (the current-slot epoch when SIB19 is not scheduled).
+static std::chrono::nanoseconds subframe_aligned_epoch_offset(slot_point epoch_slot, int64_t slot_delta)
+{
+  const int64_t slot_duration_ns   = 1'000'000LL / static_cast<int64_t>(epoch_slot.nof_slots_per_subframe());
+  const int64_t slot_within_subfrm = static_cast<int64_t>(epoch_slot.subframe_slot_index());
+  return std::chrono::nanoseconds{(slot_delta - slot_within_subfrm) * slot_duration_ns};
+}
+
 void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_cell_global_id_t& nr_cgi,
                                                                      time_point                 tp,
                                                                      slot_point                 sl)
@@ -469,7 +479,7 @@ void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_ce
     epoch_slot = sl;
   }
   const auto       slot_diff  = epoch_slot - sl;
-  const time_point epoch_time = tp + std::chrono::milliseconds(slot_diff);
+  const time_point epoch_time = tp + subframe_aligned_epoch_offset(epoch_slot, slot_diff);
 
   // Propagate each serving cell satellite using its own OCM.
   ntn_orbital_state serving_ntn_info;

@@ -22,11 +22,21 @@ class fake_ntn_time_provider : public ntn_time_provider
 {
 public:
   std::optional<ntn_time_slot_mapping> mapping;
+  subcarrier_spacing                   last_requested_scs = subcarrier_spacing::kHz15;
 
   std::optional<ntn_time_slot_mapping> get_last_mapping(const nr_cell_global_id_t& nr_cgi,
                                                         subcarrier_spacing         scs) override
   {
-    return mapping;
+    last_requested_scs = scs;
+    if (!mapping) {
+      return std::nullopt;
+    }
+    // Mirror the real mapper: re-express the reference slot in the requested numerology, preserving the SFN and
+    // subframe, so a manager that asks for the wrong SCS gets the wrong slots-per-frame and a test at a non-zero
+    // subframe is not collapsed to slot 0.
+    const slot_point ref = mapping->slot_tx;
+    return ntn_time_slot_mapping{slot_point{to_numerology_value(scs), ref.sfn(), ref.subframe_index(), 0},
+                                 mapping->time_point};
   }
 };
 
@@ -96,6 +106,7 @@ protected:
     ntn_cell_config& cell = cfg.cells.emplace_back();
     cell.nr_cgi.plmn_id   = plmn_identity::test_value();
     cell.nr_cgi.nci       = nr_cell_identity::create(0x19b0).value();
+    cell.common_scs       = subcarrier_spacing::kHz15;
     cell.update_period    = std::chrono::milliseconds(update_period_ms);
 
     ntn_neighbor_cell_config& ncell = cell.ncells.emplace_back();
@@ -176,4 +187,20 @@ TEST_F(ntn_configuration_manager_test, ncell_without_nci_is_not_published)
   ASSERT_EQ(meas_handler->reqs.size(), 1);
   ASSERT_EQ(meas_handler->reqs.front().ncells.size(), 1);
   EXPECT_EQ(meas_handler->reqs.front().ncells.front().nci, *cfg.cells.front().ncells.front().nci);
+}
+
+// Regression guard for the previously hard-coded subcarrier_spacing::kHz15 mapping lookup: the periodic update must
+// request the current slot in the cell's own common SCS, because the slots-per-frame and slot duration used by the
+// SI-window and epoch derivation depend on the numerology. On the pre-fix code this requested kHz15 for every cell.
+TEST_F(ntn_configuration_manager_test, periodic_update_requests_the_cell_common_scs)
+{
+  ntn_configuration_manager_config cfg = make_meas_cell_config();
+  cfg.cells.front().common_scs         = subcarrier_spacing::kHz30;
+  create_manager(cfg);
+  time_provider->mapping = make_mapping(0);
+
+  tick(update_period_ms);
+
+  ASSERT_EQ(meas_handler->reqs.size(), 1);
+  EXPECT_EQ(time_provider->last_requested_scs, subcarrier_spacing::kHz30);
 }

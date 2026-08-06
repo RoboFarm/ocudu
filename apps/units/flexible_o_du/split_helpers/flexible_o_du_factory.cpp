@@ -247,6 +247,7 @@ generate_ntn_configuration_manager_config(const gnb_id_t&                       
     out_cell.nr_cgi.plmn_id = plmn.value();
     out_cell.nr_cgi.nci     = nci.value();
     out_cell.ntn_cfg        = convert_ntn_config_to_serving_cell_config(ntn_cfg, out_cfg.satellites);
+    out_cell.common_scs     = cell_cfg.common_scs;
 
     // Build sat-switch target satellite (if configured).
     if (ntn_cfg.serving && ntn_cfg.serving->sat_switch_with_resync) {
