@@ -23,6 +23,7 @@ class srs_scheduler;
 class pdu_indication_pool;
 class uci_indication_selector;
 class ra_ue_repository;
+class ue_cell_repository;
 struct uci_action;
 
 struct cell_creation_event {

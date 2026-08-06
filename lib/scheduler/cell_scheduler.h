@@ -20,6 +20,7 @@
 #include "pucch_scheduling/pucch_allocator_impl.h"
 #include "srs/srs_allocator_impl.h"
 #include "uci_scheduling/uci_allocator_impl.h"
+#include "ue_context/ue_cell_repository.h"
 #include "ue_scheduling/ue_scheduler.h"
 
 namespace ocudu {
@@ -96,6 +97,9 @@ private:
   uci_allocator_impl            uci_alloc;
   srs_allocator_impl            srs_alloc;
   paging_scheduler              pg_sch;
+
+  /// UEs configured in this cell.
+  ue_cell_repository ue_cell_db;
 
   /// Reference to UE scheduler whose DU cell group contains this cell.
   ue_scheduler::unique_cell_ptr ue_sched;

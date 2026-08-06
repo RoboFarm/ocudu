@@ -209,8 +209,8 @@ test_bench::test_bench(const test_bench_params& params_) :
   }()),
   cfg_mng(make_custom_cell_config_builder_params(params), expert_cfg),
   cell_cfg(*cfg_mng.add_cell(make_custom_sched_cell_configuration_request(params))),
+  cell_ues(cell_cfg, nullptr),
   ues(expert_cfg.ue),
-  cell_ues(ues.add_cell(cell_cfg, nullptr)),
   pucch_builder(cell_cfg.expert_cfg.ue.max_pucchs_per_slot),
   res_grid(cell_cfg),
   k0(cell_cfg.params.dl_cfg_common.init_dl_bwp.pdsch_common.pdsch_td_alloc_list[0].k0),
@@ -220,6 +220,7 @@ test_bench::test_bench(const test_bench_params& params_) :
   uci_sched{cell_cfg, uci_alloc, ues},
   sl_tx{to_numerology_value(cell_cfg.params.dl_cfg_common.init_dl_bwp.generic_params.scs), 0}
 {
+  ues.register_cell(cell_ues);
   pucch_builder.add_cell(to_du_cell_index(0), cell_cfg.params);
 
   // Add main UE.

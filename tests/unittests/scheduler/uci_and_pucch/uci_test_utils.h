@@ -9,6 +9,7 @@
 #include "lib/scheduler/uci_scheduling/uci_allocator_impl.h"
 #include "lib/scheduler/uci_scheduling/uci_scheduler_impl.h"
 #include "lib/scheduler/ue_context/ue.h"
+#include "lib/scheduler/ue_context/ue_cell_repository.h"
 #include "lib/scheduler/ue_context/ue_repository.h"
 #include "ocudu/ran/csi_rs/csi_meas_config.h"
 #include "ocudu/ran/pucch/pucch_configuration.h"
@@ -76,8 +77,8 @@ public:
   const scheduler_expert_config           expert_cfg;
   test_helpers::test_sched_config_manager cfg_mng;
   const cell_configuration&               cell_cfg;
+  ue_cell_repository                      cell_ues;
   ue_repository                           ues;
-  ue_cell_repository&                     cell_ues;
 
   // Other dependencies.
   pucch_resource_manager  pucch_builder;

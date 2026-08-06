@@ -4,6 +4,7 @@
 
 #include "ue_repository.h"
 #include "../logging/cell_metrics_handler.h"
+#include "ue_cell_repository.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/scheduler/resource_grid_util.h"
 
@@ -101,16 +102,21 @@ void ue_repository::slot_indication(slot_point sl_tx)
   }
 }
 
-ue_cell_repository& ue_repository::add_cell(const cell_configuration& cell_cfg, cell_metrics_handler* cell_metrics)
+void ue_repository::register_cell(ue_cell_repository& cell_ue_repo)
 {
-  ocudu_sanity_check(
-      not cell_ues.contains(cell_cfg.cell_index), "Cell index {} is duplicate", fmt::underlying(cell_cfg.cell_index));
-  cell_ues.emplace(cell_cfg.cell_index, std::make_unique<ue_cell_repository>(cell_cfg, cell_metrics));
-  return *cell_ues[cell_cfg.cell_index];
+  const du_cell_index_t cell_index = cell_ue_repo.cell_index();
+  ocudu_sanity_check(not cell_ues.contains(cell_index), "Cell index {} is duplicate", fmt::underlying(cell_index));
+  cell_ues.emplace(cell_index, &cell_ue_repo);
 }
 
-void ue_repository::rem_cell(du_cell_index_t cell_index)
+void ue_repository::deregister_cell(du_cell_index_t cell_index)
 {
+  ocudu_sanity_check(cell_ues.contains(cell_index), "Cell index {} not registered", fmt::underlying(cell_index));
+  // Any UE left in the cell would keep a dangling ue_cell pointer once the cell repository is destroyed.
+  ocudu_sanity_check(cell_ues[cell_index]->empty(),
+                     "cell={}: Deregistering cell that still holds {} UEs",
+                     fmt::underlying(cell_index),
+                     cell_ues[cell_index]->size());
   cell_ues.erase(cell_index);
 }
 

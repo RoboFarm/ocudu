@@ -8,6 +8,7 @@
 #include "../srs/srs_scheduler_impl.h"
 #include "../uci_scheduling/uci_indication_selector.h"
 #include "../uci_scheduling/uci_scheduler_impl.h"
+#include "../ue_context/ue_cell_repository.h"
 #include "../ue_context/ue_repository.h"
 #include "intra_slice_scheduler.h"
 #include "triggered_ul_grant_scheduler.h"

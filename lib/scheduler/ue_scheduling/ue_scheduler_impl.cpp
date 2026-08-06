@@ -14,6 +14,9 @@ ue_scheduler_impl::ue_scheduler_impl(const scheduler_ue_expert_config& expert_cf
 
 ue_cell_scheduler* ue_scheduler_impl::do_add_cell(const ue_cell_scheduler_creation_request& params)
 {
+  // Register the cell UE repository first, so the cell can accept UEs as soon as it exists.
+  ue_db.register_cell(*params.ue_cell_db);
+
   cells.emplace(params.cell_index, *this, params);
   auto& cell = cells[params.cell_index];
 
@@ -66,6 +69,8 @@ void ue_scheduler_impl::do_rem_cell(du_cell_index_t cell_index)
 
   // Remove cell from UE scheduler.
   cells.erase(cell_index);
+
+  ue_db.deregister_cell(cell_index);
 }
 
 void ue_scheduler_impl::run_sched_strategy(du_cell_index_t cell_index)
@@ -174,7 +179,7 @@ ue_scheduler_impl::cell_context::cell_context(ue_scheduler_impl&                
                                               const ue_cell_scheduler_creation_request& params) :
   parent(parent_),
   cell_res_alloc(params.cell_res_alloc),
-  ue_cell_db(parent.ue_db.add_cell(params.cell_res_alloc->cfg, params.cell_metrics)),
+  ue_cell_db(*params.ue_cell_db),
   uci_sched(params.cell_res_alloc->cfg, *params.uci_alloc, parent.ue_db),
   fallback_sched(parent.expert_cfg,
                  params.cell_res_alloc->cfg,
@@ -187,6 +192,7 @@ ue_scheduler_impl::cell_context::cell_context(ue_scheduler_impl&                
   slice_sched(params.cell_res_alloc->cfg, parent.ue_db),
   intra_slice_sched(parent.expert_cfg,
                     parent.ue_db,
+                    *params.ue_cell_db,
                     *params.pdcch_sched,
                     *params.uci_alloc,
                     *params.srs_alloc,
@@ -202,7 +208,4 @@ ue_scheduler_impl::cell_context::cell_context(ue_scheduler_impl&                
 {
 }
 
-ue_scheduler_impl::cell_context::~cell_context()
-{
-  parent.ue_db.rem_cell(ue_cell_db.cell_index());
-}
+ue_scheduler_impl::cell_context::~cell_context() = default;

@@ -10,6 +10,7 @@
 #include "../srs/srs_scheduler.h"
 #include "../uci_scheduling/uci_indication_selector.h"
 #include "../uci_scheduling/uci_scheduler_impl.h"
+#include "../ue_context/ue_cell_repository.h"
 #include "ocudu/scheduler/scheduler_feedback_handler.h"
 #include "ocudu/support/memory_pool/bounded_object_pool.h"
 #include <memory>
