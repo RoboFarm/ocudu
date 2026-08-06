@@ -238,6 +238,8 @@ private:
 
   async_task<void> handle_transaction_info_loss(const ue_transaction_info_loss_event& ev) override;
 
+  void handle_served_cells_updated() override;
+
   // NGAP UE creation handler.
   ngap_cu_cp_ue_notifier* handle_new_ngap_ue(cu_cp_ue_index_t ue_index) override;
 

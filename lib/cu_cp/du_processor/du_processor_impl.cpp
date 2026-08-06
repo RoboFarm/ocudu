@@ -178,6 +178,9 @@ du_setup_result du_processor_impl::handle_du_setup_request(const du_setup_reques
   // Store cell info in RRC DU.
   rrc->store_cell_info_db(cell_info_db);
 
+  // Notify the CU-CP that the cells served by this DU changed.
+  cu_cp_notifier.on_served_cells_updated();
+
   // Prepare DU response with accepted setup.
   auto& accepted              = res.result.emplace<du_setup_result::accepted>();
   accepted.gnb_cu_name        = cfg.ran_node_name;
@@ -490,6 +493,9 @@ du_processor_impl::handle_configuration_update(const f1ap_gnb_cu_configuration_u
 {
   // Update the DU configuration.
   du_cfg_hdlr->handle_gnb_cu_configuration_update(request);
+
+  // Notify the CU-CP that the cells served by this DU changed.
+  cu_cp_notifier.on_served_cells_updated();
 
   return f1ap->handle_gnb_cu_configuration_update(request);
 }

@@ -104,6 +104,9 @@ async_task<void> du_processor_repository::remove_du(cu_cp_du_index_t du_index)
     du_db.erase(du_index);
     logger.info("Removed DU {}", du_index);
 
+    // Notify the CU-CP that the cells served by the connected DUs changed.
+    cu_cp_du_handler.handle_served_cells_updated();
+
     CORO_RETURN();
   });
 }

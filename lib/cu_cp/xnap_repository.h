@@ -67,6 +67,9 @@ public:
 
   xnap_task_scheduler& get_xnap_task_scheduler() { return xnc_task_sched; }
 
+  /// \brief Report the cells this node serves to all connected XN-C peers (TS 38.423 section 8.4.1).
+  void update_served_cells();
+
   /// Number of XNAPs managed by the CU-CP.
   size_t get_nof_xnaps() const { return xnap_db.size(); }
 

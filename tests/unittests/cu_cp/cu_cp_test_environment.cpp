@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "cu_cp_test_environment.h"
+#include "lib/xnap/procedures/ngran_node_cfg_update_asn1_helpers.h"
 #include "lib/xnap/procedures/xn_setup_procedure_asn1_helpers.h"
 #include "tests/test_doubles/e1ap/e1ap_test_message_validators.h"
 #include "tests/test_doubles/f1ap/f1ap_test_message_validators.h"
@@ -474,6 +475,44 @@ void cu_cp_test_environment::run_xn_setup()
   }
 }
 
+void cu_cp_test_environment::run_ngran_node_cfg_update(span<const test_helpers::served_cell_item_info> added_cells)
+{
+  xnap_message xnap_pdu;
+  for (const auto& [xnc_peer_idx, xnc_peer] : xnc_peers) {
+    report_fatal_error_if_not(wait_for_xnap_tx_pdu(xnc_peer_idx, xnap_pdu),
+                              "CU-CP did not send the NG-RAN Node Configuration Update to the XN-C peer CU-CP {}",
+                              xnc_peer_idx);
+    report_fatal_error_if_not(
+        test_helpers::is_pdu_type(xnap_pdu, asn1::xnap::xnap_elem_procs_o::init_msg_c::types::ngran_node_cfg_upd),
+        "CU-CP did not report its served cells to the XN-C peer CU-CP {}",
+        xnc_peer_idx);
+
+    const auto& asn1_cells_to_add = xnap_pdu.pdu.init_msg()
+                                        .value.ngran_node_cfg_upd()
+                                        ->cfg_upd_init_node_choice.gnb()
+                                        .served_cells_to_upd_nr.served_cells_to_add_nr;
+    report_fatal_error_if_not(asn1_cells_to_add.size() == added_cells.size(),
+                              "CU-CP reported {} added cells to the XN-C peer CU-CP {}, expected {}",
+                              asn1_cells_to_add.size(),
+                              xnc_peer_idx,
+                              added_cells.size());
+    for (unsigned i = 0; i != added_cells.size(); ++i) {
+      const auto& asn1_cell_info = asn1_cells_to_add[i].served_cell_info_nr;
+      report_fatal_error_if_not(asn1_cell_info.nr_pci == added_cells[i].pci,
+                                "CU-CP reported pci={} for the cell nci={}, expected pci={}",
+                                asn1_cell_info.nr_pci,
+                                added_cells[i].nci,
+                                added_cells[i].pci);
+      report_fatal_error_if_not(asn1_cell_info.cell_id.nr_ci.to_number() == added_cells[i].nci.value(),
+                                "CU-CP reported an unexpected cell to the XN-C peer CU-CP {}",
+                                xnc_peer_idx);
+    }
+
+    last_ngran_node_cfg_update = xnap_pdu;
+    get_xnc_cu_cp(xnc_peer_idx).push_tx_pdu(generate_asn1_ngran_node_cfg_update_ack());
+  }
+}
+
 std::optional<unsigned> cu_cp_test_environment::connect_new_du()
 {
   auto du_stub = create_mock_du({get_cu_cp().get_f1c_handler()});
@@ -506,6 +545,10 @@ bool cu_cp_test_environment::run_f1_setup(unsigned                              
   get_du(du_idx).push_ul_pdu(f1_setup_req);
   f1ap_message f1ap_pdu;
   bool         result = this->wait_for_f1ap_tx_pdu(du_idx, f1ap_pdu);
+
+  // The cells of the DU are reported to the XN-C peers.
+  run_ngran_node_cfg_update(cells);
+
   return result;
 }
 

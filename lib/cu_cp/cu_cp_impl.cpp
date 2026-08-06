@@ -1838,6 +1838,11 @@ async_task<void> cu_cp_impl::handle_transaction_info_loss(const ue_transaction_i
   return launch_async<ue_transaction_info_release_routine>(ev, ue_mng, ngap_db, cu_up_db, *this, logger);
 }
 
+void cu_cp_impl::handle_served_cells_updated()
+{
+  xnap_db.update_served_cells();
+}
+
 ngap_cu_cp_ue_notifier* cu_cp_impl::handle_new_ngap_ue(cu_cp_ue_index_t ue_index)
 {
   auto* ue = ue_mng.find_ue(ue_index);

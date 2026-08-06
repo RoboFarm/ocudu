@@ -4,6 +4,7 @@
 
 #include "xnap_impl.h"
 #include "log_helpers.h"
+#include "procedures/ngran_node_cfg_update_procedure.h"
 #include "procedures/sn_status_transfer_asn1_helpers.h"
 #include "procedures/xn_handover_asn1_helpers.h"
 #include "procedures/xn_setup_asn1_helpers.h"
@@ -38,7 +39,8 @@ xnap_impl::xnap_impl(xnc_peer_index_t          xnc_index_,
   cu_cp_notifier(cu_cp_notifier_),
   timers(timers_),
   ctrl_exec(ctrl_exec_),
-  xn_setup_outcome(timer_factory{timers, ctrl_exec})
+  xn_setup_outcome(timer_factory{timers, ctrl_exec}),
+  cfg_update_outcome(timer_factory{timers, ctrl_exec})
 {
 }
 
@@ -46,6 +48,9 @@ async_task<void> xnap_impl::stop()
 {
   // Stop XN setup procedure if in progress.
   xn_setup_outcome.stop();
+
+  // Stop NG-RAN node configuration update procedure if in progress.
+  cfg_update_outcome.stop();
 
   // Cancel pending per-UE transactions (e.g. Handover Preparation, SN Status Transfer).
   ue_ctxt_list.cancel_all_transactions();
@@ -93,6 +98,9 @@ void xnap_impl::handle_initiating_message(const init_msg_s& msg)
     case xnap_elem_procs_o::init_msg_c::types_opts::xn_setup_request:
       handle_xn_setup_request(msg.value.xn_setup_request());
       break;
+    case xnap_elem_procs_o::init_msg_c::types_opts::ngran_node_cfg_upd:
+      handle_ngran_node_cfg_update(msg.value.ngran_node_cfg_upd());
+      break;
     case xnap_elem_procs_o::init_msg_c::types_opts::ho_request:
       handle_handover_request(msg.value.ho_request());
       break;
@@ -122,6 +130,9 @@ void xnap_impl::handle_successful_outcome(const successful_outcome_s& outcome)
     case xnap_elem_procs_o::successful_outcome_c::types_opts::xn_setup_resp: {
       xn_setup_outcome.set(outcome.value.xn_setup_resp());
     } break;
+    case xnap_elem_procs_o::successful_outcome_c::types_opts::ngran_node_cfg_upd_ack: {
+      cfg_update_outcome.set(outcome.value.ngran_node_cfg_upd_ack());
+    } break;
     case xnap_elem_procs_o::successful_outcome_c::types_opts::ho_request_ack: {
       if (auto* ue_ctxt = asn1_utils::get_ue_ctxt_in_ue_assoc_msg(outcome, ue_ctxt_list, logger)) {
         ue_ctxt->xn_handover_outcome.set(outcome.value.ho_request_ack());
@@ -137,6 +148,9 @@ void xnap_impl::handle_unsuccessful_outcome(const unsuccessful_outcome_s& outcom
   switch (outcome.value.type().value) {
     case xnap_elem_procs_o::unsuccessful_outcome_c::types_opts::xn_setup_fail: {
       xn_setup_outcome.set(outcome.value.xn_setup_fail());
+    } break;
+    case xnap_elem_procs_o::unsuccessful_outcome_c::types_opts::ngran_node_cfg_upd_fail: {
+      cfg_update_outcome.set(outcome.value.ngran_node_cfg_upd_fail());
     } break;
     case xnap_elem_procs_o::unsuccessful_outcome_c::types_opts::ho_prep_fail: {
       if (auto* ue_ctxt = asn1_utils::get_ue_ctxt_in_ue_assoc_msg(outcome, ue_ctxt_list, logger)) {
@@ -154,6 +168,40 @@ async_task<bool> xnap_impl::handle_xn_setup_request_required()
 
   return launch_async<xn_setup_procedure>(
       xnap_cfg, advertised_cells, peer_ctxt, tx_notifier, xn_setup_outcome, timer_factory{timers, ctrl_exec}, logger);
+}
+
+async_task<bool> xnap_impl::handle_served_cells_update_required()
+{
+  return launch_async<ngran_node_cfg_update_procedure>(xnap_cfg,
+                                                       cu_cp_notifier.on_served_cells_required(),
+                                                       advertised_cells,
+                                                       peer_ctxt,
+                                                       tx_notifier,
+                                                       cfg_update_outcome,
+                                                       logger);
+}
+
+void xnap_impl::handle_ngran_node_cfg_update(const ngran_node_cfg_upd_s& msg)
+{
+  if (not peer_ctxt.has_value()) {
+    logger.warning("Rejecting NGRANNodeConfigurationUpdate. Cause: XN setup has not been completed");
+    if (not tx_notifier.on_new_message(
+            generate_asn1_ngran_node_cfg_update_failure(cause_protocol_t::msg_not_compatible_with_receiver_state))) {
+      logger.error("Failed to send NGRANNodeConfigurationUpdateFailure. Cause: no SCTP association available");
+    }
+    return;
+  }
+
+  const auto& asn1_init_node_choice = msg->cfg_upd_init_node_choice;
+  if (asn1_init_node_choice.type() == cfg_upd_init_node_choice_c::types_opts::gnb and
+      asn1_init_node_choice.gnb().served_cells_to_upd_nr_present) {
+    update_peer_served_cells(peer_ctxt->list_of_served_cells_nr, asn1_init_node_choice.gnb().served_cells_to_upd_nr);
+    logger.info("XN-C peer serves {} cell(s)", peer_ctxt->list_of_served_cells_nr.size());
+  }
+
+  if (not tx_notifier.on_new_message(generate_asn1_ngran_node_cfg_update_ack())) {
+    logger.error("Failed to send NGRANNodeConfigurationUpdateAcknowledge. Cause: no SCTP association available");
+  }
 }
 
 void xnap_impl::handle_xn_setup_request(const xn_setup_request_s& request)

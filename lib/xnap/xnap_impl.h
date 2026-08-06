@@ -35,6 +35,7 @@ public:
 
   // XNAP connection manager functions.
   async_task<bool> handle_xn_setup_request_required() override;
+  async_task<bool> handle_served_cells_update_required() override;
   void             set_tx_association_notifier(std::unique_ptr<xnap_message_notifier> tx_notifier_) override
   {
     tx_notifier.connect(std::move(tx_notifier_));
@@ -62,6 +63,10 @@ private:
   /// \brief Notify about the reception of an XN Setup Request message.
   /// \param[in] request The received XN Setup Request message.
   void handle_xn_setup_request(const asn1::xnap::xn_setup_request_s& request);
+
+  /// \brief Notify about the reception of an NG-RAN Node Configuration Update message.
+  /// \param[in] msg The received NG-RAN Node Configuration Update message.
+  void handle_ngran_node_cfg_update(const asn1::xnap::ngran_node_cfg_upd_s& msg);
 
   /// \brief Notify about the reception of a Handover Request message.
   /// \param[in] msg The received handover request message.
@@ -111,6 +116,10 @@ private:
 
   /// XN Setup Response/Failure Event Source.
   protocol_transaction_event_source<asn1::xnap::xn_setup_resp_s, asn1::xnap::xn_setup_fail_s> xn_setup_outcome;
+
+  /// NG-RAN Node Configuration Update Acknowledge/Failure Event Source.
+  protocol_transaction_event_source<asn1::xnap::ngran_node_cfg_upd_ack_s, asn1::xnap::ngran_node_cfg_upd_fail_s>
+      cfg_update_outcome;
 };
 
 } // namespace ocudu::ocucp

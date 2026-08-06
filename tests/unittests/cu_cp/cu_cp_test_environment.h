@@ -17,6 +17,7 @@
 #include "ocudu/ran/cu_cp_location_reporting_types.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/support/async/async_test_utils.h"
+#include "ocudu/xnap/xnap_message.h"
 #include <optional>
 #include <unordered_map>
 
@@ -112,6 +113,10 @@ public:
 
   /// Start CU-CP connection to XN-C peer CU-CP and run XN setup procedure to completion.
   void run_xn_setup();
+
+  /// Run to completion the NG-RAN Node Configuration Update the CU-CP sends to each XN-C peer when the cells it serves
+  /// change, checking that it reports the given cells as added.
+  void run_ngran_node_cfg_update(span<const test_helpers::served_cell_item_info> added_cells);
 
   /// Establish a TNL connection between a DU and the CU-CP.
   std::optional<unsigned> connect_new_du();
@@ -302,6 +307,9 @@ public:
       const std::vector<pdu_session_id_t>& expected_pdu_sessions_failed_to_setup);
 
   rrc_timers_t rrc_test_timer_values;
+
+  /// Last NG-RAN Node Configuration Update the CU-CP sent to an XN-C peer.
+  xnap_message last_ngran_node_cfg_update;
 
 private:
   class worker_manager;

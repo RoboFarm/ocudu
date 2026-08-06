@@ -51,6 +51,18 @@ xnap_interface* xnap_repository::add_xnap(xnc_peer_index_t                      
   return xnap_ctxt.xnap.get();
 }
 
+void xnap_repository::update_served_cells()
+{
+  for (auto& [xnc_index, xnap_ctxt] : xnap_db) {
+    xnc_task_sched.handle_xnc_async_task(
+        xnc_index, launch_async([xnap = xnap_ctxt.xnap.get()](coro_context<async_task<void>>& ctx) {
+          CORO_BEGIN(ctx);
+          CORO_AWAIT(xnap->handle_served_cells_update_required());
+          CORO_RETURN();
+        }));
+  }
+}
+
 xnap_interface* xnap_repository::find_xnap(xnc_peer_index_t xnc_index)
 {
   auto it = xnap_db.find(xnc_index);

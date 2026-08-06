@@ -752,6 +752,42 @@ inline asn1::xnap::served_cell_info_nr_s served_cell_info_nr_to_asn1(const cu_cp
   return asn1_served_cell;
 }
 
+/// \brief Convert XNAP ASN.1 to \c cu_cp_served_cell_info.
+/// \param[in] asn1_served_cell The ASN.1 type served cell info.
+/// \return The common type served cell info.
+inline cu_cp_served_cell_info asn1_to_served_cell_info(const asn1::xnap::served_cell_info_nr_s& asn1_served_cell)
+{
+  cu_cp_served_cell_info served_cell;
+
+  // Fill PCI and cell id.
+  served_cell.nr_pci = asn1_served_cell.nr_pci;
+  served_cell.nr_cgi = asn1_to_cgi(asn1_served_cell.cell_id);
+
+  // Fill TAC.
+  served_cell.five_gs_tac = asn1_served_cell.tac.to_number();
+
+  // Fill RANAC.
+  if (asn1_served_cell.ranac_present) {
+    served_cell.ranac = asn1_served_cell.ranac;
+  }
+
+  // Fill served PLMNs. A PLMN that is not valid BCD is left out.
+  for (const auto& asn1_plmn : asn1_served_cell.broadcast_plmn) {
+    expected<plmn_identity> plmn = plmn_identity::from_bytes(asn1_plmn.to_bytes());
+    if (plmn.has_value()) {
+      served_cell.served_plmns.push_back(plmn.value());
+    }
+  }
+
+  // Fill NR mode info.
+  served_cell.nr_mode_info = asn1_to_nr_mode_info(asn1_served_cell.nr_mode_info);
+
+  // Fill measurement timing configuration.
+  served_cell.meas_timing_cfg = asn1_served_cell.meas_timing_cfg.copy();
+
+  return served_cell;
+}
+
 /// \brief Convert XNAP ASN1 event_type_e to common type event_type.
 /// \param[in] asn1_event_type The XNAP ASN1 event type.
 /// \return The common type event_type.

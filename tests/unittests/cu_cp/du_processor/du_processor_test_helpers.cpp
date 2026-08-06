@@ -96,6 +96,8 @@ public:
     return launch_no_op_task();
   }
 
+  void handle_served_cells_updated() override {}
+
 private:
   ue_manager&                         ue_mng;
   dummy_cu_cp_ue_admission_controller ue_admission_handler;

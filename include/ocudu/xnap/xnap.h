@@ -36,6 +36,10 @@ public:
   /// \returns true if the procedure completed successfully, false otherwise.
   virtual async_task<bool> handle_xn_setup_request_required() = 0;
 
+  /// \brief Trigger the report of the cells this node serves to the XN-C peer (TS 38.423 section 8.4.1).
+  /// \returns true if the XN-C peer acknowledged the reported cells, false otherwise.
+  virtual async_task<bool> handle_served_cells_update_required() = 0;
+
   /// \brief Provide the SCTP association notifier after the SCTP association establishment.
   /// \param[in] tx_notifier_ The SCTP association notifier.
   virtual void set_tx_association_notifier(std::unique_ptr<xnap_message_notifier> tx_notifier_) = 0;

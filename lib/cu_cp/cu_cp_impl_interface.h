@@ -229,6 +229,9 @@ public:
 
   /// \brief Handle transaction information loss in the F1AP.
   virtual async_task<void> handle_transaction_info_loss(const ue_transaction_info_loss_event& ev) = 0;
+
+  /// \brief Handle a change of the NR cells the connected DUs serve.
+  virtual void handle_served_cells_updated() = 0;
 };
 
 /// Interface for an RRC UE entity to communicate with the CU-CP.

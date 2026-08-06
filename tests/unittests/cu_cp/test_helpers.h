@@ -117,10 +117,14 @@ public:
     return launch_no_op_task();
   }
 
+  void on_served_cells_updated() override { served_cells_updated = true; }
+
   async_task<void> on_access_success(const cu_cp_access_success_indication& msg) override
   {
     return launch_no_op_task();
   }
+
+  bool served_cells_updated = false;
 
 private:
   ocudulog::basic_logger&   logger              = ocudulog::fetch_basic_logger("TEST");
