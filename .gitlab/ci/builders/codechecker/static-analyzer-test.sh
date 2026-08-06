@@ -81,7 +81,9 @@ analyze)
         elif [[ "${CC_NO_STATS:-0}" == 1 ]]; then
             printf '{"tools":[{"action_num":1,"analyzers":{"%s":{}}}]}' "$analyzer" >"$out/metadata.json"
         else
-            # Real 6.28.2 shape: one tools[] record with action_num == successful + failed for the requested analyzer.
+            # Real 6.28.2 shape: one tools[] record for the requested analyzer. Without --ctu action_num == successful
+            # + failed; clangsa --ctu keeps the skip-listed actions in action_num (pre-analysis needs the full set) so
+            # action_num >= successful + failed (driven per-case via CC_ACTION_NUM).
             printf '{"tools":[{"action_num":%s,"analyzers":{"%s":{"analyzer_statistics":{"successful":%s,"failed":%s}}}}]}' "${CC_ACTION_NUM:-1}" "$analyzer" "${CC_SUCCESSFUL:-1}" "${CC_FAILED:-0}" >"$out/metadata.json"
         fi
     fi
@@ -136,6 +138,19 @@ exec "$real_find" "\$@"
 MOCK
     chmod +x "$bin/find"
 
+    # Fake "mv" that fails on demand (CC_MV_RC) to exercise the atomic-publish failure path; with CC_MV_RC unset it
+    # delegates to the real mv. The wrapper uses mv only for the final report publish, so this intercepts just that.
+    local real_mv
+    real_mv="$(command -v mv)"
+    cat >"$bin/mv" <<MOCK
+#!/bin/bash
+if [[ -n "\${CC_MV_RC:-}" ]]; then
+    exit "\$CC_MV_RC"
+fi
+exec "$real_mv" "\$@"
+MOCK
+    chmod +x "$bin/mv"
+
     # Optionally pre-seed a stale Code Quality report to prove the wrapper clears it up front. CC_PRESEED_REPORT_DIR
     # seeds it as a *directory* so the up-front "rm -f" fails, exercising the cleanup-failure path.
     if [[ "${CC_PRESEED_REPORT_DIR:-0}" == 1 ]]; then
@@ -144,10 +159,21 @@ MOCK
         printf 'STALE' >"$folder/code-quality-report.json"
     fi
 
-    # ANALYZER is the analyzer the CI job requests; the metadata completeness gate keys on it. Default to clang-tidy,
-    # matching the mock metadata's analyzer name.
+    # CC_ANALYZER is the analyzer name the mock writes into metadata.json (default clang-tidy). The wrapper derives the
+    # analyzer it checks from the --analyzers flag on the command line, falling back to the ANALYZER environment
+    # variable. The knobs below let a case drive those two inputs independently of the mock's name so the derivation and
+    # its precedence can be exercised:
+    #   CC_WRAPPER_ARGS   extra args placed before the folder (e.g. "--analyzers clangsa"), matching the real CI call.
+    #   CC_ENV_ANALYZER   value exported as ANALYZER (default: the mock's CC_ANALYZER, so env and metadata agree).
+    #   CC_NO_ANALYZER_ENV=1  run with ANALYZER unset, to prove CLI-only derivation with no env fallback.
     local analyzer="${CC_ANALYZER:-clang-tidy}"
-    ANALYZER="$analyzer" PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "$folder" >/dev/null 2>&1
+    local -a wrapper_args=()
+    [[ -n "${CC_WRAPPER_ARGS:-}" ]] && read -r -a wrapper_args <<<"$CC_WRAPPER_ARGS"
+    if [[ "${CC_NO_ANALYZER_ENV:-0}" == 1 ]]; then
+        PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
+    else
+        ANALYZER="${CC_ENV_ANALYZER:-$analyzer}" PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
+    fi
     local rc=$?
 
     local report="$folder/code-quality-report.json"
@@ -235,14 +261,16 @@ CC_FAILED=1 run_case 1 n - "metadata records a failed analyzer job -> fail, no r
 CC_SUCCESSFUL=true run_case 1 n - "metadata successful is a bool (not coerced by int()) -> fail closed, no report"
 CC_SUCCESSFUL='"1"' run_case 1 n - "metadata successful is a string (not coerced by int()) -> fail closed, no report"
 
-# Blocker 2: the metadata completeness gate keys on the requested analyzer and accounts for every scheduled action, so
-# it rejects metadata that names a different analyzer, duplicates the analyzer across tools[] (hiding a failure via
-# last-writer-wins), records missing analyzer_statistics, or executes only a fraction of the scheduled actions.
+# The metadata completeness gate keys on the requested analyzer, so it rejects metadata that names a different analyzer,
+# duplicates the analyzer across tools[] (hiding a failure via last-writer-wins), or records missing analyzer_statistics.
+# It deliberately does NOT compare successful + failed against action_num: under clangsa --ctu, CodeChecker keeps the
+# skip-listed actions in action_num (CTU pre-analysis needs the full set) but skips them in the analysis, so a clean
+# run legitimately has successful + failed < action_num and must pass (see the skip case below).
 CC_WRONG_ANALYZER=1 run_case 1 n - "metadata records a different analyzer than requested -> fail, no report"
 CC_ANALYZER=clang-tidy CC_DUP_ANALYZER=1 run_case 1 n - "analyzer duplicated across tools[] (earlier failure hidden) -> fail, no report"
 CC_NO_STATS=1 run_case 1 n - "analyzer record missing analyzer_statistics -> fail, no report"
-CC_ACTION_NUM=100 CC_SUCCESSFUL=1 run_case 1 n - "only 1 of 100 scheduled actions executed -> fail, no report"
-CC_ACTION_NUM=3 CC_SUCCESSFUL=2 run_case 1 n - "2 of 3 scheduled actions executed (partial) -> fail, no report"
+CC_ACTION_NUM=100 CC_SUCCESSFUL=1 CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
+    run_case 0 y - "action_num=100 but only 1 executed, no failures (clangsa --ctu shape) -> pass, report published"
 
 # Real 6.28.2 shape passes: one tools[] record for the requested analyzer with action_num == successful + failed and no
 # failures. Modelled for each analyzer the CI runs (clang-tidy / cppcheck / clangsa), including a multi-action run.
@@ -254,6 +282,17 @@ CC_ANALYZER=cppcheck CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
     run_case 0 y - "real-shaped cppcheck metadata for the requested analyzer -> pass"
 CC_ANALYZER=clangsa CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
     run_case 0 y - "real-shaped clangsa metadata for the requested analyzer -> pass"
+
+# Blocker 3: the wrapper derives the analyzer it checks from the --analyzers flag the CI job passes on the command line
+# (script: ... --analyzers ${ANALYZER} ...), falling back to $ANALYZER only when the flag is absent. This keeps the gate
+# checking what CodeChecker actually ran. These lock the derivation, its precedence over the env, and fail-closed on a
+# CLI value the run did not produce.
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clangsa" CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
+    run_case 0 y - "analyzer derived from --analyzers with no \$ANALYZER env -> pass"
+CC_ANALYZER=clangsa CC_ENV_ANALYZER=clang-tidy CC_WRAPPER_ARGS="--analyzers clangsa" CC_REPORT_JSON='[]' CC_EXPECT_REPORT_JSON='[]' \
+    run_case 0 y - "--analyzers on the CLI overrides a mismatched \$ANALYZER env -> pass, gate keys on clangsa"
+CC_ANALYZER=clangsa CC_NO_ANALYZER_ENV=1 CC_WRAPPER_ARGS="--analyzers clang-tidy" \
+    run_case 1 n - "--analyzers names an analyzer absent from metadata -> fail closed, no report"
 
 # Schema validation rejects malformed or non-repo-relative reports.
 CC_REPORT_JSON="$truncated" run_case 1 n - "truncated JSON -> schema fail, no report"
@@ -317,6 +356,12 @@ CC_PRESEED_REPORT=1 CC_TEST_FORCE_INTERNAL_ERROR=1 CC_REPORT_JSON="$info_report"
     run_case 1 n - "preseed + validator internal failure -> cleared, no report"
 CC_PRESEED_REPORT_DIR=1 \
     run_case 1 n - "cleanup fails (un-removable stale report) -> fail closed"
+
+# Atomic publish failure: the report is complete and valid but the final rename fails. The wrapper must fail closed and
+# remove the temporary report so nothing partial is left for the "when: always" upload (the tmp-leftover check in
+# run_case asserts the .tmp is gone).
+CC_MV_RC=1 CC_REPORT_JSON='[]' \
+    run_case 1 n n "atomic publish (mv) fails -> fail closed, temporary report removed, none published"
 
 # HTML debug tree: best-effort, produced after the report on a complete run so a user can browse the findings; an
 # incomplete run fails the gate before HTML, so none is produced.

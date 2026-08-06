@@ -12,9 +12,9 @@ Subcommands, each reading a file the wrapper produced:
       this file only when it has work to do, so its absence or emptiness marks a 0%-coverage run.
 
   metadata <metadata.json> <expected_analyzer>
-      Exit 0 if the requested analyzer ran every scheduled action successfully, 1 otherwise (reason on stderr). Keyed on
-      the analyzer this job requested so a metadata that names a different analyzer, duplicates the analyzer across
-      tools[] (hiding a failure via last-writer-wins), or executes only a fraction of the scheduled actions is rejected.
+      Exit 0 if the requested analyzer ran with no failures and at least one success, 1 otherwise (reason on stderr).
+      Keyed on the analyzer this job requested, so a metadata that names a different analyzer, duplicates the analyzer
+      across tools[] (hiding a failure via last-writer-wins), or records a failed/zero-execution run is rejected.
 
   report <code-quality-report.json>
       Validate the GitLab Code Quality report and look for major-or-higher findings. Disjoint exit codes that skip 1, so
@@ -70,12 +70,16 @@ def cmd_metadata(path, expected):
     if not isinstance(tools, list) or not tools:
         return die("metadata.tools is not a non-empty list")
 
-    records = []  # (action_num, analyzer_statistics) for each tools[] entry that ran the requested analyzer
+    records = []  # analyzer_statistics for each tools[] entry that ran the requested analyzer
     try:
         for tool in tools:
             if not isinstance(tool, dict):
                 return die("metadata.tools entry is not an object")
-            action_num = _nonneg_int(tool.get("action_num"), "action_num")
+            # action_num is validated for shape but deliberately NOT compared to successful + failed. Under --ctu,
+            # CodeChecker keeps the skip-listed actions in action_num (CTU pre-analysis needs the full set) but skips
+            # them in the analysis itself, so successful + failed < action_num on a healthy run. Incomplete runs are
+            # caught by the failed/ directory and the analyze exit code, not here.
+            _nonneg_int(tool.get("action_num"), "action_num")
             analyzers = tool.get("analyzers")
             if not isinstance(analyzers, dict):
                 return die("metadata.tools entry has no analyzers object")
@@ -84,12 +88,12 @@ def cmd_metadata(path, expected):
                 stats = rec.get("analyzer_statistics") if isinstance(rec, dict) else None
                 if not isinstance(stats, dict):
                     return die("%s record has no analyzer_statistics object" % expected)
-                records.append((action_num, stats))
+                records.append(stats)
 
         if len(records) != 1:
             return die("expected exactly one %r analyzer record, found %d" % (expected, len(records)))
 
-        action_num, stats = records[0]
+        stats = records[0]
         successful = _nonneg_int(stats.get("successful"), "successful")
         failed = _nonneg_int(stats.get("failed"), "failed")
     except ValueError as error:
@@ -99,8 +103,6 @@ def cmd_metadata(path, expected):
         return die("%s reported %d failed action(s)" % (expected, failed))
     if successful == 0:
         return die("%s executed zero actions" % expected)
-    if successful + failed != action_num:
-        return die("%s executed %d of %d scheduled actions" % (expected, successful + failed, action_num))
     return 0
 
 

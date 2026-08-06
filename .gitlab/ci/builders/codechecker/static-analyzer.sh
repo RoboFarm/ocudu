@@ -66,6 +66,16 @@ script_dir="$(cd "$(dirname "$self")" && pwd)"
 resolve_helper() { if [[ -x "${script_dir}/$1" ]]; then echo "${script_dir}/$1"; else command -v "$1"; fi; }
 validator="$(resolve_helper validate_analysis.py)"
 
+# Expected analyzer for the completeness gate: take it from the actual --analyzers passed through to CodeChecker so the
+# gate checks what really ran, not a separate variable. Fall back to $ANALYZER when the flag is absent, so a standalone
+# caller of the image that only sets one of the two still works.
+expected_analyzer="${ANALYZER:-}"
+prev=""
+for arg in "$@"; do
+    [[ "$prev" == "--analyzers" ]] && expected_analyzer="$arg"
+    prev="$arg"
+done
+
 # Setup
 cd "$FOLDER" || exit
 mkdir -p build
@@ -102,10 +112,10 @@ if [[ -z $DRYRUN ]]; then
     actions_rc=0
     python3 "$validator" manifest codechecker_output/unique_compile_commands.json || actions_rc=$?
     # Reject an incomplete analysis: a non-empty manifest only proves actions were scheduled, not that the requested
-    # analyzer ran them. Verify metadata.json against $ANALYZER (exactly one record, no failures, all scheduled actions
-    # executed). See validate_analysis.py.
+    # analyzer ran them. Verify metadata.json for the expected analyzer (exactly one record, no failures, at least one
+    # executed action). See validate_analysis.py.
     execution_rc=0
-    python3 "$validator" metadata codechecker_output/metadata.json "$ANALYZER" || execution_rc=$?
+    python3 "$validator" metadata codechecker_output/metadata.json "$expected_analyzer" || execution_rc=$?
 else
     analyze_rc=0
     suppress_rc=0
@@ -175,6 +185,7 @@ esac
 # publication failure is a hard script failure rather than a silently dropped artifact.
 mv -f -- "$report_tmp" "$report" || {
     echo "ERROR: failed to publish Code Quality report" >&2
+    rm -f -- "$report_tmp"
     exit 1
 }
 
