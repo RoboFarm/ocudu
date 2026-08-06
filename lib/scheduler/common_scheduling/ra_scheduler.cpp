@@ -1805,7 +1805,14 @@ void ra_scheduler::schedule_pending_msgbs(cell_resource_allocator& res_alloc, sl
     const auto msgb_prbs_tbs = get_nof_msgb_pdsch_prbs_required(pdsch_time_res_index, nof_fallback, nof_success);
     msgb_crbs.resize(msgb_prbs_tbs.nof_prbs);
 
-    build_dci_f1_0_ra_rnti(pdcch->dci, init_dl_bwp, msgb_crbs, pdsch_time_res_index, sched_cfg.rar_mcs_index);
+    // TS38.213, Section 8.2A: the successRAR/fallbackRAR PDCCH must carry the 2 LSBs of the SFN where the UE
+    // transmitted PRACH if msgB-ResponseWindow is configured larger than 10 msec, or the UE discards the DCI.
+    const unsigned msgb_resp_window_ms =
+        cell_cfg.init_bwp.ul.rach_common()->two_step_rach_cfg->msgB_response_window_slots >>
+        to_numerology_value(dl_scs);
+    const unsigned lsb_sfn = msgb_resp_window_ms > 10 ? msgb.prach_slot_rx.sfn() & 0b11U : 0U;
+    build_dci_f1_0_msgb_rnti(
+        pdcch->dci, init_dl_bwp, msgb_crbs, pdsch_time_res_index, sched_cfg.rar_mcs_index, lsb_sfn);
     pdsch_alloc.dl_res_grid.fill(grant_info{dl_scs, pdsch_td_list[pdsch_time_res_index].symbols, msgb_crbs});
 
     rar_information& msgb_rar = pdsch_alloc.result.dl.rar_grants.emplace_back();

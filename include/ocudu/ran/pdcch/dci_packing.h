@@ -733,7 +733,12 @@ struct dci_1_0_ra_rnti_configuration {
   /// \brief Transport Block scaling - 2 bits as per TS38.214 Section 5.1.3 and Table 5.1.3.2-2.
   /// \remark The value \c 0b11 is reserved.
   unsigned tb_scaling;
-  // Reserved bits - 16 bits.
+  /// \brief LSBs of SFN - 2 bits as per TS38.213 Section 8.2A.
+  /// \remark Only applicable for CRC scrambled by MsgB-RNTI with msgB-ResponseWindow configured larger than 10 msec,
+  /// or for CRC scrambled by RA-RNTI in a shared spectrum channel access cell; \c 0 otherwise, in which case these
+  /// bits are just reserved.
+  uint8_t lsb_sfn = 0;
+  // Reserved bits - 14 bits.
 };
 
 /// Packs a DCI format 1_0 scrambled by RA-RNTI.

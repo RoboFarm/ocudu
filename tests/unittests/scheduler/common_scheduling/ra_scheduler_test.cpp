@@ -888,6 +888,40 @@ TEST_P(ra_scheduler_two_step_rach_test, when_mixed_crc_outcomes_both_rar_types_s
   ASSERT_EQ(tracker.nof_msg3_newtxs(), 1) << "FallbackRAR preamble must have a Msg3 PUSCH";
 }
 
+/// TS38.213, Section 8.2A: the successRAR/fallbackRAR PDCCH (MsgB-RNTI DCI format 1_0) must carry the 2 LSBs of the
+/// SFN where the UE transmitted PRACH whenever msgB-ResponseWindow is configured larger than 10 msec, or a
+/// MsgB-conformant UE discards the DCI/PDSCH. Otherwise, these bits are just reserved (0).
+TEST_P(ra_scheduler_two_step_rach_test, msgb_dci_carries_prach_sfn_lsbs_per_response_window_applicability)
+{
+  const rnti_t tc_rnti = to_rnti(to_value(rnti_t::MIN_CRNTI));
+  send_msga_rach({make_msga_preamble(0, tc_rnti)});
+
+  ASSERT_TRUE(run_slot_until([this]() { return not res_grid[0].result.ul.puschs.empty(); }));
+  send_msga_crc(0, true);
+
+  const pdcch_dl_information* msgb_pdcch = nullptr;
+  ASSERT_TRUE(run_slot_until([this, &msgb_pdcch]() {
+    auto it = std::find_if(res_grid[0].result.dl.dl_pdcchs.begin(),
+                           res_grid[0].result.dl.dl_pdcchs.end(),
+                           [](const pdcch_dl_information& p) {
+                             return p.dci.type() == dci_dl_rnti_config_type::ra_f1_0 and
+                                    ra_helper::is_valid_msgb_rnti(p.ctx.rnti);
+                           });
+    if (it != res_grid[0].result.dl.dl_pdcchs.end()) {
+      msgb_pdcch = &*it;
+      return true;
+    }
+    return false;
+  }));
+  ASSERT_NE(msgb_pdcch, nullptr);
+
+  const auto&    rach_cfg       = *cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common;
+  const unsigned resp_window_ms = rach_cfg.two_step_rach_cfg->msgB_response_window_slots >>
+                                  to_numerology_value(cell_cfg.params.dl_cfg_common.init_dl_bwp.generic_params.scs);
+  const unsigned expected_lsb_sfn = resp_window_ms > 10 ? (last_prach_slot_rx.sfn() & 0b11U) : 0U;
+  EXPECT_EQ(msgb_pdcch->dci.as_ra_rnti_f1_0().lsb_sfn, expected_lsb_sfn);
+}
+
 /// The MsgA PUSCH resources must be blocked in the UL resource grid before any PRACH preamble is detected,
 /// so that the UE PUSCH scheduler cannot steal them.
 TEST_P(ra_scheduler_two_step_rach_test, msga_pusch_rbs_are_pre_reserved_before_preamble_detection)

@@ -40,6 +40,16 @@ void build_dci_f1_0_ra_rnti(dci_dl_info&               dci,
                             unsigned                   time_resource,
                             sch_mcs_index              mcs_index);
 
+/// \brief Builds DCI f1_0 for MsgB-RNTI used in successRAR/fallbackRAR.
+/// \param lsb_sfn LSBs of the SFN where the UE transmitted PRACH, as per TS38.213, Section 8.2A. Only meaningful
+/// with msgB-ResponseWindow configured larger than 10 msec; leave at \c 0 otherwise.
+void build_dci_f1_0_msgb_rnti(dci_dl_info&               dci,
+                              const bwp_downlink_common& init_dl_bwp,
+                              crb_interval               crbs,
+                              unsigned                   time_resource,
+                              sch_mcs_index              mcs_index,
+                              unsigned                   lsb_sfn = 0);
+
 /// Builds DCI f1_0 for TC-RNTI, used for instance in Msg4.
 void build_dci_f1_0_tc_rnti(dci_dl_info&                  dci,
                             const bwp_downlink_common&    init_dl_bwp,

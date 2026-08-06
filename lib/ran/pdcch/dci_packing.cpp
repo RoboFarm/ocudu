@@ -1113,8 +1113,11 @@ dci_payload ocudu::dci_1_0_ra_rnti_pack(const dci_1_0_ra_rnti_configuration& con
   // Transport Block scaling - 2 bits.
   payload.push_back(config.tb_scaling, 2);
 
-  // Reserved bits - 16 bits.
-  payload.push_back(0x00U, 16);
+  // LSBs of SFN - 2 bits.
+  payload.push_back(config.lsb_sfn, 2);
+
+  // Reserved bits - 14 bits.
+  payload.push_back(0x00U, 14);
 
   return payload;
 }
