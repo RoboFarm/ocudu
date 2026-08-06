@@ -22,14 +22,14 @@ cell_scheduler::cell_scheduler(const scheduler_expert_config&                  s
   si_sch(cell_cfg, pdcch_sch, msg),
   csi_sch(cell_cfg),
   pucch_alloc(cell_cfg, sched_cfg.ue.max_pucchs_per_slot, sched_cfg.ue.max_ul_grants_per_slot),
-  ra_ue_repo(cell_cfg, logger),
-  ra_sch(cell_cfg, pdcch_sch, pucch_alloc, ra_ue_repo, event_logger, metrics),
-  prach_sch(cell_cfg),
   uci_alloc(cell_cfg, pucch_alloc),
+  ra_ue_repo(cell_cfg, logger),
+  ue_cell_db(cell_cfg, &metrics),
+  ra_sch(cell_cfg, pdcch_sch, pucch_alloc, uci_alloc, ra_ue_repo, ue_cell_db, event_logger, metrics),
+  prach_sch(cell_cfg),
   // The SRS allocator is only used if srs_prohibit_time is set.
   srs_alloc(cell_cfg, sched_cfg.ue.srs_prohibit_time),
-  pg_sch(cell_cfg, pdcch_sch),
-  ue_cell_db(cell_cfg, &metrics)
+  pg_sch(cell_cfg, pdcch_sch)
 {
   // Register new cell in the UE scheduler.
   ue_sched = ue_sched_.add_cell(ue_cell_scheduler_creation_request{msg.cell_index,

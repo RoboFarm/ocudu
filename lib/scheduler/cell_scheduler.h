@@ -91,15 +91,16 @@ private:
   si_scheduler                  si_sch;
   csi_rs_scheduler              csi_sch;
   pucch_allocator_impl          pucch_alloc;
-  ra_ue_repository              ra_ue_repo;
-  ra_scheduler                  ra_sch;
-  prach_scheduler               prach_sch;
   uci_allocator_impl            uci_alloc;
-  srs_allocator_impl            srs_alloc;
-  paging_scheduler              pg_sch;
+  ra_ue_repository              ra_ue_repo;
 
   /// UEs configured in this cell.
   ue_cell_repository ue_cell_db;
+
+  ra_scheduler       ra_sch;
+  prach_scheduler    prach_sch;
+  srs_allocator_impl srs_alloc;
+  paging_scheduler   pg_sch;
 
   /// Reference to UE scheduler whose DU cell group contains this cell.
   ue_scheduler::unique_cell_ptr ue_sched;

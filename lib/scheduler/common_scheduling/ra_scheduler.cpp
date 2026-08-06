@@ -14,6 +14,8 @@
 #include "../support/pdsch/pdsch_default_time_allocation.h"
 #include "../support/pdsch/pdsch_resource_allocation.h"
 #include "../support/sch_pdu_builder.h"
+#include "../uci_scheduling/uci_allocator.h"
+#include "../ue_context/ue_cell_repository.h"
 #include "ocudu/adt/scope_exit.h"
 #include "ocudu/ran/band_helper.h"
 #include "ocudu/ran/pdcch/dci_format.h"
@@ -153,13 +155,16 @@ private:
 ra_scheduler::ra_scheduler(const cell_configuration& cellcfg_,
                            pdcch_resource_allocator& pdcch_sch_,
                            pucch_allocator&          pucch_alloc_,
+                           uci_allocator&            uci_alloc_,
                            ra_ue_repository&         ra_ue_repo_,
+                           ue_cell_repository&       ue_cell_db_,
                            scheduler_event_logger&   ev_logger_,
                            cell_metrics_handler&     metrics_hdlr_) :
   sched_cfg(cellcfg_.expert_cfg.ra),
   cell_cfg(cellcfg_),
   pdcch_sch(pdcch_sch_),
   pucch_alloc(pucch_alloc_),
+  uci_alloc(uci_alloc_),
   ev_logger(ev_logger_),
   metrics_hdlr(metrics_hdlr_),
   ra_win_nof_slots(cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common->rach_cfg_generic.ra_resp_window),
@@ -181,6 +186,7 @@ ra_scheduler::ra_scheduler(const cell_configuration& cellcfg_,
   pending_rachs(RACH_IND_QUEUE_SIZE),
   pending_crcs(CRC_IND_QUEUE_SIZE),
   ra_ue_repo(ra_ue_repo_),
+  ue_cell_db(ue_cell_db_),
   pending_cfra_ues(
       ra_helper::get_msg1_cfra_preambles_per_ssb(*cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common) > 0
           ? MAX_NOF_DU_UES
@@ -709,15 +715,49 @@ bool ra_scheduler::can_allocate_rar_ul_grant(rnti_t crnti, const cell_slot_resou
   if (msg3_it == ra_ue_repo.end()) {
     return false;
   }
+  // A UE cannot be granted two PUSCHs in the same slot, so a new Msg3 must land after the last one allocated.
+  const slot_point last_pusch_slot = msg3_it->harq_ent.last_pusch_slot();
+  if (last_pusch_slot.valid() and slot_alloc.slot <= last_pusch_slot) {
+    return false;
+  }
+
   const rach_config_common& rach_cfg = *cell_cfg.params.ul_cfg_common.init_ul_bwp.rach_cfg_common;
   if (not ra_helper::is_msg1_cf_preamble(rach_cfg, msg3_it->preamble.preamble_id)) {
     // If it is a CBRA, RAR UL grant can be allocated.
     return true;
   }
-  // If it is a CFRA UE that already has a PUCCH in this slot, the UE would multiplex its UCI onto the Msg3 PUSCH;
-  // since the RA scheduler builds a UCI-free Msg3 grant, avoid such slots.
+  if (find_uci_on_msg3_ue_cfg(crnti) != nullptr) {
+    // The UE's UCI will be moved from the PUCCH onto the Msg3 PUSCH, so a PUCCH in this slot is not an obstacle.
+    return true;
+  }
+  // A CFRA UE with a PUCCH in this slot would have to transmit PUCCH and Msg3 PUSCH simultaneously: TS38.213,
+  // Section 9 forbids multiplexing the UCI onto the Msg3 PUSCH, so avoid such slots.
   span<const pucch_info> pucchs = slot_alloc.result.ul.pucchs.unsorted();
   return std::none_of(pucchs.begin(), pucchs.end(), [crnti](const pucch_info& pucch) { return pucch.crnti == crnti; });
+}
+
+const ue_cell_configuration* ra_scheduler::find_uci_on_msg3_ue_cfg(rnti_t crnti) const
+{
+  if (not sched_cfg.multiplex_uci_on_cfra_msg3) {
+    return nullptr;
+  }
+  // For CFRA the RA scheduler is given the UE's real C-RNTI, so the UE cell lookup is keyed by it.
+  const ue_cell* ue_cc = ue_cell_db.find_by_rnti(crnti);
+  if (ue_cc == nullptr) {
+    return nullptr;
+  }
+  // Semi-static beta offsets are required to size the UCI on the PUSCH, and only come with the dedicated config.
+  const ue_cell_configuration& ue_cfg = ue_cc->cfg();
+  const auto*                  ul_ded = ue_cfg.init_bwp().ul.ded();
+  if (ul_ded == nullptr or not ul_ded->pusch_cfg.has_value() or not ul_ded->pusch_cfg->uci_cfg.has_value()) {
+    return nullptr;
+  }
+  const auto& beta_offsets_cfg = ul_ded->pusch_cfg->uci_cfg->beta_offsets_cfg;
+  if (not beta_offsets_cfg.has_value() or
+      not std::holds_alternative<uci_on_pusch::beta_offsets_semi_static>(beta_offsets_cfg.value())) {
+    return nullptr;
+  }
+  return &ue_cfg;
 }
 
 bool ra_scheduler::handle_msga_crc(rnti_t ra_rnti, uint8_t rapid, bool success)
@@ -1363,6 +1403,12 @@ void ra_scheduler::fill_rar_grant(cell_resource_allocator&         res_alloc,
     pusch.pusch_cfg.rbs      = vrbs;
     pusch.pusch_cfg.rv_index = 0;
     pusch.pusch_cfg.new_data = true;
+
+    // Move any UCI the UE has pending in this slot from the PUCCH onto the Msg3 PUSCH.
+    if (const ue_cell_configuration* ue_cfg = find_uci_on_msg3_ue_cfg(pending_msg3.preamble.tc_rnti)) {
+      static constexpr bool include_aperiodic_csi = false;
+      uci_alloc.multiplex_uci_on_pusch(pusch, msg3_alloc, *ue_cfg, include_aperiodic_csi);
+    }
 
     // Store parameters used in HARQ.
     h_ul->save_grant_params(ul_harq_alloc_context{dci_ul_rnti_config_type::tc_rnti_f0_0}, pusch.pusch_cfg);
