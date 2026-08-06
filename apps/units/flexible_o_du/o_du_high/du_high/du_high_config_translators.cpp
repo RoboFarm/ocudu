@@ -1353,6 +1353,7 @@ static scheduler_expert_config generate_scheduler_expert_config(const du_high_un
   out_cfg.ra.backoff_indicator_snr_threshold_dB = prach.backoff_indicator_snr_threshold;
   out_cfg.ra.backoff_indicator_max_preambles    = prach.backoff_indicator_max_preambles;
   out_cfg.ra.backoff_indicator_duration         = std::chrono::milliseconds{prach.backoff_indicator_duration_ms};
+  out_cfg.ra.multiplex_uci_on_cfra_msg3         = prach.multiplex_uci_on_cfra_msg3;
 
   // SI parameters.
   out_cfg.si.sib1_mcs_index    = pdsch.fixed_sib1_mcs;

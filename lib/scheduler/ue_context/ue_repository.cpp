@@ -147,7 +147,7 @@ void ue_repository::add_ue(const ue_configuration& ue_cfg, const ue_creation_con
       st.conres_st = ue_conres_state::conres_completed;
       break;
     case ue_creation_mode::cfra:
-      // F1AP-created UE that is expecting a CFRA. Defer UCI/SRS scheduling until Msg3 is ACKed.
+      // F1AP-created UE that is expecting a CFRA. Contention resolution completes when Msg3 is ACKed.
       st.conres_st = ue_conres_state::pending_cfra;
       break;
     case ue_creation_mode::high_layers:

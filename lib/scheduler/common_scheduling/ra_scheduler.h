@@ -186,6 +186,9 @@ private:
   /// \return \c nullptr if UCI-on-Msg3 is disabled, the RNTI is not a CFRA UE, or the UE has no dedicated config.
   const ue_cell_configuration* find_uci_on_msg3_ue_cfg(rnti_t crnti) const;
 
+  /// Move the UCI the UE has pending in the Msg3 slot from its PUCCH onto the Msg3 PUSCH, if enabled for this UE.
+  void try_multiplex_uci_on_msg3(ul_sched_info& msg3, cell_slot_resource_allocator& msg3_alloc, rnti_t crnti) const;
+
   /// Schedule RAR grant and associated Msg3 grants in the provided scheduling resources.
   /// \param res_alloc Cell Resource Allocator.
   /// \param pdcch_slot Slot where the PDCCH is going to be scheduled.

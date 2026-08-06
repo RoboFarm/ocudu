@@ -682,6 +682,15 @@ TEST_F(cfra_scheduler_test, scheduler_is_stable_after_msg3_ack)
   }
 }
 
+/// Expert config with the CFRA UCI-on-Msg3 multiplexing disabled, so that the Msg3 PUCCH avoidance is exercised
+/// deterministically regardless of the default.
+static scheduler_expert_config make_no_uci_on_msg3_sched_cfg()
+{
+  auto cfg                          = config_helpers::make_default_scheduler_expert_config();
+  cfg.ra.multiplex_uci_on_cfra_msg3 = false;
+  return cfg;
+}
+
 /// Fixture identical to \ref cfra_scheduler_test but with a dense periodic-CSI period, so that — once the RACH
 /// trigger is swept across the CSI grid — a CSI report occasion reliably lands on a Msg3 candidate slot. This
 /// exercises the RA-scheduler avoidance: Msg3 must never share a slot with the UE's CSI PUCCH.
@@ -690,7 +699,7 @@ class cfra_csi_collision_test : public scheduler_test_simulator, public ::testin
   static constexpr unsigned NOF_CB_PREAMBLES = 60;
 
 public:
-  cfra_csi_collision_test()
+  cfra_csi_collision_test() : scheduler_test_simulator(make_no_uci_on_msg3_sched_cfg())
   {
     cell_config_builder_params bparams;
     auto                       cell_req = sched_config_helper::make_default_sched_cell_configuration_request(bparams);
@@ -821,7 +830,7 @@ public:
   // CFRA UE's PUCCH skip did not block the CBRA UE. Checked once for the whole sweep in TearDownTestSuite.
   static bool saw_cbra_msg3_with_cfra_pucch;
 
-  cfra_multi_ue_rar_test()
+  cfra_multi_ue_rar_test() : scheduler_test_simulator(make_no_uci_on_msg3_sched_cfg())
   {
     cell_config_builder_params bparams;
     auto                       cell_req = sched_config_helper::make_default_sched_cell_configuration_request(bparams);

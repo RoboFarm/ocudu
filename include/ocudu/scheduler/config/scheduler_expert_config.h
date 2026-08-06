@@ -261,7 +261,7 @@ struct scheduler_ra_expert_config {
   /// to slots where the UE has no PUCCH.
   /// \remark The TS is very unclear on whether UCI should be multiplexed in RAR UL grants for CFRA, so we decided to
   /// support both options.
-  bool multiplex_uci_on_cfra_msg3 = false;
+  bool multiplex_uci_on_cfra_msg3 = true;
 };
 
 /// \brief Paging scheduling statically configurable expert parameters.

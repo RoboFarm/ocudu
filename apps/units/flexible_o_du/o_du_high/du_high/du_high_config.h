@@ -1152,6 +1152,9 @@ struct du_high_unit_rach_config {
   /// \brief Whether to enable contention-free random access (CFRA) or not. If enabled, the number of RA preambles
   /// used for CBRA (see \c nof_cb_preambles_per_ssb) must be less than \c total_nof_ra_preambles.
   bool cfra_enabled = false;
+  /// \brief Whether a CFRA UE's pending UCI may be multiplexed into its Msg3 PUSCH, rather than restricting the Msg3
+  /// to slots where the UE has no PUCCH.
+  bool multiplex_uci_on_cfra_msg3 = true;
   /// Offset of lowest PRACH transmission occasion in frequency domain respective to PRB 0. To minimize interference
   /// with the PUCCH, the user should leave some guardband between the PUCCH CRBs and the PRACH PRBs.
   /// Possible values: {0,...,MAX_NOF_PRB - 1}.

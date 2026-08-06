@@ -760,6 +760,18 @@ const ue_cell_configuration* ra_scheduler::find_uci_on_msg3_ue_cfg(rnti_t crnti)
   return &ue_cfg;
 }
 
+void ra_scheduler::try_multiplex_uci_on_msg3(ul_sched_info&                msg3,
+                                             cell_slot_resource_allocator& msg3_alloc,
+                                             rnti_t                        crnti) const
+{
+  const ue_cell_configuration* ue_cfg = find_uci_on_msg3_ue_cfg(crnti);
+  if (ue_cfg == nullptr) {
+    return;
+  }
+  static constexpr bool include_aperiodic_csi = false;
+  uci_alloc.multiplex_uci_on_pusch(msg3, msg3_alloc, *ue_cfg, include_aperiodic_csi);
+}
+
 bool ra_scheduler::handle_msga_crc(rnti_t ra_rnti, uint8_t rapid, bool success)
 {
   for (auto& msgb : pending_msgbs) {
@@ -1404,11 +1416,7 @@ void ra_scheduler::fill_rar_grant(cell_resource_allocator&         res_alloc,
     pusch.pusch_cfg.rv_index = 0;
     pusch.pusch_cfg.new_data = true;
 
-    // Move any UCI the UE has pending in this slot from the PUCCH onto the Msg3 PUSCH.
-    if (const ue_cell_configuration* ue_cfg = find_uci_on_msg3_ue_cfg(pending_msg3.preamble.tc_rnti)) {
-      static constexpr bool include_aperiodic_csi = false;
-      uci_alloc.multiplex_uci_on_pusch(pusch, msg3_alloc, *ue_cfg, include_aperiodic_csi);
-    }
+    try_multiplex_uci_on_msg3(pusch, msg3_alloc, pending_msg3.preamble.tc_rnti);
 
     // Store parameters used in HARQ.
     h_ul->save_grant_params(ul_harq_alloc_context{dci_ul_rnti_config_type::tc_rnti_f0_0}, pusch.pusch_cfg);
@@ -1573,6 +1581,8 @@ void ra_scheduler::schedule_msg3_retx(cell_resource_allocator& res_alloc, ra_ue_
     ul_info.pusch_cfg.rbs      = msg3_vrbs;
     ul_info.pusch_cfg.rv_index = pdcch->dci.as_tc_rnti_f0_0().redundancy_version;
     ul_info.pusch_cfg.new_data = false;
+
+    try_multiplex_uci_on_msg3(ul_info, pusch_alloc, msg3_ctx.preamble.tc_rnti);
 
     // Store parameters used in HARQ.
     h_ul.save_grant_params(ul_harq_alloc_context{dci_ul_rnti_config_type::tc_rnti_f0_0}, ul_info.pusch_cfg);
