@@ -540,7 +540,7 @@ inline cu_cp_tx_bw asn1_to_tx_bw(const asn1::xnap::nr_tx_bw_s& asn1_tx_bw)
   cu_cp_tx_bw tx_bw;
 
   // Fill NR SCS.
-  tx_bw.nr_scs = to_subcarrier_spacing(asn1_tx_bw.nr_scs.to_string());
+  tx_bw.nr_scs = khz_to_scs(asn1_tx_bw.nr_scs.to_number());
 
   // Fill NR NRB.
   tx_bw.nr_nrb = asn1_tx_bw.nr_nrb.to_number();
