@@ -176,10 +176,15 @@ public:
     logger.info("Received a UE context release for UE index {}", ue_index);
   }
 
+  std::vector<cu_cp_served_cell_info> on_served_cells_required() override { return served_cells; }
+
+  void set_served_cells(std::vector<cu_cp_served_cell_info> served_cells_) { served_cells = std::move(served_cells_); }
+
   byte_buffer last_handover_command;
 
 private:
-  bool ho_request_outcome = false;
+  bool                                ho_request_outcome = false;
+  std::vector<cu_cp_served_cell_info> served_cells;
 
   ue_manager&             ue_mng;
   ocudulog::basic_logger& logger;
@@ -194,7 +199,7 @@ protected:
   void TearDown() override;
 
   /// \brief Helper method to successfully run XN setup in XNAP.
-  bool run_xn_setup(const xnap_configuration& peer_cfg);
+  bool run_xn_setup(const xnap_configuration& peer_cfg, span<const cu_cp_served_cell_info> peer_cells = {});
 
   /// \brief Helper method to successfully create UE instance in ue manager.
   cu_cp_ue_index_t create_ue(rnti_t rnti = rnti_t::MIN_CRNTI);

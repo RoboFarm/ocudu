@@ -5,6 +5,7 @@
 #pragma once
 
 #include "xnap_message_notifier.h"
+#include "ocudu/ran/cu_cp_cell_configuration.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/gnb_id.h"
 #include "ocudu/ran/inter_cu_handover_messages.h"
@@ -144,6 +145,10 @@ public:
   /// \brief Notify the CU-CP about the reception of a UE Context Release message.
   /// \param[in] ue_index The index of the UE.
   virtual void on_ue_context_release_received(cu_cp_ue_index_t ue_index) = 0;
+
+  /// \brief Request the NR cells this node serves, to advertise them to the XN-C peer.
+  /// \returns The cells served by the connected DUs.
+  virtual std::vector<cu_cp_served_cell_info> on_served_cells_required() = 0;
 };
 
 /// Combined entry point for the XNAP object.

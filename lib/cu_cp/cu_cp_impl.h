@@ -147,11 +147,12 @@ public:
 
   // cu_cp_xnap_handler.
   async_task<cu_cp_handover_resource_allocation_response>
-       handle_xnap_handover_request(const xnap_handover_request& request) override;
-  void handle_handover_cancel_received(cu_cp_ue_index_t ue_index) override;
-  void handle_xnap_handover_success_received(cu_cp_ue_index_t  source_ue_index,
-                                             peer_xnap_ue_id_t winner_peer_xnap_ue_id) override;
-  void handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_index) override;
+                                      handle_xnap_handover_request(const xnap_handover_request& request) override;
+  void                                handle_handover_cancel_received(cu_cp_ue_index_t ue_index) override;
+  void                                handle_xnap_handover_success_received(cu_cp_ue_index_t  source_ue_index,
+                                                                            peer_xnap_ue_id_t winner_peer_xnap_ue_id) override;
+  void                                handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_index) override;
+  std::vector<cu_cp_served_cell_info> handle_served_cells_required() override;
 
   // cu_cp_nrppa_handler.
   nrppa_cu_cp_ue_notifier* handle_new_nrppa_ue(cu_cp_ue_index_t ue_index) override;

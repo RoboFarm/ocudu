@@ -180,6 +180,29 @@ std::vector<cu_cp_du_index_t> du_processor_repository::get_du_processor_indexes(
   return du_indexes;
 }
 
+std::vector<cu_cp_served_cell_info> du_processor_repository::get_served_cells()
+{
+  std::vector<cu_cp_served_cell_info> served_cells;
+  for (const auto& [du_index, du_ctxt] : du_db) {
+    const du_configuration_context* du_cfg = du_ctxt.processor->get_context();
+    if (du_cfg == nullptr) {
+      // DU has not completed F1 setup.
+      continue;
+    }
+    for (const du_cell_configuration& cell : du_cfg->served_cells) {
+      cu_cp_served_cell_info& served_cell = served_cells.emplace_back();
+      served_cell.nr_cgi                  = cell.cgi;
+      served_cell.nr_pci                  = cell.pci;
+      served_cell.five_gs_tac             = cell.tac;
+      served_cell.served_plmns            = cell.served_plmns;
+      served_cell.nr_mode_info            = cell.nr_mode_info;
+      served_cell.meas_timing_cfg         = cell.meas_timing_cfg.copy();
+    }
+  }
+
+  return served_cells;
+}
+
 std::vector<cu_cp_metrics_report::du_info> du_processor_repository::handle_du_metrics_report_request() const
 {
   if (!cfg.enable_rrc_metrics) {

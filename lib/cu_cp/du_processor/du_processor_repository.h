@@ -85,6 +85,9 @@ public:
 
   std::vector<cu_cp_du_index_t> get_du_processor_indexes() const;
 
+  /// \brief Get the NR cells currently served by the connected DUs.
+  std::vector<cu_cp_served_cell_info> get_served_cells();
+
   std::vector<cu_cp_metrics_report::du_info> handle_du_metrics_report_request() const override;
 
   /// Gets the number of F1AP UEs.

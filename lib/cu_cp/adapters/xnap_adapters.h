@@ -77,6 +77,12 @@ public:
     cu_cp_handler->handle_xnap_ue_context_release_received(ue_index);
   }
 
+  std::vector<cu_cp_served_cell_info> on_served_cells_required() override
+  {
+    ocudu_assert(cu_cp_handler != nullptr, "CU-CP XNAP handler must not be nullptr");
+    return cu_cp_handler->handle_served_cells_required();
+  }
+
 private:
   cu_cp_xnap_handler* cu_cp_handler = nullptr;
   xnc_peer_index_t    xnc_index     = xnc_peer_index_t::invalid;

@@ -404,7 +404,8 @@ void cu_cp_test_environment::enqueue_procedure_outcome_pdus_and_start_cu_cp()
     get_xnc_cu_cp(xnc_peer_idx)
         .enqueue_next_tx_pdu(generate_asn1_xn_setup_response(
             xnap_configuration{.gnb_id = gnb_id_t{cu_cp_cfg.node.gnb_id.id + 2, cu_cp_cfg.node.gnb_id.bit_length},
-                               .tai_support_list = amf_configs.begin()->second.supported_tas}));
+                               .tai_support_list = amf_configs.begin()->second.supported_tas},
+            {}));
   }
 
   // Attach XN-C handler before starting CU-CP (matching real app startup order).

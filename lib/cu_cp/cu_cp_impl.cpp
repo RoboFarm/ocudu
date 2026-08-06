@@ -1292,6 +1292,11 @@ void cu_cp_impl::handle_xnap_handover_success_received(cu_cp_ue_index_t  source_
       source_ue_index, winner_peer_xnap_ue_id, ue_mng, cu_up_db, winner_xnap, &xnap_db, *this, logger));
 }
 
+std::vector<cu_cp_served_cell_info> cu_cp_impl::handle_served_cells_required()
+{
+  return du_db.get_served_cells();
+}
+
 void cu_cp_impl::handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_index)
 {
   cu_cp_ue* ue = ue_mng.find_ue(ue_index);

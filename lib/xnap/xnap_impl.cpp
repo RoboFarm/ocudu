@@ -150,8 +150,10 @@ void xnap_impl::handle_unsuccessful_outcome(const unsuccessful_outcome_s& outcom
 
 async_task<bool> xnap_impl::handle_xn_setup_request_required()
 {
+  advertised_cells = cu_cp_notifier.on_served_cells_required();
+
   return launch_async<xn_setup_procedure>(
-      xnap_cfg, peer_ctxt, tx_notifier, xn_setup_outcome, timer_factory{timers, ctrl_exec}, logger);
+      xnap_cfg, advertised_cells, peer_ctxt, tx_notifier, xn_setup_outcome, timer_factory{timers, ctrl_exec}, logger);
 }
 
 void xnap_impl::handle_xn_setup_request(const xn_setup_request_s& request)
@@ -167,7 +169,8 @@ void xnap_impl::handle_xn_setup_request(const xn_setup_request_s& request)
     // Store peer context information.
     peer_ctxt = create_peer_xnap_context(request);
     // Generate XN Setup Response.
-    xn_setup_result = generate_asn1_xn_setup_response(xnap_cfg);
+    advertised_cells = cu_cp_notifier.on_served_cells_required();
+    xn_setup_result  = generate_asn1_xn_setup_response(xnap_cfg, advertised_cells);
   }
 
   // Transmit XN Setup Response/Failure.

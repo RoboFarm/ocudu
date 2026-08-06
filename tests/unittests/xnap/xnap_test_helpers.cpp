@@ -51,7 +51,7 @@ void xnap_test::TearDown()
   ocudulog::flush();
 }
 
-bool xnap_test::run_xn_setup(const xnap_configuration& peer_cfg)
+bool xnap_test::run_xn_setup(const xnap_configuration& peer_cfg, span<const cu_cp_served_cell_info> peer_cells)
 {
   // Action 1: Launch XN setup procedure
   logger.info("Launch xn setup request procedure...");
@@ -59,7 +59,7 @@ bool xnap_test::run_xn_setup(const xnap_configuration& peer_cfg)
   lazy_task_launcher<bool> t_launcher(t);
 
   // Action 2: Send XN setup response from peer.
-  xnap_message setup_resp = generate_asn1_xn_setup_response(peer_cfg);
+  xnap_message setup_resp = generate_asn1_xn_setup_response(peer_cfg, peer_cells);
   xnap->handle_message(setup_resp);
 
   // Check procedure completion.

@@ -58,6 +58,24 @@ static byte_buffer add_as_config_drb_mapping(const byte_buffer& packed_ho_prep)
   return repacked;
 }
 
+cu_cp_served_cell_info ocudu::ocucp::generate_served_cell_info(pci_t pci, const nr_cell_global_id_t& cgi, tac_t tac)
+{
+  cu_cp_served_cell_info served_cell;
+  served_cell.nr_cgi       = cgi;
+  served_cell.nr_pci       = pci;
+  served_cell.five_gs_tac  = tac;
+  served_cell.served_plmns = {cgi.plmn_id};
+
+  cu_cp_tdd_info tdd_info;
+  tdd_info.nr_freq_info.nr_arfcn = 632628;
+  tdd_info.nr_freq_info.freq_band_list_nr.push_back(cu_cp_freq_band_nr_item{.freq_band_ind_nr = 78});
+  tdd_info.tx_bw.nr_scs    = subcarrier_spacing::kHz30;
+  tdd_info.tx_bw.nr_nrb    = 51;
+  served_cell.nr_mode_info = tdd_info;
+
+  return served_cell;
+}
+
 xnap_message ocudu::ocucp::generate_handover_request(local_xnap_ue_id_t local_xnap_ue_id,
                                                      bool               include_drb_to_qos_flow_mapping,
                                                      bool               include_as_config_drb_mapping)

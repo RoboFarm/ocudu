@@ -930,7 +930,10 @@ public:
     logger.info("ue={}: Received a XNAP UE context release message", ue_index);
   }
 
-  byte_buffer last_handover_command;
+  std::vector<cu_cp_served_cell_info> handle_served_cells_required() override { return served_cells; }
+
+  byte_buffer                         last_handover_command;
+  std::vector<cu_cp_served_cell_info> served_cells;
 
 private:
   ue_manager&             ue_mng;

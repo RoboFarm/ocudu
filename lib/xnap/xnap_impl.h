@@ -98,12 +98,14 @@ private:
   /// Repository of UE Contexts.
   xnap_ue_context_list ue_ctxt_list;
 
-  const xnc_peer_index_t      xnc_index;
-  xnap_configuration          xnap_cfg;
-  std::optional<xnap_context> peer_ctxt;
-  xnap_cu_cp_notifier&        cu_cp_notifier;
-  timer_manager&              timers;
-  task_executor&              ctrl_exec;
+  const xnc_peer_index_t xnc_index;
+  xnap_configuration     xnap_cfg;
+  /// NR cells this node advertised to the XN-C peer.
+  std::vector<cu_cp_served_cell_info> advertised_cells;
+  std::optional<xnap_context>         peer_ctxt;
+  xnap_cu_cp_notifier&                cu_cp_notifier;
+  timer_manager&                      timers;
+  task_executor&                      ctrl_exec;
 
   xnap_tx_pdu_notifier_with_logging tx_notifier;
 

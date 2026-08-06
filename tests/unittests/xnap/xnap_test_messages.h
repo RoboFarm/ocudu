@@ -12,6 +12,9 @@
 
 namespace ocudu::ocucp {
 
+/// \brief Generate the information of an NR cell an NG-RAN node serves, as advertised at XN setup.
+cu_cp_served_cell_info generate_served_cell_info(pci_t pci, const nr_cell_global_id_t& cgi, tac_t tac = 7);
+
 /// \brief Generate a dummy Handover Request message. \c include_drb_to_qos_flow_mapping controls whether the
 /// source's DRB-to-QoS-flow mapping (DRB1 <-> QFI1, matching the admitted PDU session) is included via the Data
 /// Forwarding and Offloading Info from source NG-RAN node IE, letting the target confirm and prefer DRB1's

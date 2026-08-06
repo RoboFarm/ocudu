@@ -11,6 +11,7 @@
 #include "ocudu/ngap/ngap.h"
 #include "ocudu/ngap/ngap_pdu_session.h"
 #include "ocudu/nrppa/nrppa.h"
+#include "ocudu/ran/cu_cp_cell_configuration.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/rrc/rrc_ue.h"
 #include "ocudu/xnap/xnap_handover.h"
@@ -482,6 +483,10 @@ public:
   /// \brief Handle the reception of an XNAP UE Context Release message.
   /// \param[in] ue_index The index of the UE to be released.
   virtual void handle_xnap_ue_context_release_received(cu_cp_ue_index_t ue_index) = 0;
+
+  /// \brief Handle a request for the NR cells this node serves, to be advertised to a peer NG-RAN node.
+  /// \returns The cells served by the connected DUs.
+  virtual std::vector<cu_cp_served_cell_info> handle_served_cells_required() = 0;
 };
 
 class cu_cp_impl_interface : public cu_cp_e1ap_event_handler,
