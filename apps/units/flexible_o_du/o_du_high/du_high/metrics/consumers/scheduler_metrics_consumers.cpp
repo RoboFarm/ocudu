@@ -196,6 +196,7 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const std::optional<sche
         std::back_inserter(buffer),
         "Scheduler cell pci={} metrics:"
         " total_dl_brate={}bps total_ul_brate={}bps nof_prbs={} nof_dl_slots={} nof_ul_slots={} nof_prach_preambles={} "
+        "two_step_prachs_detected={} "
         "error_indications={} pdsch_rbs_per_slot={} pusch_rbs_per_slot={} pdschs_per_slot={:.3} puschs_per_slot={:.3} "
         "failed_dl_pdcch={} failed_common_dl_pdcch={} failed_ul_pdcch={} failed_common_ul_pdcch={} failed_uci={} "
         "failed_fallback_uci_allocs={} "
@@ -210,6 +211,7 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const std::optional<sche
         cell.nof_dl_slots,
         cell.nof_ul_slots,
         cell.nof_prach_preambles,
+        cell.two_step_prachs_detected,
         cell.nof_error_indications,
         cell.nof_dl_slots > 0 ? sum_pdsch_rbs / cell.nof_dl_slots : 0,
         cell.nof_ul_slots > 0 ? sum_pusch_rbs / cell.nof_ul_slots : 0,

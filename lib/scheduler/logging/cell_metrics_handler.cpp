@@ -6,6 +6,7 @@
 #include "../config/cell_configuration.h"
 #include "../uci_scheduling/uci_indication_selector.h"
 #include "ocudu/ocudulog/ocudulog.h"
+#include "ocudu/ran/prach/rach_config_common.h"
 #include "ocudu/ran/resource_allocation/rb_bitmap.h"
 #include "ocudu/ran/slot_point.h"
 #include "ocudu/scheduler/result/sched_result.h"
@@ -126,10 +127,16 @@ void cell_metrics_handler::handle_rach_indication(const rach_indication_message&
   if (not enabled()) {
     return;
   }
-  unsigned slot_diff = sl_tx - msg.slot_rx;
+  const rach_config_common& rach_cfg  = *cell_cfg.init_bwp.ul.rach_common();
+  unsigned                  slot_diff = sl_tx - msg.slot_rx;
   for (const auto& occ : msg.occasions) {
     data.nof_prach_preambles += occ.preambles.size();
     data.sum_prach_delay_slots += slot_diff * occ.preambles.size();
+    for (const auto& preamble : occ.preambles) {
+      if (ra_helper::is_msga_cb_preamble(rach_cfg, static_cast<uint8_t>(preamble.preamble_id))) {
+        ++data.two_step_prachs_detected;
+      }
+    }
   }
 }
 
@@ -446,6 +453,7 @@ void cell_metrics_handler::report_metrics()
   next_report->nof_dl_slots               = data.nof_dl_slots;
   next_report->nof_ul_slots               = data.nof_ul_slots;
   next_report->nof_prach_preambles        = data.nof_prach_preambles;
+  next_report->two_step_prachs_detected   = data.two_step_prachs_detected;
   next_report->dl_grants_count            = data.nof_ue_pdsch_grants;
   next_report->ul_grants_count            = data.nof_ue_pusch_grants;
   next_report->failed_dl_pdcch            = data.failed_dl_pdcch;
