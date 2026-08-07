@@ -126,8 +126,12 @@ void ocudu::build_dci_f1_0_msgb_rnti(dci_dl_info&               dci,
                                      crb_interval               crbs,
                                      unsigned                   time_resource,
                                      sch_mcs_index              mcs_index,
-                                     unsigned                   lsb_sfn)
+                                     unsigned                   msgb_resp_window_ms,
+                                     unsigned                   prach_sfn)
 {
+  // TS38.213, Section 8.2A: the LSBs of SFN field is only present if msgB-ResponseWindow is configured larger than
+  // 10 msec; otherwise these bits are reserved.
+  const unsigned lsb_sfn = msgb_resp_window_ms > 10 ? prach_sfn & 0b11U : 0U;
   build_dci_f1_0_ra_or_msgb_rnti(dci, init_dl_bwp, crbs, time_resource, mcs_index, lsb_sfn);
 }
 
