@@ -443,7 +443,7 @@ protected:
 };
 
 /// Detected PRACH preambles whose ID falls in the 2-step RACH (MsgA) range must be counted separately via
-/// \c two_step_prachs_detected, while \c nof_prach_preambles keeps counting every detected preamble regardless of
+/// \c two_step_prachs_detected, while \c total_prach_preambles keeps counting every detected preamble regardless of
 /// RACH type.
 TEST_F(scheduler_metrics_handler_two_step_rach_tester, two_step_prach_preambles_are_counted_separately)
 {
@@ -460,6 +460,6 @@ TEST_F(scheduler_metrics_handler_two_step_rach_tester, two_step_prach_preambles_
   sched_res.ul.nof_ul_symbols = 14;
   metrics.push_result(sl_tx_ext, sched_res, std::chrono::microseconds{0});
 
-  ASSERT_EQ(metrics_notif.last_report.nof_prach_preambles, 2);
+  ASSERT_EQ(metrics_notif.last_report.total_prach_preambles, 2);
   ASSERT_EQ(metrics_notif.last_report.two_step_prachs_detected, 1);
 }

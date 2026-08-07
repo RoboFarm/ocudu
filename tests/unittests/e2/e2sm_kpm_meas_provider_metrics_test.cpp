@@ -73,10 +73,10 @@ static rlc_metrics generate_non_zero_rlc_metrics(uint32_t ue_idx, uint32_t beare
 static scheduler_cell_metrics generate_non_zero_sched_metrics()
 {
   scheduler_cell_metrics sched_metric;
-  sched_metric.nof_prbs            = 52;
-  sched_metric.nof_dl_slots        = 14;
-  sched_metric.nof_ul_slots        = 14;
-  sched_metric.nof_prach_preambles = 10;
+  sched_metric.nof_prbs              = 52;
+  sched_metric.nof_dl_slots          = 14;
+  sched_metric.nof_ul_slots          = 14;
+  sched_metric.total_prach_preambles = 10;
 
   scheduler_ue_metrics ue_metrics;
   ue_metrics.ue_index            = to_du_ue_index(0);

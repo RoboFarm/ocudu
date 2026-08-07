@@ -130,7 +130,7 @@ void cell_metrics_handler::handle_rach_indication(const rach_indication_message&
   const rach_config_common& rach_cfg  = *cell_cfg.init_bwp.ul.rach_common();
   unsigned                  slot_diff = sl_tx - msg.slot_rx;
   for (const auto& occ : msg.occasions) {
-    data.nof_prach_preambles += occ.preambles.size();
+    data.total_prach_preambles += occ.preambles.size();
     data.sum_prach_delay_slots += slot_diff * occ.preambles.size();
     for (const auto& preamble : occ.preambles) {
       if (ra_helper::is_msga_cb_preamble(rach_cfg, static_cast<uint8_t>(preamble.preamble_id))) {
@@ -446,30 +446,30 @@ void cell_metrics_handler::report_metrics()
   next_report->nof_error_indications = data.error_indication_counter;
   next_report->average_decision_latency =
       next_report->nof_slots > 0 ? data.decision_latency_sum / next_report->nof_slots : std::chrono::microseconds{0};
-  next_report->max_decision_latency       = data.max_decision_latency;
-  next_report->max_decision_latency_slot  = data.max_decision_latency_slot;
-  next_report->latency_histogram          = data.decision_latency_hist;
-  next_report->nof_prbs                   = cell_cfg.nof_dl_prbs; // TODO: to be removed from the report.
-  next_report->nof_dl_slots               = data.nof_dl_slots;
-  next_report->nof_ul_slots               = data.nof_ul_slots;
-  next_report->nof_prach_preambles        = data.nof_prach_preambles;
-  next_report->two_step_prachs_detected   = data.two_step_prachs_detected;
-  next_report->dl_grants_count            = data.nof_ue_pdsch_grants;
-  next_report->ul_grants_count            = data.nof_ue_pusch_grants;
-  next_report->failed_dl_pdcch            = data.failed_dl_pdcch;
-  next_report->failed_ul_pdcch            = data.failed_ul_pdcch;
-  next_report->failed_common_dl_pdcch     = data.failed_common_dl_pdcch;
-  next_report->failed_common_ul_pdcch     = data.failed_common_ul_pdcch;
-  next_report->nof_failed_uci_allocs      = data.nof_failed_uci_allocs;
-  next_report->failed_fallback_uci_allocs = data.failed_fallback_uci_allocs;
-  next_report->nof_msg3_ok                = data.nof_msg3_ok;
-  next_report->nof_msg3_nok               = data.nof_msg3_nok;
-  next_report->nof_conres_timer_expired   = data.nof_conres_timer_expired;
-  next_report->nof_conres_ce_never_acked  = data.nof_conres_ce_never_acked;
-  next_report->avg_prach_delay_slots =
-      data.nof_prach_preambles > 0
-          ? std::optional{static_cast<float>(data.sum_prach_delay_slots) / static_cast<float>(data.nof_prach_preambles)}
-          : std::nullopt;
+  next_report->max_decision_latency               = data.max_decision_latency;
+  next_report->max_decision_latency_slot          = data.max_decision_latency_slot;
+  next_report->latency_histogram                  = data.decision_latency_hist;
+  next_report->nof_prbs                           = cell_cfg.nof_dl_prbs; // TODO: to be removed from the report.
+  next_report->nof_dl_slots                       = data.nof_dl_slots;
+  next_report->nof_ul_slots                       = data.nof_ul_slots;
+  next_report->total_prach_preambles              = data.total_prach_preambles;
+  next_report->two_step_prachs_detected           = data.two_step_prachs_detected;
+  next_report->dl_grants_count                    = data.nof_ue_pdsch_grants;
+  next_report->ul_grants_count                    = data.nof_ue_pusch_grants;
+  next_report->failed_dl_pdcch                    = data.failed_dl_pdcch;
+  next_report->failed_ul_pdcch                    = data.failed_ul_pdcch;
+  next_report->failed_common_dl_pdcch             = data.failed_common_dl_pdcch;
+  next_report->failed_common_ul_pdcch             = data.failed_common_ul_pdcch;
+  next_report->nof_failed_uci_allocs              = data.nof_failed_uci_allocs;
+  next_report->failed_fallback_uci_allocs         = data.failed_fallback_uci_allocs;
+  next_report->nof_msg3_ok                        = data.nof_msg3_ok;
+  next_report->nof_msg3_nok                       = data.nof_msg3_nok;
+  next_report->nof_conres_timer_expired           = data.nof_conres_timer_expired;
+  next_report->nof_conres_ce_never_acked          = data.nof_conres_ce_never_acked;
+  next_report->avg_prach_delay_slots              = data.total_prach_preambles > 0
+                                                        ? std::optional{static_cast<float>(data.sum_prach_delay_slots) /
+                                                           static_cast<float>(data.total_prach_preambles)}
+                                                        : std::nullopt;
   next_report->nof_failed_pdsch_allocs_late_harqs = data.nof_failed_pdsch_allocs_late_harqs;
   next_report->nof_failed_pusch_allocs_late_harqs = data.nof_failed_pusch_allocs_late_harqs;
   next_report->nof_filtered_events                = data.filtered_events_counter;
