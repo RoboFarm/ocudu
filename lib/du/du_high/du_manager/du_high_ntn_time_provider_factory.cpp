@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
-#include "ocudu/du/du_high/du_high_ntn_time_provider_factory.h"
+#include "du_high_ntn_time_provider_factory.h"
 #include "du_high_ntn_time_provider_impl.h"
 
 using namespace ocudu;

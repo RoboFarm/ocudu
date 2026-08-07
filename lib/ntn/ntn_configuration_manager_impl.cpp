@@ -183,8 +183,8 @@ ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configu
   logger(ocudulog::fetch_basic_logger("NTN")),
   sib19_pdu_update_handler(std::move(dependencies.sib19_msg_update_handler)),
   time_provider(std::move(dependencies.time_provider)),
-  doppler_handler(std::move(dependencies.doppler_handler)),
   meas_info_update_handler(std::move(dependencies.meas_info_update_handler)),
+  doppler_handler(dependencies.doppler_handler),
   timers(dependencies.timers),
   executor(dependencies.executor)
 {
@@ -418,7 +418,7 @@ bool ntn_configuration_manager_impl::send_cfo_compensation_request(const ntn_cel
     return false;
   }
 
-  if (not doppler_handler) {
+  if (doppler_handler == nullptr) {
     return false;
   }
 
@@ -648,7 +648,7 @@ void ntn_configuration_manager_impl::periodic_ntn_config_update_task(const nr_ce
   }
 
   // Send CFO compensation request to PHY.
-  if (doppler_handler and serving_ntn_info.ta_info) {
+  if (doppler_handler != nullptr and serving_ntn_info.ta_info) {
     send_cfo_compensation_request(cell_cfg, epoch_time, *serving_ntn_info.ta_info);
   }
 

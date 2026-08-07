@@ -123,15 +123,16 @@ private:
   /// \param sl Current slot
   void periodic_ntn_config_update_task(const nr_cell_global_id_t& nr_cgi, time_point tp, slot_point sl);
 
-  ocudulog::basic_logger&                           logger;
-  std::unique_ptr<ntn_sib19_update_handler>         sib19_pdu_update_handler;
-  std::unique_ptr<ntn_time_provider>                time_provider;
-  std::unique_ptr<ntn_doppler_compensation_handler> doppler_handler;
-  std::unique_ptr<ntn_meas_info_update_handler>     meas_info_update_handler;
-  timer_manager&                                    timers;
-  task_executor&                                    executor;
-  std::map<unsigned, per_satellite_context>         satellite_contexts;
-  std::map<nr_cell_global_id_t, per_cell_context>   cells;
+  ocudulog::basic_logger&                       logger;
+  std::unique_ptr<ntn_sib19_update_handler>     sib19_pdu_update_handler;
+  std::unique_ptr<ntn_time_provider>            time_provider;
+  std::unique_ptr<ntn_meas_info_update_handler> meas_info_update_handler;
+  /// Handler applying the feeder link Doppler compensation, owned above this manager. May be null.
+  ntn_doppler_compensation_handler*               doppler_handler;
+  timer_manager&                                  timers;
+  task_executor&                                  executor;
+  std::map<unsigned, per_satellite_context>       satellite_contexts;
+  std::map<nr_cell_global_id_t, per_cell_context> cells;
 };
 
 } // namespace ocudu_ntn

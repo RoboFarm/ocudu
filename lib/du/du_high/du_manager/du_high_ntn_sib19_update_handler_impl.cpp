@@ -3,7 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "du_high_ntn_sib19_update_handler_impl.h"
-#include "du_manager/converters/asn1_ntn_config_helpers.h"
+#include "converters/asn1_ntn_config_helpers.h"
 #include "ocudu/adt/byte_buffer.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/asn1_utils.h"

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
-#include "lib/du/du_high/du_high_ntn_sib19_update_handler_impl.h"
+#include "lib/du/du_high/du_manager/du_high_ntn_sib19_update_handler_impl.h"
 #include "ocudu/du/du_high/du_manager/du_configurator.h"
 #include "ocudu/ntn/ntn_sib19_update_handler.h"
 #include "ocudu/ocudulog/ocudulog.h"

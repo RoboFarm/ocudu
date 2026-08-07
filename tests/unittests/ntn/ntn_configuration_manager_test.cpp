@@ -82,8 +82,8 @@ protected:
 
     ntn_configuration_manager_dependencies deps{std::move(sh),
                                                 std::move(tp),
-                                                /*doppler_handler=*/nullptr,
                                                 std::move(mh),
+                                                /*doppler_handler=*/nullptr,
                                                 timers,
                                                 worker};
     manager = create_ntn_configuration_manager(cfg, std::move(deps));

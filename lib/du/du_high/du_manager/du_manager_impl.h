@@ -14,6 +14,7 @@
 #include "ocudu/du/du_high/du_manager/du_manager.h"
 #include "ocudu/du/du_high/du_manager/du_manager_mem_resources.h"
 #include "ocudu/du/du_high/du_manager/du_manager_params.h"
+#include "ocudu/ntn/ntn_configuration_manager.h"
 #include "ocudu/rlc/rlc_window_seg_pool_factory.h"
 
 namespace ocudu {
@@ -84,6 +85,8 @@ public:
 
   du_manager_mac_metric_aggregator& get_metrics_aggregator() override { return metrics; }
 
+  ocudu_ntn::ntn_configuration_manager* get_ntn_configuration_manager() override { return ntn_config_manager.get(); }
+
 private:
   // DU manager configuration that will be visible to all running procedures
   du_manager_params       params;
@@ -105,6 +108,10 @@ private:
   du_proc_context_view                         proc_ctxt;
   /// Handle to control the start and stop of the DU activity.
   du_manager_controller_impl controller;
+
+  /// NTN manager, created only when the configuration carries NTN cells. It references this DU manager as its
+  /// configurator and the MAC subframe time mapper, so it is declared last and destroyed first.
+  std::unique_ptr<ocudu_ntn::ntn_configuration_manager> ntn_config_manager;
 };
 
 } // namespace odu

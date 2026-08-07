@@ -236,8 +236,8 @@ TEST(sat_switch_apply_integration_test, promotes_switch_target_at_t_service_not_
 
   ntn_configuration_manager_dependencies deps{std::move(sib19_handler),
                                               std::make_unique<fake_ntn_time_provider>(t0),
-                                              /*doppler_handler=*/nullptr,
                                               /*meas_info_update_handler=*/nullptr,
+                                              /*doppler_handler=*/nullptr,
                                               timers,
                                               executor};
 
@@ -312,8 +312,8 @@ TEST(sat_switch_apply_integration_test, does_not_promote_when_promote_to_serving
 
   ntn_configuration_manager_dependencies deps{std::move(sib19_handler),
                                               std::make_unique<fake_ntn_time_provider>(t0),
-                                              /*doppler_handler=*/nullptr,
                                               /*meas_info_update_handler=*/nullptr,
+                                              /*doppler_handler=*/nullptr,
                                               timers,
                                               executor};
 

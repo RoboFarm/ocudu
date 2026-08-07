@@ -1467,6 +1467,14 @@ void ocudu::generate_du_high_config(odu::du_high_configuration& du_hi_cfg, const
 
   // Configure test mode
   du_hi_cfg.test_cfg = generate_test_mode_config(du_high_unit_cfg);
+
+  // Populate the NTN configuration manager config only when at least one cell configures NTN, so that the optional
+  // reflects whether NTN is actually configured.
+  if (auto ntn_cfg = generate_ntn_configuration_manager_config(
+          du_high_unit_cfg.gnb_id, du_high_unit_cfg.cells_cfg, du_high_unit_cfg.ntn_satellites);
+      not ntn_cfg.cells.empty()) {
+    du_hi_cfg.ntn = std::move(ntn_cfg);
+  }
 }
 
 void ocudu::fill_du_high_worker_manager_config(worker_manager_config&     config,

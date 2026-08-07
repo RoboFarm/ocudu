@@ -112,8 +112,8 @@ ocudu::create_cu_cp_ntn_configuration_manager(const ocudu_ntn::ntn_configuration
   ocudu_ntn::ntn_configuration_manager_dependencies dependencies{
       /*sib19_msg_update_handler=*/nullptr,
       create_cu_cp_ntn_time_provider(ref_time_store),
-      /*doppler_handler=*/nullptr,
       create_cu_cp_ntn_meas_info_handler(meas_update_handler),
+      /*doppler_handler=*/nullptr,
       timers,
       executor};
 
