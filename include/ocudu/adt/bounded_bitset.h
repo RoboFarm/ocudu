@@ -273,9 +273,10 @@ public:
     if (new_size < prev_size) {
       // Shrinking case. Need to sanitize removed bits.
       sanitize_();
-      const size_t prev_nof_words = divide_ceil(prev_size, bits_per_word);
+      // Note: the clamping to the buffer capacity is redundant (prev_size <= max_size() always holds), but it lets the
+      // compiler statically bound the loop and avoid a spurious -Warray-bounds.
+      const size_t prev_nof_words = std::min(divide_ceil(prev_size, bits_per_word), max_nof_words_());
       const size_t new_nof_words  = divide_ceil(new_size, bits_per_word);
-      ocudu_assume(prev_nof_words <= buffer.size());
       for (size_t i = new_nof_words; i < prev_nof_words; ++i) {
         buffer[i] = static_cast<word_t>(0);
       }
