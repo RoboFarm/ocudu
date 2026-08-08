@@ -162,8 +162,7 @@ void du_high_ue_simulator::handle_dl_pdu(const mac_dl_data_result::dl_pdu& pdu)
     }
 
     auto it = bearers.find(sdu.lcid);
-    ocudu_assert(
-        it != bearers.end(), "Received DL PDU for LCID {} without existing RLC entity", fmt::underlying(sdu.lcid));
+    ocudu_assert(it != bearers.end(), "Received DL PDU for LCID {} without existing RLC entity", sdu.lcid);
     it->second.rlc->get_rx_lower_layer_interface()->handle_pdu(sdu.payload);
   }
 }
@@ -184,7 +183,7 @@ std::optional<byte_buffer> du_high_ue_simulator::build_next_ul_mac_pdu()
           test_helpers::prepend_mac_subheader(lcid, byte_buffer::create(span<uint8_t>(buffer.data(), n)).value());
       *bearer.adapter->last_reported_bo = bearer.rlc->get_tx_lower_layer_interface()->get_buffer_state();
       report_fatal_error_if_not(
-          pdu.append(sdu_and_subhr), "Failed to append UL MAC SDU for LCID {} to UL MAC PDU", fmt::underlying(lcid));
+          pdu.append(sdu_and_subhr), "Failed to append UL MAC SDU for LCID {} to UL MAC PDU", lcid);
     }
   }
   if (pdu.empty()) {
@@ -196,7 +195,7 @@ std::optional<byte_buffer> du_high_ue_simulator::build_next_ul_mac_pdu()
 void du_high_ue_simulator::enqueue_ul_mac_sdu(lcid_t lcid, byte_buffer ul_mac_sdu)
 {
   auto it = bearers.find(lcid);
-  report_fatal_error_if_not(it != bearers.end(), "No RLC entity for LCID {}", fmt::underlying(lcid));
+  report_fatal_error_if_not(it != bearers.end(), "No RLC entity for LCID {}", lcid);
   it->second.rlc->get_tx_upper_layer_data_interface()->handle_sdu(std::move(ul_mac_sdu), false);
 }
 

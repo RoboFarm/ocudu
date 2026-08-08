@@ -174,8 +174,7 @@ struct conres_test_params {
 /// Formatter for test params.
 void PrintTo(const conres_test_params& value, ::std::ostream* os)
 {
-  *os << fmt::format(
-      "LCID={}, mode={}", fmt::underlying(value.msg4_lcid), value.duplx_mode == duplex_mode::TDD ? "TDD" : "FDD");
+  *os << fmt::format("LCID={}, mode={}", value.msg4_lcid, value.duplx_mode == duplex_mode::TDD ? "TDD" : "FDD");
 }
 
 /// \brief Test to verify the correct scheduling of the ConRes CE and Msg4 LCID0/1 PDU even when multiple PRACH

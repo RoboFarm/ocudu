@@ -51,7 +51,7 @@ public:
     if (not pending_evs.try_push(key)) {
       parent.logger.warning("ue={} lcid={}: Discarding DL buffer occupancy update. Cause: Event queue is full",
                             rlc_dl_bo.ue_index,
-                            fmt::underlying(rlc_dl_bo.lcid));
+                            rlc_dl_bo.lcid);
     }
   }
 
@@ -72,10 +72,8 @@ public:
       // > Extract last DL BO value for the respective bearer and reset BO table position.
       dl_bo.bs = ue_dl_bo_table[key].first.exchange(-1, std::memory_order_release);
       if (dl_bo.bs < 0) {
-        parent.logger.warning("ue={} lcid={}: Invalid DL buffer occupancy value: {}",
-                              dl_bo.ue_index,
-                              fmt::underlying(dl_bo.lcid),
-                              dl_bo.bs);
+        parent.logger.warning(
+            "ue={} lcid={}: Invalid DL buffer occupancy value: {}", dl_bo.ue_index, dl_bo.lcid, dl_bo.bs);
         continue;
       }
 

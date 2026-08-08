@@ -113,7 +113,7 @@ void du_ue_drb::stop()
 
 std::unique_ptr<du_ue_drb> ocudu::odu::create_drb(const drb_creation_info& drb_info)
 {
-  ocudu_assert(not is_srb(drb_info.lcid), "Invalid DRB LCID={}", fmt::underlying(drb_info.lcid));
+  ocudu_assert(not is_srb(drb_info.lcid), "Invalid DRB LCID={}", drb_info.lcid);
   ocudu_assert(not drb_info.uluptnl_info_list.empty(), "Invalid UP TNL Info list");
 
   const du_ue_index_t ue_index  = drb_info.ue_index;

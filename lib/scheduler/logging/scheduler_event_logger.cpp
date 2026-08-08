@@ -212,7 +212,7 @@ void format_debug_level(FormatContext& ctx, const Event& ev)
     fmt::format_to(ctx.out(),
                    "\n- RLC Buffer State: ue={} lcid={} pending_bytes={}",
                    fmt::underlying(ev.ue_index),
-                   fmt::underlying(ev.lcid),
+                   ev.lcid,
                    ev.bs);
   } else if constexpr (std::is_same_v<Event, sel::phr_event>) {
     fmt::format_to(ctx.out(), "\n- PHR: ue={} rnti={} ph={}dB", fmt::underlying(ev.ue_index), ev.rnti, ev.ph);

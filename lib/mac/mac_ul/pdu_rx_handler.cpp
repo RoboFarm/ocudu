@@ -120,9 +120,8 @@ bool pdu_rx_handler::push_ul_ccch_msg(du_ue_index_t ue_index, byte_buffer ul_ccc
 {
   mac_ul_ue_context* ue = ue_manager.find_ue(ue_index);
   if (ue == nullptr) {
-    logger.warning("UL subPDU ue={}, lcid={} UL-CCCH: Received UL-CCCH for non-existent UE",
-                   fmt::underlying(ue_index),
-                   fmt::underlying(LCID_SRB0));
+    logger.warning(
+        "UL subPDU ue={}, lcid={} UL-CCCH: Received UL-CCCH for non-existent UE", fmt::underlying(ue_index), LCID_SRB0);
     return false;
   }
 
