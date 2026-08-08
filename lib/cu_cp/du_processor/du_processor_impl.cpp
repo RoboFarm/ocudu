@@ -4,6 +4,7 @@
 
 #include "du_processor_impl.h"
 #include "ocudu/adt/expected.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_ref_time_report_notifier.h"
 #include "ocudu/f1ap/cu_cp/f1ap_cu_factory.h"
 #include "ocudu/ran/cause/f1ap_cause.h"

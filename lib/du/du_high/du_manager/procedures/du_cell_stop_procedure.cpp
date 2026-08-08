@@ -6,6 +6,7 @@
 #include "../du_cell_manager.h"
 #include "../du_ue/du_ue_manager.h"
 #include "du_ue_reset_procedure.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/async/async_timer.h"
 

@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ocudu/scheduler/config/serving_cell_config_factory.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/du_types.h"
 #include "ocudu/ran/pusch/pusch_antenna_ports_mapping.h"
 #include "ocudu/ran/ssb/ssb_mapping.h"

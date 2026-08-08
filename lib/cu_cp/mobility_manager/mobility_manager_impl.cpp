@@ -5,6 +5,7 @@
 #include "mobility_manager_impl.h"
 #include "../du_processor/du_processor_repository.h"
 #include "mobility_manager_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/nr_cgi.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/ran/tac.h"

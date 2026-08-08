@@ -19,6 +19,7 @@
 #include "split6_o_du_low_unit_cli11_schema.h"
 #include "split6_o_du_low_unit_config_validator.h"
 #include "split6_o_du_low_unit_logger_registrator.h"
+#include "ocudu/adt/format.h"
 
 using namespace ocudu;
 

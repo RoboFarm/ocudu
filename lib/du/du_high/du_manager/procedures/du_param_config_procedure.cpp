@@ -4,6 +4,7 @@
 
 #include "du_param_config_procedure.h"
 #include "../converters/f1ap_configuration_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/support/async/async_no_op_task.h"
 

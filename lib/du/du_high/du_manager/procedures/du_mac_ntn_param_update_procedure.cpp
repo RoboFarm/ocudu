@@ -5,6 +5,7 @@
 #include "du_mac_ntn_param_update_procedure.h"
 #include "../converters/f1ap_configuration_helpers.h"
 #include "../du_cell_manager.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_high/du_manager/du_manager_params.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/subcarrier_spacing.h"

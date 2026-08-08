@@ -4,6 +4,7 @@
 
 #include "rrc_ue_context.h"
 #include "rrc_ue_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/rrc_nr.h"
 
 using namespace ocudu;

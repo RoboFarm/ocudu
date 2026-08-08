@@ -7,6 +7,7 @@
 #include "../routines/amf_connection_removal_routine.h"
 #include "../routines/amf_connection_setup_routine.h"
 #include "../routines/amf_reconnection_routine.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_configuration.h"
 #include "ocudu/ngap/ngap.h"
 #include "ocudu/ran/plmn_identity.h"

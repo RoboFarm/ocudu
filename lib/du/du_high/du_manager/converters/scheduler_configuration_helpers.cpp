@@ -4,6 +4,7 @@
 
 #include "scheduler_configuration_helpers.h"
 #include "../du_ue/du_ue.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_cell_config.h"
 #include "ocudu/du/du_cell_config_helpers.h"
 #include "ocudu/ran/csi_report/csi_report_config_helpers.h"

@@ -34,6 +34,7 @@
 #include "routines/ue_suspend_routine.h"
 #include "routines/ue_transaction_info_release_routine.h"
 #include "routines/write_replace_warning_routine.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_ntn_ref_time_store.h"
 #include "ocudu/f1ap/cu_cp/f1ap_cu.h"
 #include "ocudu/nrppa/nrppa.h"

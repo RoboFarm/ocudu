@@ -4,6 +4,7 @@
 
 #include "paging_message_handler.h"
 #include "../du_processor/du_processor_repository.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/cu_cp_types.h"
 #include "ocudu/ran/tac.h"
 

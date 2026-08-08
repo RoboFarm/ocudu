@@ -4,6 +4,7 @@
 
 #include "cell_configuration.h"
 #include "time_domain_mapper.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/band_helper.h"
 #include "ocudu/ran/resource_block.h"
 #include "ocudu/scheduler/config/csi_helper.h"

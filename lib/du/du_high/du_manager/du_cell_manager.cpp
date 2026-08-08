@@ -5,6 +5,7 @@
 #include "du_cell_manager.h"
 #include "converters/asn1_sys_info_packer.h"
 #include "converters/scheduler_configuration_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_cell_config_validation.h"
 #include "ocudu/du/du_high/du_manager/du_configurator.h"
 #include "ocudu/mac/mac_cell_manager.h"

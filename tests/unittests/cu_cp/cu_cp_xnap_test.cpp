@@ -5,6 +5,7 @@
 #include "lib/cu_cp/xnap_repository.h"
 #include "tests/unittests/cu_cp/cu_cp_test_environment.h"
 #include "tests/unittests/cu_cp/test_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/support/executors/manual_task_worker.h"
 #include <gtest/gtest.h>
 

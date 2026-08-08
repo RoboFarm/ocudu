@@ -4,6 +4,7 @@
 
 #include "du_processor_test_helpers.h"
 #include "tests/unittests/cu_cp/test_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/support/async/async_task_scheduler.h"

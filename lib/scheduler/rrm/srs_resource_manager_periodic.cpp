@@ -5,6 +5,7 @@
 #include "srs_resource_manager_periodic.h"
 #include "srs_resource_generator.h"
 #include "srs_resource_manager_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/scheduler/config/pucch_guardbands.h"
 #include "ocudu/scheduler/config/serving_cell_config_factory.h"
 

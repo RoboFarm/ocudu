@@ -5,6 +5,7 @@
 #include "ngap_test_helpers.h"
 #include "tests/test_doubles/utils/test_rng.h"
 #include "tests/unittests/ngap/test_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/ngap/ngap_pdu_contents.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 #include "ocudu/ngap/ngap_configuration.h"

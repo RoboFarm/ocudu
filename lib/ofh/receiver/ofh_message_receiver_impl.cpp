@@ -4,6 +4,7 @@
 #include "ofh_message_receiver_impl.h"
 #include "../support/logger_utils.h"
 #include "ofh_rx_window_checker.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/instrumentation/traces/ofh_traces.h"
 
 using namespace ocudu;

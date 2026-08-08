@@ -5,6 +5,7 @@
 #include "amf_connection_loss_routine.h"
 #include "cell_deactivation_routine.h"
 #include "cell_lifecycle_target.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/cause/ngap_cause.h"
 #include "ocudu/support/async/coroutine.h"
 

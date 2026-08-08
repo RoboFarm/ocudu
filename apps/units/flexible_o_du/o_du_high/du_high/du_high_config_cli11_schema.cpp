@@ -8,6 +8,7 @@
 #include "apps/helpers/ntn/ntn_config_cli11_schema.h"
 #include "du_high_config.h"
 #include "ntn/du_high_ntn_config_cli11_schema.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/ranges/transform.h"
 #include "ocudu/ran/csi_report/csi_report_configuration.h"
 #include "ocudu/ran/drx_config.h"

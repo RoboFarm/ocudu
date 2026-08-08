@@ -9,6 +9,7 @@
 #include "lower_phy_test_doubles.h"
 #include "processors/downlink/downlink_processor_test_doubles.h"
 #include "processors/uplink/uplink_processor_notifier_test_doubles.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ocuduvec/compare.h"
 #include "ocudu/phy/lower/lower_phy_controller.h"
 #include "ocudu/phy/lower/lower_phy_downlink_handler.h"

@@ -14,6 +14,7 @@
 #include "e2sm/e2sm_rc/e2sm_rc_control_action_du_executor.h"
 #include "e2sm/e2sm_rc/e2sm_rc_control_service_impl.h"
 #include "e2sm/e2sm_rc/e2sm_rc_impl.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/e2/e2_agent_dependencies.h"
 
 using namespace ocudu;

@@ -3,6 +3,7 @@
 
 #include "tests/test_doubles/utils/test_rng.h"
 #include "ocudu/adt/bounded_bitset.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/interval.h"
 #include <bitset>
 #include <gtest/gtest.h>

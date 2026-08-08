@@ -4,6 +4,7 @@
 
 #include "du_cg_res_mng.h"
 #include "du_ue_resource_config.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/prach/prach_time_mapping.h"
 #include "ocudu/ran/resource_allocation/resource_allocation_frequency.h"

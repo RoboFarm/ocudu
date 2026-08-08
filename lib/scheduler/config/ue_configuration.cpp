@@ -9,6 +9,7 @@
 #include "../support/pusch/pusch_resource_allocation.h"
 #include "sched_config_params.h"
 #include "time_domain_mapper.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/pdcch/dci_format.h"
 #include "ocudu/ran/resource_allocation/vrb_to_prb.h"
 #include "ocudu/support/math/math_utils.h"

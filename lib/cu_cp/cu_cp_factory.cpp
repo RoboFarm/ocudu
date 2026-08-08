@@ -4,6 +4,7 @@
 
 #include "ocudu/cu_cp/cu_cp_factory.h"
 #include "cu_cp_impl.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/support/error_handling.h"
 
 using namespace ocudu;

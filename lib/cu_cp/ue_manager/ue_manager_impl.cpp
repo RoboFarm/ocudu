@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ue_manager_impl.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/security_manager_config.h"
 
 using namespace ocudu;

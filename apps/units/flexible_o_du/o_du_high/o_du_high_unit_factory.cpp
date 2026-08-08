@@ -16,6 +16,7 @@
 #include "du_high/metrics/du_metrics_producer.h"
 #include "e2/o_du_high_e2_config_translators.h"
 #include "o_du_high_unit_config.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_high/du_high.h"
 #include "ocudu/du/du_high/du_high_configuration.h"
 #include "ocudu/du/du_high/o_du_high_config.h"

@@ -4,6 +4,7 @@
 
 #include "du_ran_resource_manager_impl.h"
 #include "du_cg_res_mng.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/mac/config/mac_cell_group_config_factory.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/csi_report/csi_report_config_helpers.h"

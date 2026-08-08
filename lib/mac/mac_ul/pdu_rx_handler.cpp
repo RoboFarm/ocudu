@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "pdu_rx_handler.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/instrumentation/traces/up_traces.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/support/format/fmt_basic_parser.h"

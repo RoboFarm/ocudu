@@ -6,6 +6,7 @@
 #include "apps/services/worker_manager/worker_manager_config.h"
 #include "du_high_config.h"
 #include "ntn/du_high_ntn_config_translators.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_cell_config_helpers.h"
 #include "ocudu/du/du_cell_config_validation.h"
 #include "ocudu/du/du_high/du_high_configuration.h"

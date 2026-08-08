@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ocudu/adt/byte_buffer.h"
+#include "ocudu/adt/format.h"
 #include "fmt/base.h"
 
 namespace ocudu {

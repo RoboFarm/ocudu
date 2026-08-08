@@ -5,6 +5,7 @@
 #include "du_high_ntn_sib19_update_handler_impl.h"
 #include "du_manager/converters/asn1_ntn_config_helpers.h"
 #include "ocudu/adt/byte_buffer.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/asn1_utils.h"
 #include "ocudu/asn1/rrc_nr/bcch_dl_sch_msg.h"
 #include "ocudu/asn1/rrc_nr/sys_info.h"

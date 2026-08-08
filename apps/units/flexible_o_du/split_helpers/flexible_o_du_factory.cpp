@@ -14,6 +14,7 @@
 #include "flexible_o_du_impl.h"
 #include "flexible_o_du_ntn_configuration_manager_factory.h"
 #include "metrics/flexible_o_du_metrics_builder.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_high/du_high.h"
 #include "ocudu/du/du_high/du_high_clock_controller.h"
 #include "ocudu/du/o_du_factory.h"

@@ -13,6 +13,7 @@
 #include "procedures/du_ue_reset_procedure.h"
 #include "procedures/du_ue_ric_configuration_procedure.h"
 #include "procedures/f1c_disconnection_handling_procedure.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/mac/mac_pdu_handler.h"
 #include "ocudu/support/async/execute_on_blocking.h"
 #include "ocudu/support/executors/execute_until_success.h"

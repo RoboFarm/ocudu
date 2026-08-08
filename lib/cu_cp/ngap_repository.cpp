@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "ngap_repository.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ngap/ngap_context.h"
 #include "ocudu/ngap/ngap_factory.h"
 #include "ocudu/support/ocudu_assert.h"

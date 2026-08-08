@@ -5,6 +5,7 @@
 #include "o_cu_cp_e2_config_translators.h"
 #include "apps/services/worker_manager/worker_manager_config.h"
 #include "o_cu_cp_e2_config.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 
 using namespace ocudu;

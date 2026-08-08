@@ -6,6 +6,7 @@
 #include "../../../modulation/ofdm_demodulator_test_doubles.h"
 #include "puxch_processor_notifier_test_doubles.h"
 #include "support/compare_sequences.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/gateways/baseband/buffer/baseband_gateway_buffer_dynamic.h"
 #include "ocudu/ocuduvec/conversion.h"
 #include "ocudu/phy/lower/lower_phy_rx_symbol_context.h"

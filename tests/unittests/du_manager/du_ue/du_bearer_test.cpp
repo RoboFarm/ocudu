@@ -6,6 +6,7 @@
 #include "lib/du/du_high/du_manager/du_ue/du_ue_bearer_manager.h"
 #include "tests/test_doubles/utils/test_rng.h"
 #include "tests/unittests/du_manager/du_manager_test_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_cell_config_helpers.h"
 #include <gtest/gtest.h>
 #include <numeric>

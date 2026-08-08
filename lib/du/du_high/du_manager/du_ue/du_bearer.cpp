@@ -4,6 +4,7 @@
 
 #include "du_bearer.h"
 #include "../converters/rlc_config_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/f1u/du/f1u_bearer_factory.h"
 #include "ocudu/gtpu/gtpu_teid_pool.h"
 #include "ocudu/ocudulog/ocudulog.h"

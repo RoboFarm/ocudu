@@ -7,6 +7,7 @@
 #include "apps/helpers/ntn/ntn_config_yaml_writer.h"
 #include "du_high_config.h"
 #include "ntn/du_high_ntn_config_yaml_writer.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/adt/static_vector.h"
 

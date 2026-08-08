@@ -4,6 +4,7 @@
 
 #include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_manager.h"
 #include "lib/du/du_high/du_manager/ran_resource_management/ue_capability_summary_formatter.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/to_array.h"
 #include "ocudu/asn1/rrc_nr/ue_cap.h"
 #include "ocudu/support/error_handling.h"

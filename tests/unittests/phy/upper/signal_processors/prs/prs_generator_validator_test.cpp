@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "../../../support/resource_grid_test_doubles.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/to_array.h"
 #include "ocudu/phy/support/support_factories.h"
 #include "ocudu/phy/upper/signal_processors/prs/factories.h"

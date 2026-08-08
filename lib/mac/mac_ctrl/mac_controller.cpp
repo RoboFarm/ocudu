@@ -8,6 +8,7 @@
 #include "proc_logger.h"
 #include "ue_creation_procedure.h"
 #include "ue_reconfiguration_procedure.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/mac/mac_clock_controller.h"
 #include "ocudu/ran/tdd/tdd_ul_dl_config.h"
 #include "fmt/base.h"

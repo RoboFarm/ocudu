@@ -4,6 +4,7 @@
 
 #include "gnb_cu_configuration_update_procedure.h"
 #include "../../asn1_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/f1ap/common.h"
 #include "ocudu/f1ap/f1ap_message.h"
 #include "ocudu/f1ap/f1ap_message_notifier.h"

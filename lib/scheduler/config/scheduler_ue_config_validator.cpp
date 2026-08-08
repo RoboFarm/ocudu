@@ -4,6 +4,7 @@
 
 #include "ocudu/scheduler/config/scheduler_ue_config_validator.h"
 #include "cell_configuration.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/scheduler/config/serving_cell_config_validator.h"
 #include "ocudu/support/config/validator_helpers.h"
 

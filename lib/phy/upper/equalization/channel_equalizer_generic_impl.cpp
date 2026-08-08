@@ -11,6 +11,7 @@
 #include "equalize_zf_2xn.h"
 #include "equalize_zf_mxn_simd.h"
 #include "interleave_layers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/interval.h"
 #include "ocudu/ocuduvec/copy.h"
 #include "ocudu/phy/support/re_buffer.h"

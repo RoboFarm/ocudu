@@ -6,6 +6,7 @@
 #include "rrc_setup_procedure.h"
 #include "ue/rrc_asn1_converters.h"
 #include "ue/rrc_ue_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg.h"
 #include "ocudu/asn1/rrc_nr/nr_ue_variables.h"
 #include "ocudu/ran/cu_cp_types.h"

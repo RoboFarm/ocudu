@@ -4,6 +4,7 @@
 
 #include "rrc_ue_impl.h"
 #include "rrc_asn1_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/rrc_nr.h"
 #include "ocudu/support/ocudu_assert.h"
 

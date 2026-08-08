@@ -5,6 +5,7 @@
 #include "du_meas_config_manager.h"
 #include "du_ue_resource_config.h"
 #include "ue_capability_summary.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/dl_dcch_msg_ies.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/ran/csi_rs/csi_meas_config.h"

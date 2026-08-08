@@ -31,10 +31,7 @@ using vrb_interval = interval<unsigned, false, vrb_tag>;
 /// \return Calculated PRB.
 inline unsigned crb_to_prb(crb_interval bwp_crb_lims, unsigned crb)
 {
-  ocudu_sanity_check(bwp_crb_lims.contains(crb) or crb == bwp_crb_lims.stop(),
-                     "CRB={} falls outside BWP limits={}",
-                     crb,
-                     bwp_crb_lims);
+  ocudu_sanity_check(bwp_crb_lims.contains(crb) or crb == bwp_crb_lims.stop(), "CRB={} falls outside BWP limits", crb);
   return crb - bwp_crb_lims.start();
 }
 

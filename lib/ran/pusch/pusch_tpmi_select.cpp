@@ -4,6 +4,7 @@
 
 #include "ocudu/ran/pusch/pusch_tpmi_select.h"
 #include "ocudu/adt/complex.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/adt/static_vector.h"
 #include "ocudu/ocuduvec/mean.h"

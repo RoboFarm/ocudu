@@ -4,6 +4,7 @@
 
 #include "positioning_handler.h"
 #include "../mac_ctrl/spsc_metric_report_channel.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/slotted_array.h"
 #include "ocudu/mac/mac_positioning_measurement_handler.h"
 #include "ocudu/ocudulog/ocudulog.h"

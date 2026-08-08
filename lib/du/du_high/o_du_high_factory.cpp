@@ -5,6 +5,7 @@
 #include "ocudu/du/du_high/o_du_high_factory.h"
 #include "adapters/f1_setup_e2_adapter.h"
 #include "o_du_high_impl.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/du/du_high/du_high_clock_controller.h"
 #include "ocudu/du/du_high/du_high_factory.h"
 #include "ocudu/du/du_high/o_du_high_config.h"

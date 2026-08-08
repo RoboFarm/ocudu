@@ -9,6 +9,7 @@
 #include "apps/units/flexible_o_du/split_7_2/helpers/ru_ofh_config_yaml_writer.h"
 #include "apps/units/flexible_o_du/split_8/helpers/ru_sdr_config_yaml_writer.h"
 #include "dynamic_o_du_unit_config.h"
+#include "ocudu/adt/format.h"
 
 using namespace ocudu;
 

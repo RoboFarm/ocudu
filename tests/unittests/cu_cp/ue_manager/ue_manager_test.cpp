@@ -4,6 +4,7 @@
 
 #include "tests/unittests/cu_cp/test_helpers.h"
 #include "ue_manager_test_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/ran/plmn_identity.h"
 #include <gtest/gtest.h>
 

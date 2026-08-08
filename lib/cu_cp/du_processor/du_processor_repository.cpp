@@ -5,6 +5,7 @@
 #include "du_processor_repository.h"
 #include "du_processor_config.h"
 #include "du_processor_factory.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_configuration.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 #include "ocudu/ran/plmn_identity.h"

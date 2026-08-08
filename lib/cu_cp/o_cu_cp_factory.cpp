@@ -5,6 +5,7 @@
 #include "ocudu/cu_cp/o_cu_cp_factory.h"
 #include "adapters/ng_setup_e2_adapter.h"
 #include "o_cu_cp_impl.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_factory.h"
 #include "ocudu/cu_cp/o_cu_cp_config.h"
 #include "ocudu/e2/e2_cu_cp_factory.h"

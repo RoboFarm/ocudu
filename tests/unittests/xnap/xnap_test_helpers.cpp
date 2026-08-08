@@ -4,6 +4,7 @@
 
 #include "xnap_test_helpers.h"
 #include "lib/xnap/procedures/xn_setup_procedure_asn1_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/cu_cp/cu_cp_configuration_helpers.h"
 #include "ocudu/support/async/async_test_utils.h"
 

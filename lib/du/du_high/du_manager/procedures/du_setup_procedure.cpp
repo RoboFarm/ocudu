@@ -9,6 +9,7 @@
 #include "../du_cell_manager.h"
 #include "../du_manager_context.h"
 #include "../ran_resource_management/du_ran_resource_manager.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/mac/config/mac_config_helpers.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/scheduler/config/scheduler_cell_config_validator.h"

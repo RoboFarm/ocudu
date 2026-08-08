@@ -5,6 +5,7 @@
 #include "asn1_rrc_config_helpers.h"
 #include "asn1_csi_meas_config_helpers.h"
 #include "asn1_ntn_config_helpers.h"
+#include "ocudu/adt/format.h"
 #include "ocudu/asn1/asn1_diff_utils.h"
 #include "ocudu/ran/band_helper.h"
 #include "ocudu/ran/frequency_range.h"
