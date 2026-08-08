@@ -103,32 +103,23 @@ static void merge_cell_config_update(ntn_cell_config& cfg, const ntn_cell_config
 /// Returns the start slot of the next SI window for the given SI scheduling info, strictly after cur_sl.
 static slot_point get_next_si_win_start(const ntn_si_scheduling_info& si_sched, slot_point cur_sl)
 {
-  // 2> The concerned SI message is configured in the schedulingInfoList2.
-  // 3> Determine the integer value x = (si-WindowPosition -1) * w, where w is
-  // the si-WindowLength. See TS 38 331 V17.0.0.
-  unsigned x = (si_sched.si_window_position - 1) * si_sched.si_window_len_slots;
+  // TS 38.331 (schedulingInfoList2): the SI window starts at slot a = x mod N in the radio frame for which
+  // SFN mod T = floor(x/N), i.e. at offset x within the T-frame SI period, where x = (si-WindowPosition - 1) *
+  // si-WindowLength, N is the number of slots per radio frame and T the si-Periodicity. Compute the gap to that
+  // offset in a single T*N-slot period so a window later in the current frame is not pushed a whole period ahead.
+  const unsigned N            = cur_sl.nof_slots_per_frame();
+  const unsigned T            = si_sched.si_period_rf;
+  const unsigned period_slots = T * N;
 
-  // 3> The SI-window starts at the slot #a, where a = x mod N, in the radio
-  // frame for which SFN mod T = FLOOR(x/N), where T is the si-Periodicity of
-  // the concerned SI message and N is the number of slots in a radio frame as
-  // specified in TS 38.213.
-  const unsigned N = cur_sl.nof_slots_per_frame();
-  const unsigned T = si_sched.si_period_rf;
-  const unsigned a = x % N;
+  const unsigned target_offset  = ((si_sched.si_window_position - 1) * si_sched.si_window_len_slots) % period_slots;
+  const unsigned current_offset = (cur_sl.sfn() % T) * N + cur_sl.slot_index();
 
-  // Compute the difference (delta) needed to reach the target slot reminders.
-  unsigned sfn_delta  = (T + (x / N) - (cur_sl.sfn() % T)) % T;
-  unsigned slot_delta = (N + a - cur_sl.slot_index()) % N;
-
-  // If delta is zero, it means current_sfn already has the desired remainder.
-  // Since we need new_sfn > current_sfn, we add one full period (T).
-  if (sfn_delta == 0) {
-    sfn_delta = T;
+  // Strictly after cur_sl: a zero gap means the window is at the current slot, so advance one full period.
+  unsigned delta = (period_slots + target_offset - current_offset) % period_slots;
+  if (delta == 0) {
+    delta = period_slots;
   }
-  if (slot_delta) {
-    sfn_delta -= 1;
-  }
-  return cur_sl + sfn_delta * N + slot_delta;
+  return cur_sl + delta;
 }
 
 ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configuration_manager_config& config,

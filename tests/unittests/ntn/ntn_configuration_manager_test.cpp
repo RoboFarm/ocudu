@@ -7,6 +7,7 @@
 #include "ocudu/ntn/ntn_configuration_manager_dependencies.h"
 #include "ocudu/ntn/ntn_configuration_manager_factory.h"
 #include "ocudu/ntn/ntn_meas_info_update_handler.h"
+#include "ocudu/ntn/ntn_sib19_update_handler.h"
 #include "ocudu/ntn/ntn_time_provider.h"
 #include "ocudu/support/executors/manual_task_worker.h"
 #include "ocudu/support/timers.h"
@@ -49,6 +50,15 @@ public:
   void handle_ntn_meas_info_update(const ntn_meas_info_update_request& req) override { reqs.push_back(req); }
 };
 
+/// SIB19 update handler capturing all received requests.
+class sib19_capture : public ntn_sib19_update_handler
+{
+public:
+  std::vector<ntn_sib19_update_request> reqs;
+
+  void handle_sib19_msg_update(const ntn_sib19_update_request& req) override { reqs.push_back(req); }
+};
+
 } // namespace
 
 class ntn_configuration_manager_test : public ::testing::Test
@@ -67,8 +77,10 @@ protected:
     time_provider = tp.get();
     auto mh       = std::make_unique<meas_info_capture>();
     meas_handler  = mh.get();
+    auto sh       = std::make_unique<sib19_capture>();
+    sib19_handler = sh.get();
 
-    ntn_configuration_manager_dependencies deps{/*sib19_msg_update_handler=*/nullptr,
+    ntn_configuration_manager_dependencies deps{std::move(sh),
                                                 std::move(tp),
                                                 /*doppler_handler=*/nullptr,
                                                 std::move(mh),
@@ -122,6 +134,40 @@ protected:
     return cfg;
   }
 
+  /// Builds a manager config with one SIB19-broadcasting serving cell (si_sched, no update_period) and its satellite.
+  ntn_configuration_manager_config make_sib19_cell_config(const ntn_si_scheduling_info& si_sched)
+  {
+    ntn_configuration_manager_config cfg;
+
+    ntn_satellite_config& sat = cfg.satellites.emplace_back();
+    sat.satellite_index       = 0;
+    sat.epoch_timestamp       = t0;
+    ecef_coordinates_t ecef;
+    ecef.position_x    = -3621225.25;
+    ecef.position_y    = -5839350.24;
+    ecef.position_z    = 101120.52;
+    ecef.velocity_vx   = 3498.87;
+    ecef.velocity_vy   = -2055.89;
+    ecef.velocity_vz   = 6104.62;
+    sat.ephemeris_info = ecef;
+
+    ntn_cell_config& cell = cfg.cells.emplace_back();
+    cell.nr_cgi.plmn_id   = plmn_identity::test_value();
+    cell.nr_cgi.nci       = nr_cell_identity::create(0x19b0).value();
+    cell.common_scs       = subcarrier_spacing::kHz15;
+    cell.si_sched         = si_sched;
+
+    ntn_serving_cell_config serving{};
+    serving.satellite_index          = 0;
+    serving.cell_specific_koffset    = std::chrono::milliseconds{20};
+    serving.ntn_ul_sync_validity_dur = 30U;
+    serving.use_state_vector         = true;
+    serving.reference_location       = geodetic_coordinates_t{1.0, 2.0, 3.0};
+    cell.ntn_cfg                     = serving;
+
+    return cfg;
+  }
+
   ntn_time_slot_mapping make_mapping(unsigned sfn = 100) const
   {
     return ntn_time_slot_mapping{slot_point{subcarrier_spacing::kHz15, sfn, 0}, t0};
@@ -131,6 +177,7 @@ protected:
   timer_manager                              timers;
   fake_ntn_time_provider*                    time_provider = nullptr;
   meas_info_capture*                         meas_handler  = nullptr;
+  sib19_capture*                             sib19_handler = nullptr;
   std::unique_ptr<ntn_configuration_manager> manager;
 };
 
@@ -203,4 +250,24 @@ TEST_F(ntn_configuration_manager_test, periodic_update_requests_the_cell_common_
 
   ASSERT_EQ(meas_handler->reqs.size(), 1);
   EXPECT_EQ(time_provider->last_requested_scs, subcarrier_spacing::kHz30);
+}
+
+// Regression for get_next_si_win_start() with si-WindowPosition > 1. TS 38.331: the window starts at slot a = x mod N
+// in the radio frame where SFN mod T = floor(x/N), x = (position - 1) * len. At 15 kHz with T=8, len=5, position=2 and
+// the current slot at SFN 0 slot 0, x = 5, so the next window starts at SFN 0 slot 5. The previous derivation advanced
+// a whole period and returned SFN 7. ntn_sib19_update_request.slot carries next_si_win_start, so capture the SIB19
+// update and check it.
+TEST_F(ntn_configuration_manager_test, si_window_start_is_correct_for_window_position_above_one)
+{
+  ntn_configuration_manager_config cfg = make_sib19_cell_config(ntn_si_scheduling_info{
+      /*si_msg_idx=*/0, /*si_period_rf=*/8, /*si_window_len_slots=*/5, /*si_window_position=*/2});
+  create_manager(cfg);
+  time_provider->mapping = make_mapping(0); // current slot: SFN 0, slot 0
+
+  tick(8 * 10); // si_period_rf * 10 ms
+
+  ASSERT_EQ(sib19_handler->reqs.size(), 1);
+  const slot_point win_start = sib19_handler->reqs.front().slot;
+  EXPECT_EQ(win_start.sfn(), 0U); // the previous code returned SFN 7
+  EXPECT_EQ(win_start.slot_index(), 5U);
 }
