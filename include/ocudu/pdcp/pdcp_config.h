@@ -11,7 +11,7 @@
 #include "ocudu/ran/pdcp/pdcp_t_reordering.h"
 #include "ocudu/ran/rohc/rohc_config.h"
 #include "ocudu/support/timers.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
 #include "fmt/std.h"
 #include <cstdint>
 #include <optional>

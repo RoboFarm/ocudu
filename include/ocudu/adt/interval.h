@@ -4,7 +4,8 @@
 #pragma once
 
 #include "ocudu/support/ocudu_assert.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
+#include <algorithm>
 #include <type_traits>
 
 namespace ocudu {

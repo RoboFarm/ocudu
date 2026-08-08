@@ -7,7 +7,7 @@
 #include "gtpu_tunnel_logger.h"
 #include "ocudu/adt/byte_buffer.h"
 #include "ocudu/adt/static_vector.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
 #include <cstdint>
 
 namespace ocudu {

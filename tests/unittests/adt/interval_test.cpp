@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 
 #include "ocudu/adt/interval.h"
+#include "fmt/format.h"
 #include <gtest/gtest.h>
 
 using namespace ocudu;

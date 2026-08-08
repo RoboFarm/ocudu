@@ -11,7 +11,7 @@
 #include "ocudu/support/executors/task_executor.h"
 #include "ocudu/support/segmented_sdu_window.h"
 #include "ocudu/support/timers.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
 #include <set>
 
 namespace ocudu {

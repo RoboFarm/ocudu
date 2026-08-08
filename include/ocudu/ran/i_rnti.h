@@ -5,7 +5,7 @@
 #pragma once
 
 #include "ocudu/adt/expected.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
 #include <cstdint>
 
 namespace ocudu {

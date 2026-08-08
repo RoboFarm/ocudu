@@ -5,7 +5,7 @@
 #pragma once
 
 #include "ocudu/ran/cause/common.h"
-#include "fmt/format.h"
+#include "fmt/base.h"
 #include <variant>
 
 namespace ocudu {
