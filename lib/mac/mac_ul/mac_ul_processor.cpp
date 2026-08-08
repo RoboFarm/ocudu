@@ -102,7 +102,7 @@ void mac_ul_processor::handle_rx_data_indication(mac_rx_data_indication msg)
   for (mac_rx_pdu& pdu : msg.pdus) {
     if (pdu.pdu.empty()) {
       logger.error("cell={} slot_rx={} rnti={}: Received empty MAC RX PDU from lower layers",
-                   fmt::underlying(msg.cell_index),
+                   msg.cell_index,
                    msg.sl_rx,
                    pdu.rnti);
       continue;
@@ -119,9 +119,7 @@ void mac_ul_processor::handle_rx_data_indication(mac_rx_data_indication msg)
               // > Decode Rx PDU and handle respective subPDUs.
               pdu_handler.handle_rx_pdu(slot_rx, cell_idx, std::move(pdu));
             })) {
-      logger.warning("cell={} slot_rx={}: Discarding Rx PDU. Cause: Rx task queue is full.",
-                     fmt::underlying(msg.cell_index),
-                     msg.sl_rx);
+      logger.warning("cell={} slot_rx={}: Discarding Rx PDU. Cause: Rx task queue is full.", msg.cell_index, msg.sl_rx);
     }
   }
 }

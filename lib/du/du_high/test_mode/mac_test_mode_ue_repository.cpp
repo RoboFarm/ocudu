@@ -70,7 +70,7 @@ void mac_test_mode_ue_repository::add_ue(rnti_t                         rnti,
     return;
   }
   const du_cell_index_t pcell_index = sched_ue_cfg_req.cells.value()[0].serv_cell_cfg.cell_index;
-  ocudu_assert(is_cell_test_ue(pcell_index, rnti), "Invalid rnti={} for cell={}", rnti, fmt::underlying(pcell_index));
+  ocudu_assert(is_cell_test_ue(pcell_index, rnti), "Invalid rnti={} for cell={}", rnti, pcell_index);
 
   // Dispatch creation of UE to du_cell thread.
   while (not event_handler.schedule(pcell_index, [this, rnti, ue_idx, pcell_index]() {

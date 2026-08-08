@@ -157,7 +157,7 @@ du_cell_manager::handle_cell_reconf_request(const du_cell_param_config_request& 
             logger.warning(
                 "Invalid min/max PRB policy ratio for {} in cell {}: min_prb={} > max_prb={}. Skipping update.",
                 policy_member,
-                fmt::underlying(cell_index),
+                cell_index,
                 min_prb,
                 max_prb);
             break;
@@ -174,12 +174,11 @@ du_cell_manager::handle_cell_reconf_request(const du_cell_param_config_request& 
         }
       }
       if (not found) {
-        logger.warning("No RRM policy member found for {} in cell {}", policy_member, fmt::underlying(cell_index));
+        logger.warning("No RRM policy member found for {} in cell {}", policy_member, cell_index);
       }
 
       if (result.slice_reconf_req->rrm_policies.full()) {
-        logger.warning("RRM policy update list is full. Discarding further updates for cell {}",
-                       fmt::underlying(cell_index));
+        logger.warning("RRM policy update list is full. Discarding further updates for cell {}", cell_index);
         break;
       }
     }
@@ -222,11 +221,11 @@ async_task<bool> du_cell_manager::start(du_cell_index_t cell_index) const
   return launch_async([this, cell_index](coro_context<async_task<bool>>& ctx) {
     CORO_BEGIN(ctx);
     if (!has_cell(cell_index)) {
-      logger.warning("cell={}: Start called for a cell that does not exist.", fmt::underlying(cell_index));
+      logger.warning("cell={}: Start called for a cell that does not exist.", cell_index);
       CORO_EARLY_RETURN(false);
     }
     if (cells[cell_index]->state != du_cell_context::state_t::inactive) {
-      logger.warning("cell={}: Start called for an already active cell.", fmt::underlying(cell_index));
+      logger.warning("cell={}: Start called for an already active cell.", cell_index);
       CORO_EARLY_RETURN(false);
     }
 
@@ -245,7 +244,7 @@ async_task<void> du_cell_manager::stop(du_cell_index_t cell_index) const
     CORO_BEGIN(ctx);
 
     if (!has_cell(cell_index)) {
-      logger.warning("cell={}: Stop called for a cell that does not exist.", fmt::underlying(cell_index));
+      logger.warning("cell={}: Stop called for a cell that does not exist.", cell_index);
       CORO_EARLY_RETURN();
     }
     if (cells[cell_index]->state == du_cell_context::state_t::inactive) {

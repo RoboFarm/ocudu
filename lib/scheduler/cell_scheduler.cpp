@@ -156,7 +156,7 @@ void cell_scheduler::start()
     return;
   }
   active = true;
-  logger.info("cell={}: Cell scheduling was activated.", fmt::underlying(cell_cfg.cell_index));
+  logger.info("cell={}: Cell scheduling was activated.", cell_cfg.cell_index);
 
   ue_sched->start();
 }
@@ -170,7 +170,7 @@ void cell_scheduler::stop()
     return;
   }
   active = false;
-  logger.info("cell={}: Cell scheduling was deactivated.", fmt::underlying(cell_cfg.cell_index));
+  logger.info("cell={}: Cell scheduling was deactivated.", cell_cfg.cell_index);
 
   // Stop sub-schedulers.
   ssb_sch.stop();

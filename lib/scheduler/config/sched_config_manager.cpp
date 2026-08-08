@@ -78,8 +78,8 @@ sched_config_manager::sched_config_manager(const scheduler_config& sched_cfg) :
 
 const cell_configuration* sched_config_manager::add_cell(const sched_cell_configuration_request_message& msg)
 {
-  ocudu_assert(msg.cell_index < MAX_NOF_DU_CELLS, "cell index={} is not valid", fmt::underlying(msg.cell_index));
-  ocudu_assert(not added_cells.contains(msg.cell_index), "cell={} already exists", fmt::underlying(msg.cell_index));
+  ocudu_assert(msg.cell_index < MAX_NOF_DU_CELLS, "cell index={} is not valid", msg.cell_index);
+  ocudu_assert(not added_cells.contains(msg.cell_index), "cell={} already exists", msg.cell_index);
 
   // Ensure the common cell config is valid.
   auto ret = config_validators::validate_sched_cell_configuration_request_message(msg, expert_params);
@@ -103,7 +103,7 @@ void sched_config_manager::update_cell(const sched_cell_reconfiguration_request_
 
   if (msg.slice_reconf_req.has_value()) {
     const auto& cell_index = msg.slice_reconf_req->cell_index;
-    ocudu_assert(added_cells.contains(cell_index), "cell={} does not exist", fmt::underlying(cell_index));
+    ocudu_assert(added_cells.contains(cell_index), "cell={} does not exist", cell_index);
     for (const auto& rrm : msg.slice_reconf_req->rrm_policies) {
       bool found = false;
       for (slice_rrm_policy_config& slice : added_cells[cell_index]->rrm_policy_members) {
@@ -115,7 +115,7 @@ void sched_config_manager::update_cell(const sched_cell_reconfiguration_request_
       }
 
       if (not found) {
-        logger.warning("No slice RRM policy found for {} in cell {}.", rrm.rrc_member, fmt::underlying(cell_index));
+        logger.warning("No slice RRM policy found for {} in cell {}.", rrm.rrc_member, cell_index);
       }
     }
   }
@@ -163,7 +163,7 @@ ue_config_update_event sched_config_manager::add_ue(const sched_ue_creation_requ
     logger.warning("ue={} rnti={}: Discarding invalid UE creation request. Cause: PCell={} does not exist",
                    cfg_req.ue_index,
                    cfg_req.crnti,
-                   fmt::underlying(pcell_index));
+                   pcell_index);
     return ue_config_update_event{cfg_req.ue_index, *this};
   }
 

@@ -105,7 +105,7 @@ void ue_repository::slot_indication(slot_point sl_tx)
 void ue_repository::register_cell(ue_cell_repository& cell_ue_repo)
 {
   const du_cell_index_t cell_index = cell_ue_repo.cell_index();
-  ocudu_sanity_check(not cell_ues.contains(cell_index), "Cell index {} is duplicate", fmt::underlying(cell_index));
+  ocudu_sanity_check(not cell_ues.contains(cell_index), "Cell index {} is duplicate", cell_index);
   cell_ues.emplace(cell_index, &cell_ue_repo);
 }
 

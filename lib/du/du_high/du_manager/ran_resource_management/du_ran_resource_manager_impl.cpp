@@ -106,7 +106,7 @@ du_ran_resource_manager_impl::du_ran_resource_manager_impl(span<const du_cell_co
         "number might be lower than that). This is determined by the lowest of the following limits: SR ({}), "
         "CSI ({}) and SRS ({}).",
         cell.ran.pci,
-        fmt::underlying(cell_idx),
+        cell_idx,
         get_max_nof_setup_ues(cell_idx),
         pucch_res_mng.get_nof_free_sr_configs(cell_idx),
         is_periodic_csi_report ? fmt::to_string(pucch_res_mng.get_nof_free_csi_configs(cell_idx)) : "n/a",
@@ -264,9 +264,8 @@ du_ran_resource_manager_impl::update_context(du_ue_index_t                      
             deallocate_cell_resources(ue_index, sc.serv_cell_index);
           }
         }
-        resp.procedure_error = make_unexpected(fmt::format("Unable to allocate CG resources for ue={} at cell={}",
-                                                           fmt::underlying(ue_index),
-                                                           fmt::underlying(pcell_idx)));
+        resp.procedure_error = make_unexpected(
+            fmt::format("Unable to allocate CG resources for ue={} at cell={}", fmt::underlying(ue_index), pcell_idx));
       }
       // After this point, allocation succeeded (either CG resources were allocated or allocation was skipped due to CG
       // config not requested).
@@ -339,15 +338,14 @@ error_type<std::string> du_ran_resource_manager_impl::allocate_cell_resources(du
     if (not srs_res_mng->alloc_resources(ue_res.cell_group.cells.at(SERVING_PCELL_IDX))) {
       // Clear dedicated PDCCH config so the UE falls back to common search spaces only.
       ue_res.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.init_dl_bwp.pdcch_cfg.reset();
-      return make_unexpected(fmt::format("Unable to allocate SRS resources for cell={}", fmt::underlying(cell_index)));
+      return make_unexpected(fmt::format("Unable to allocate SRS resources for cell={}", cell_index));
     }
 
     if (not pucch_res_mng.alloc_resources(ue_res.cell_group.cells.at(SERVING_PCELL_IDX))) {
       // Deallocate previously allocated SRS resources and clear dedicated PDCCH config.
       srs_res_mng->dealloc_resources(ue_res.cell_group.cells.at(SERVING_PCELL_IDX));
       ue_res.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.init_dl_bwp.pdcch_cfg.reset();
-      return make_unexpected(
-          fmt::format("Unable to allocate dedicated PUCCH resources for cell={}", fmt::underlying(cell_index)));
+      return make_unexpected(fmt::format("Unable to allocate dedicated PUCCH resources for cell={}", cell_index));
     }
 
     pdsch_res_mng.alloc_resources(ue_res.cell_group);

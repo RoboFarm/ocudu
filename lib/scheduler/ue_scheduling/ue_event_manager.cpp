@@ -907,7 +907,7 @@ void ue_cell_event_manager::handle_error_indication(slot_point sl_tx, scheduler_
     if (prev_slot_result == nullptr) {
       logger.warning("cell={}, slot={}: Discarding error indication. Cause: Scheduler results associated with the slot "
                      "of the error indication have already been erased (current slot={})",
-                     fmt::underlying(cfg.cell_index),
+                     cfg.cell_index,
                      sl_tx,
                      last_sl_tx);
       return event_result::processed;
@@ -1089,11 +1089,10 @@ void ue_cell_event_manager::push_event(du_cell_index_t cell_index, event_t event
   if (OCUDU_UNLIKELY(not active.load(std::memory_order_acquire))) {
     // Note: PHY events should not arrive after the cell has been stopped.
     if (event.ue_index == INVALID_DU_UE_INDEX) {
-      logger.warning(
-          "cell={}: Discarding {} event. Cause: Cell is not active", fmt::underlying(cell_index), event.ev_name);
+      logger.warning("cell={}: Discarding {} event. Cause: Cell is not active", cell_index, event.ev_name);
     } else {
       logger.warning("cell={} ue={}: Discarding {} event. Cause: Cell is not active",
-                     fmt::underlying(cell_index),
+                     cell_index,
                      fmt::underlying(event.ue_index),
                      event.ev_name);
     }
@@ -1104,10 +1103,10 @@ void ue_cell_event_manager::push_event(du_cell_index_t cell_index, event_t event
   const char*         ev_name = event.ev_name;
   if (not pending_events.try_push(std::move(event))) {
     if (ue_idx == INVALID_DU_UE_INDEX) {
-      logger.warning("cell={}: Discarding {} event. Cause: Event queue is full", fmt::underlying(cell_index), ev_name);
+      logger.warning("cell={}: Discarding {} event. Cause: Event queue is full", cell_index, ev_name);
     } else {
       logger.warning("cell={} ue={}: Discarding {} event. Cause: Event queue is full",
-                     fmt::underlying(cell_index),
+                     cell_index,
                      fmt::underlying(ue_idx),
                      ev_name);
     }
@@ -1120,7 +1119,7 @@ void ue_cell_event_manager::log_invalid_ue_index(du_ue_index_t ue_index,
 {
   ocudulog::log_channel& log_channel = warn_if_ignored ? logger.warning : logger.info;
   log_channel("cell={} ue={}: Discarding {} event. Cause: UE with provided Id does not exist",
-              fmt::underlying(cfg.cell_index),
+              cfg.cell_index,
               ue_index,
               event_name);
 }
@@ -1129,7 +1128,7 @@ void ue_cell_event_manager::log_invalid_cc(du_ue_index_t ue_idx, const char* eve
 {
   ocudulog::log_channel& log_channel = warn_if_ignored ? logger.warning : logger.info;
   log_channel("cell={} ue={}: Discarding {} event. Cause: UE is not configured in this cell",
-              fmt::underlying(cfg.cell_index),
+              cfg.cell_index,
               ue_idx,
               event_name);
 }

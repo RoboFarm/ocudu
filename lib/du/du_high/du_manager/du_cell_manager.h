@@ -102,7 +102,7 @@ public:
 private:
   void assert_cell_exists(du_cell_index_t cell_index) const
   {
-    ocudu_assert(has_cell(cell_index), "cell_index={} does not exist", fmt::underlying(cell_index));
+    ocudu_assert(has_cell(cell_index), "cell_index={} does not exist", cell_index);
   }
 
   const du_manager_params& cfg;

@@ -265,7 +265,7 @@ public:
   /// Get the configuration of a cell that is common to all UEs.
   const cell_configuration& common_cell_cfg(du_cell_index_t cell_index) const
   {
-    ocudu_assert(du_cells.contains(cell_index), "Invalid cell_index={}", fmt::underlying(cell_index));
+    ocudu_assert(du_cells.contains(cell_index), "Invalid cell_index={}", cell_index);
     return du_cells[cell_index]->cell_cfg_common;
   }
   const cell_configuration& pcell_common_cfg() const
@@ -276,7 +276,7 @@ public:
   /// Get the configuration of a cell that is dedicated to the UE.
   const ue_cell_configuration& ue_cell_cfg(du_cell_index_t cell_index) const
   {
-    ocudu_assert(du_cells.contains(cell_index), "Invalid cell_index={}", fmt::underlying(cell_index));
+    ocudu_assert(du_cells.contains(cell_index), "Invalid cell_index={}", cell_index);
     return *du_cells[cell_index];
   }
   const ue_cell_configuration& ue_cell_cfg(serv_cell_index_t serv_cell_index) const

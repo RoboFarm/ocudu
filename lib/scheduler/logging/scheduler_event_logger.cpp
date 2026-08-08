@@ -51,7 +51,7 @@ auto format_info_level(FormatContext& ctx, const Event& ev, bool first)
 {
   const char* separator = first ? " " : ", ";
   if constexpr (std::is_same_v<Event, cell_creation_event>) {
-    fmt::format_to(ctx.out(), "{}Cell creation idx={}", separator, fmt::underlying(ev.cell_index));
+    fmt::format_to(ctx.out(), "{}Cell creation idx={}", separator, ev.cell_index);
   } else if constexpr (std::is_same_v<Event, sel::prach_event>) {
     fmt::format_to(ctx.out(),
                    "{}prach({}={} preamble={} tc-rnti={})",
@@ -84,7 +84,7 @@ template <typename FormatContext, typename Event>
 void format_debug_level(FormatContext& ctx, const Event& ev)
 {
   if constexpr (std::is_same_v<Event, cell_creation_event>) {
-    fmt::format_to(ctx.out(), "\n- Cell creation: idx={}", fmt::underlying(ev.cell_index));
+    fmt::format_to(ctx.out(), "\n- Cell creation: idx={}", ev.cell_index);
   } else if constexpr (std::is_same_v<Event, sel::prach_event>) {
     fmt::format_to(ctx.out(),
                    "\n- PRACH: slot={} preamble={} {}={} temp_crnti={} ta_cmd={}",
@@ -225,7 +225,7 @@ void format_debug_level(FormatContext& ctx, const Event& ev)
       fmt::format_to(ctx.out(), " tpmi_info=[{:;}]", ev.tpmi_info.value());
     }
   } else if constexpr (std::is_same_v<Event, sel::slice_reconfiguration_event>) {
-    fmt::format_to(ctx.out(), "\n- Slice Reconfig: cell={}", fmt::underlying(ev.cell_index));
+    fmt::format_to(ctx.out(), "\n- Slice Reconfig: cell={}", ev.cell_index);
   } else {
     report_fatal_error("Detected event with no formatter");
   }

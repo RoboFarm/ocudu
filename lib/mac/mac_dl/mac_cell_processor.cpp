@@ -79,11 +79,10 @@ async_task<void> mac_cell_processor::start()
         }
 
         state = cell_state::active;
-        logger.info("cell={}: Cell was activated", fmt::underlying(cell_cfg.cell_index));
+        logger.info("cell={}: Cell was activated", cell_cfg.cell_index);
       },
       [this]() {
-        logger.warning("cell={}: Postponed cell start operation. Cause: Task queue is full",
-                       fmt::underlying(cell_cfg.cell_index));
+        logger.warning("cell={}: Postponed cell start operation. Cause: Task queue is full", cell_cfg.cell_index);
       });
 }
 
@@ -126,7 +125,7 @@ async_task<void> mac_cell_processor::stop()
     // Clear DL buffers associated with this cell.
     dl_harq_buffers.clear();
 
-    logger.info("cell={}: Cell was stopped.", fmt::underlying(cell_cfg.cell_index));
+    logger.info("cell={}: Cell was stopped.", cell_cfg.cell_index);
 
     CORO_RETURN();
   });

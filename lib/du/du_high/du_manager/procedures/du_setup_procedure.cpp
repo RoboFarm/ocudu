@@ -91,7 +91,7 @@ static void log_cell_si_messages(ocudulog::log_channel&                    info_
                 packed_si_msgs[msg_idx].end(),
                 "SI message #{} cell={}: si_msg_idx={} len={}B sib_mapping=[{}]: {}",
                 msg_idx + 1,
-                fmt::underlying(cell_index),
+                cell_index,
                 msg_idx,
                 packed_si_msgs[msg_idx].length(),
                 sib_mapping,
@@ -176,7 +176,7 @@ void du_setup_procedure::configure_du_cells()
     error_type<std::string> result =
         config_validators::validate_sched_cell_configuration_request_message(sched_cfg, ctxt.params.mac.sched_cfg);
     if (not result.has_value()) {
-      report_error("Invalid cell={} configuration. Cause: {}", fmt::underlying(cell_index), result.error());
+      report_error("Invalid cell={} configuration. Cause: {}", cell_index, result.error());
     }
 
     // Forward config to MAC.

@@ -98,7 +98,7 @@ bool ue_manager::update_ue_context(cu_cp_ue_index_t ue_index,
   }
 
   if (pcell_index == INVALID_DU_CELL_INDEX) {
-    logger.warning("Invalid pcell_index={}", fmt::underlying(pcell_index));
+    logger.warning("Invalid pcell_index={}", pcell_index);
     return false;
   }
 
@@ -119,7 +119,7 @@ bool ue_manager::update_ue_context(cu_cp_ue_index_t ue_index,
                fmt::underlying(du_id),
                pci,
                rnti,
-               fmt::underlying(pcell_index));
+               pcell_index);
 
   return true;
 }
