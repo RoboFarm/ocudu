@@ -9,6 +9,7 @@
 
 #include "ocudu/adt/detail/slotted_array_detail.h"
 #include "ocudu/adt/span.h"
+#include <limits>
 #include <vector>
 
 namespace ocudu {

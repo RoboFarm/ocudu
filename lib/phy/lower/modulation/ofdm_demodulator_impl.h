@@ -8,6 +8,7 @@
 #include "ocudu/phy/generic_functions/dft_processor.h"
 #include "ocudu/phy/lower/modulation/ofdm_demodulator.h"
 #include <memory>
+#include <vector>
 
 namespace ocudu {
 

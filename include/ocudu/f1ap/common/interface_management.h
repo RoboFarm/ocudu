@@ -7,6 +7,7 @@
 #include "ocudu/ran/cause/f1ap_cause.h"
 #include "ocudu/ran/nr_cgi.h"
 #include "ocudu/ran/pci.h"
+#include <optional>
 
 namespace ocudu {
 

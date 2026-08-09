@@ -9,6 +9,7 @@
 #include "ocudu/support/math/math_utils.h"
 #include <array>
 #include <chrono>
+#include <optional>
 
 namespace ocudu {
 

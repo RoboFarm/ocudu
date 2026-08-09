@@ -13,6 +13,7 @@
 #include "interleave_layers.h"
 #include "ocudu/adt/format.h"
 #include "ocudu/adt/interval.h"
+#include "ocudu/adt/static_vector.h"
 #include "ocudu/ocuduvec/copy.h"
 #include "ocudu/phy/support/re_buffer.h"
 #include "ocudu/phy/upper/equalization/modular_ch_est_list.h"

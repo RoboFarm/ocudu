@@ -4,13 +4,11 @@
 #pragma once
 
 #include "ocudu/adt/detail/type_traits.h"
-#include "ocudu/adt/static_vector.h"
-#include "ocudu/ocudulog/log_channel.h"
+#include "ocudu/support/ocudu_assert.h"
 #include <algorithm>
 #include <array>
 #include <iterator>
 #include <type_traits>
-#include <vector>
 
 namespace ocudu {
 
@@ -217,24 +215,3 @@ template <typename T>
 using const_span = span<const T>;
 
 } // namespace ocudu
-
-namespace ocudulog {
-
-/// Type trait specialization to instruct the logger to use a user defined copy implementation as it is unsafe to
-/// directly copy the contents of a span.
-template <typename T>
-struct copy_loggable_type<ocudu::span<T>> {
-  static constexpr bool is_copyable = false;
-
-  static void copy(fmt::dynamic_format_arg_store<fmt::format_context>* store, ocudu::span<T> s)
-  {
-    static constexpr unsigned MAX_NOF_ELEMENTS = 128;
-    if (s.size() < MAX_NOF_ELEMENTS) {
-      store->push_back(ocudu::static_vector<typename std::remove_cv_t<T>, MAX_NOF_ELEMENTS>(s.begin(), s.end()));
-    } else {
-      store->push_back(std::vector<typename std::remove_cv_t<T>>(s.begin(), s.end()));
-    }
-  }
-};
-
-} // namespace ocudulog

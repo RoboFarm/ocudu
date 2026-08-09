@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ocudu/ocudulog/log_channel.h"
+#include "ocudu/support/math/bit_ops.h"
 #include "fmt/format.h"
 #include "fmt/ranges.h"
 #include <complex>
@@ -31,6 +33,88 @@ class bounded_integer;
 
 template <size_t N, bool LowestInfoBitIsMSB, typename Tag>
 class bounded_bitset;
+
+/// \brief Converts the bounded_bitset to a string of hexadecimal digits.
+/// \tparam OutputIt Output fmt memory buffer type.
+/// \param[in] s Bitset to convert.
+/// \param[out] mem_buffer Fmt memory buffer.
+/// \param[in] reverse In which bit order to represent this bitset.
+/// \return The memory buffer passed as argument.
+template <size_t N, bool LowestInfoBitIsMSB, typename Tag, typename OutputIt>
+OutputIt to_hex_string(const bounded_bitset<N, LowestInfoBitIsMSB, Tag>& s, OutputIt&& mem_buffer, bool reverse)
+{
+  const size_t sz = s.size();
+  if (sz == 0) {
+    return mem_buffer;
+  }
+  constexpr size_t bits_per_word = bounded_bitset<N, LowestInfoBitIsMSB, Tag>::bits_per_word;
+  const size_t     rem_bits      = sz % bits_per_word;
+  const size_t     rem_digits    = (rem_bits + 3U) / 4U;
+  const size_t     nwords        = (sz + bits_per_word - 1) / bits_per_word;
+
+  const uint64_t* words = s.data();
+
+  if (not reverse) {
+    if constexpr (LowestInfoBitIsMSB) {
+      unsigned i = 0;
+      for (; i != nwords - 1; ++i) {
+        fmt::format_to(mem_buffer, "{:0>16x}", words[i]);
+      }
+      uint64_t w = words[i] >> (bits_per_word - rem_bits);
+      fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
+    } else {
+      int i = nwords - 1;
+      fmt::format_to(mem_buffer, "{:0>{}x}", words[i], rem_digits);
+      // remaining words will occupy 16 hex digits each (4 bits per hex digit).
+      for (--i; i >= 0; --i) {
+        fmt::format_to(mem_buffer, "{:0>16x}", words[i]);
+      }
+    }
+  } else {
+    if constexpr (LowestInfoBitIsMSB) {
+      // first, potentially incomplete, word
+      int i = nwords - 1;
+      fmt::format_to(mem_buffer, "{:0>{}x}", bit_reverse(words[i]), rem_digits);
+      for (--i; i >= 0; --i) {
+        fmt::format_to(mem_buffer, "{:0>16x}", bit_reverse(words[i]));
+      }
+    } else {
+      unsigned i = 0;
+      for (; i != nwords - 1; ++i) {
+        fmt::format_to(mem_buffer, "{:0>16x}", bit_reverse(words[i]));
+      }
+      uint64_t w = bit_reverse(words[i]) >> (bits_per_word - rem_bits);
+      fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
+    }
+  }
+  return mem_buffer;
+}
+
+/// \brief Converts the bounded_bitset to a string of bits.
+/// \tparam OutputIt Output fmt memory buffer type.
+/// \param[in] s Bitset to convert.
+/// \param[out] mem_buffer Fmt memory buffer.
+/// \return The memory buffer passed as argument.
+template <size_t N, bool LowestInfoBitIsMSB, typename Tag, typename OutputIt>
+OutputIt to_bin_string(const bounded_bitset<N, LowestInfoBitIsMSB, Tag>& s, OutputIt&& mem_buffer, bool reverse)
+{
+  if (s.size() == 0) {
+    return mem_buffer;
+  }
+
+  reverse = reverse ^ LowestInfoBitIsMSB;
+
+  if (!reverse) {
+    for (size_t i = s.size(); i != 0; --i) {
+      fmt::format_to(mem_buffer, "{}", s.test(i - 1) ? '1' : '0');
+    }
+  } else {
+    for (size_t i = 0; i != s.size(); ++i) {
+      fmt::format_to(mem_buffer, "{}", s.test(i) ? '1' : '0');
+    }
+  }
+  return mem_buffer;
+}
 
 template <typename T>
 class span;
@@ -196,7 +280,7 @@ struct formatter<ocudu::bounded_bitset<N, LowestInfoBitIsMSB, Tag>> {
   auto format(const ocudu::bounded_bitset<N, LowestInfoBitIsMSB, Tag>& s, FormatContext& ctx) const
   {
     if (mode == hexadecimal) {
-      return s.template to_string_of_hex<decltype(std::declval<FormatContext>().out())>(ctx.out(), order == reverse);
+      return to_hex_string(s, ctx.out(), order == reverse);
     }
 
     if (mode == intervals) {
@@ -246,7 +330,7 @@ struct formatter<ocudu::bounded_bitset<N, LowestInfoBitIsMSB, Tag>> {
       return ctx.out();
     }
 
-    return s.template to_string_of_bits<decltype(std::declval<FormatContext>().out())>(ctx.out(), order == reverse);
+    return to_bin_string(s, ctx.out(), order == reverse);
   }
 };
 
@@ -385,6 +469,31 @@ struct formatter<ocudu::static_vector<T, N>> : public formatter<ocudu::span<T>> 
     return format_to(ctx.out(), format_str, fmt::join(buf.begin(), buf.end(), delimiter_str));
   }
 };
+
+} // namespace fmt
+
+namespace ocudulog {
+
+/// Type trait specialization to instruct the logger to use a user defined copy implementation as it is unsafe to
+/// directly copy the contents of a span.
+template <typename T>
+struct copy_loggable_type<ocudu::span<T>> {
+  static constexpr bool is_copyable = false;
+
+  static void copy(fmt::dynamic_format_arg_store<fmt::format_context>* store, ocudu::span<T> s)
+  {
+    static constexpr unsigned MAX_NOF_ELEMENTS = 128;
+    if (s.size() < MAX_NOF_ELEMENTS) {
+      store->push_back(ocudu::static_vector<typename std::remove_cv_t<T>, MAX_NOF_ELEMENTS>(s.begin(), s.end()));
+    } else {
+      store->push_back(std::vector<typename std::remove_cv_t<T>>(s.begin(), s.end()));
+    }
+  }
+};
+
+} // namespace ocudulog
+
+namespace fmt {
 
 /// FMT formatter shared by \c std::complex specializations.
 template <typename ComplexType>

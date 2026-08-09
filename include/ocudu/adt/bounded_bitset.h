@@ -10,7 +10,6 @@
 #include "ocudu/support/math/bit_ops.h"
 #include "ocudu/support/math/math_utils.h"
 #include "ocudu/support/ocudu_assert.h"
-#include "fmt/base.h"
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
@@ -192,9 +191,8 @@ protected:
 template <size_t N, bool LowestInfoBitIsMSB = false, typename Tag = detail::default_bounded_bitset_tag>
 class bounded_bitset : public bounded_bitset_detail::base_bounded_bitset<LowestInfoBitIsMSB>
 {
-  using word_t                          = uint64_t;
-  static constexpr size_t bits_per_word = bounded_bitset_detail::bits_per_word;
-  using base_t                          = bounded_bitset_detail::base_bounded_bitset<LowestInfoBitIsMSB>;
+  using word_t = uint64_t;
+  using base_t = bounded_bitset_detail::base_bounded_bitset<LowestInfoBitIsMSB>;
 
 public:
   using base_t::bit_order;
@@ -257,6 +255,9 @@ public:
 
   /// Capacity of the bounded_bitset in bits.
   static constexpr size_t max_size() noexcept { return N; }
+
+  /// Number of bits held by a single word of the bounded_bitset.
+  static constexpr size_t bits_per_word = bounded_bitset_detail::bits_per_word;
 
   /// \brief Resize of the bounded_bitset. If <tt> new_size > max_size() </tt>, an assertion is triggered. The newly
   /// created are set to zero.
@@ -462,6 +463,9 @@ public:
     assert_within_bounds_(pos, true);
     return test_(pos);
   }
+
+  /// Gets a pointer to the underlying array of raw words (i.e. \c bounded_bitset_detail::bits_per_word bits each).
+  [[nodiscard]] constexpr const uint64_t* data() const noexcept { return buffer.data(); }
 
   /// \brief Toggle the value at position pos. Assertion is triggered if pos >= N.
   /// \param[in] pos Position in bitset.
@@ -1069,7 +1073,6 @@ public:
 private:
   template <size_t N2, bool reversed2, typename Tag2>
   friend class bounded_bitset;
-  friend struct fmt::formatter<bounded_bitset<N, LowestInfoBitIsMSB, Tag>>;
 
   using base_t::assert_range_bounds_;
   using base_t::assert_within_bounds_;
@@ -1125,87 +1128,6 @@ private:
     const size_t word_idx = bitpos / bits_per_word;
     ocudu_assume(word_idx < buffer.size());
     buffer[word_idx] &= ~maskbit(bitpos);
-  }
-
-  /// \brief Formatting helper to convert bitset to string of bits.
-  /// \tparam OutputIt Output fmt memory buffer type.
-  /// \param[out] mem_buffer Fmt memory buffer.
-  /// \return The memory buffer passed as argument.
-  template <typename OutputIt>
-  OutputIt to_string_of_bits(OutputIt&& mem_buffer, bool reverse) const
-  {
-    if (size() == 0) {
-      return mem_buffer;
-    }
-
-    reverse = reverse ^ LowestInfoBitIsMSB;
-
-    if (!reverse) {
-      for (size_t i = size(); i != 0; --i) {
-        fmt::format_to(mem_buffer, "{}", test(i - 1) ? '1' : '0');
-      }
-    } else {
-      for (size_t i = 0; i != size(); ++i) {
-        fmt::format_to(mem_buffer, "{}", test(i) ? '1' : '0');
-      }
-    }
-    return mem_buffer;
-  }
-
-  /// \brief Formatting helper to convert bitset to hexadecimal digits.
-  /// \tparam OutputIt Output fmt memory buffer type.
-  /// \param[out] mem_buffer Fmt memory buffer.
-  /// \param[in] reverse In which bit order to represent this bitset.
-  /// \return The memory buffer passed as argument.
-  template <typename OutputIt>
-  OutputIt to_string_of_hex(OutputIt&& mem_buffer, bool reverse) const
-  {
-    const size_t sz = size();
-    if (sz == 0) {
-      return mem_buffer;
-    }
-    const size_t rem_bits   = sz % bits_per_word;
-    const size_t rem_digits = divide_ceil(rem_bits, 4U);
-    const size_t nwords     = nof_words_();
-
-    if (not reverse) {
-      if constexpr (LowestInfoBitIsMSB) {
-        unsigned i = 0;
-        for (; i != nwords - 1; ++i) {
-          uint64_t w = buffer[i];
-          fmt::format_to(mem_buffer, "{:0>16x}", w);
-        }
-        word_t w = buffer[i] >> (bits_per_word - rem_bits);
-        fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
-      } else {
-        int    i = nwords - 1;
-        word_t w = buffer[i];
-        fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
-        // remaining words will occupy 16 hex digits each (4 bits per hex digit).
-        for (--i; i >= 0; --i) {
-          fmt::format_to(mem_buffer, "{:0>16x}", buffer[i]);
-        }
-      }
-    } else {
-      if constexpr (LowestInfoBitIsMSB) {
-        // first, potentially incomplete, word
-        int    i = nwords - 1;
-        word_t w = bit_reverse(buffer[i]);
-        fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
-        for (--i; i >= 0; --i) {
-          fmt::format_to(mem_buffer, "{:0>16x}", bit_reverse(buffer[i]));
-        }
-      } else {
-        unsigned i = 0;
-        for (; i != nwords - 1; ++i) {
-          uint64_t w = bit_reverse(buffer[i]);
-          fmt::format_to(mem_buffer, "{:0>16x}", w);
-        }
-        word_t w = bit_reverse(buffer[i]) >> (bits_per_word - rem_bits);
-        fmt::format_to(mem_buffer, "{:0>{}x}", w, rem_digits);
-      }
-    }
-    return mem_buffer;
   }
 };
 

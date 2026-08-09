@@ -16,6 +16,7 @@
 #include "ocudu/ran/subcarrier_spacing.h"
 #include "ocudu/ran/tac.h"
 #include "ocudu/support/async/async_task.h"
+#include <chrono>
 #include <optional>
 
 namespace ocudu {

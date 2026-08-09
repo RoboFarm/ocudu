@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ocudu/adt/format.h"
 #include "ocudu/adt/span.h"
 #include "ocudu/phy/upper/channel_state_information.h"
 #include "ocudu/support/format/delimited_formatter.h"
