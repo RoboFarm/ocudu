@@ -106,12 +106,14 @@ private:
   du_ue_manager                                ue_mng;
   std::unique_ptr<f1ap_du_positioning_handler> positioning_handler;
   du_proc_context_view                         proc_ctxt;
+
+  /// \brief NTN manager, created only when the configuration carries NTN cells.
+  ///
+  /// Declared before the controller, which stops it as part of the DU stop and must therefore outlive it.
+  std::unique_ptr<ocudu_ntn::ntn_configuration_manager> ntn_config_manager;
+
   /// Handle to control the start and stop of the DU activity.
   du_manager_controller_impl controller;
-
-  /// NTN manager, created only when the configuration carries NTN cells. It references this DU manager as its
-  /// configurator and the MAC subframe time mapper, so it is declared last and destroyed first.
-  std::unique_ptr<ocudu_ntn::ntn_configuration_manager> ntn_config_manager;
 };
 
 } // namespace odu

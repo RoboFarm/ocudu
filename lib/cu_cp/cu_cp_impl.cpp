@@ -207,6 +207,12 @@ bool cu_cp_impl::start()
     return false; // Could not connect to AMF.
   }
 
+  // Start the NTN periodic updates. Dispatched from this thread on purpose: the manager blocks waiting on the CU-CP
+  // executor, so calling it from within a task running on it would deadlock.
+  if (ntn_config_manager != nullptr) {
+    ntn_config_manager->start();
+  }
+
   // Setup succeeded, add XNAPs and try to connect to peers.
   if (not cfg.services.cu_cp_executor->execute([this]() {
         xnap_configuration xnc_cfg{.procedure_timeout  = cfg.xnap.procedure_timeout,
@@ -248,6 +254,12 @@ void cu_cp_impl::stop()
     return;
   }
   logger.info("Stopping CU-CP...");
+
+  // Stop the NTN periodic updates before anything else. Dispatched from this thread on purpose: the manager blocks
+  // waiting on the CU-CP executor, so calling it from within the task below would deadlock.
+  if (ntn_config_manager != nullptr) {
+    ntn_config_manager->stop();
+  }
 
   // Shut down components from within CU-CP executor.
   sync_event ev;

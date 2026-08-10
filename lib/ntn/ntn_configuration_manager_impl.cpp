@@ -11,8 +11,10 @@
 #include "ocudu/ntn/ntn_sib19_update_handler.h"
 #include "ocudu/ran/sib/system_info_config.h"
 #include "ocudu/support/ocudu_assert.h"
+#include "ocudu/support/synchronization/sync_event.h"
 #include "fmt/chrono.h"
 #include <cmath>
+#include <thread>
 
 using namespace ocudu;
 using namespace ocudu_ntn;
@@ -244,8 +246,9 @@ ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configu
     // Create per-cell timer for the periodic update task, aligned to the SI period when SIB19 is scheduled.
     auto period_ms = cell_config.si_sched ? std::chrono::milliseconds(cell_config.si_sched->si_period_rf * 10)
                                           : *cell_config.update_period;
+    ctx.common_scs = cell_config.common_scs;
     ctx.timer      = timers.create_unique_timer(executor);
-    ctx.timer.set(period_ms, [this, nr_cgi = cell_config.nr_cgi, common_scs = cell_config.common_scs]() {
+    ctx.timer.set(period_ms, [this, nr_cgi = cell_config.nr_cgi]() {
       // Check if cell context still exists before processing.
       auto ctx_it = cells.find(nr_cgi);
       if (ctx_it == cells.end()) {
@@ -253,22 +256,25 @@ ntn_configuration_manager_impl::ntn_configuration_manager_impl(const ntn_configu
         return;
       }
 
-      auto cur_tp_sl = time_provider->get_last_mapping(nr_cgi, common_scs);
-      if (cur_tp_sl and cur_tp_sl->slot_tx.valid()) {
-        logger.debug("Run periodic config update task cell={:#x} slot={} time={:%T}",
-                     nr_cgi.nci,
-                     cur_tp_sl->slot_tx,
-                     cur_tp_sl->time_point);
-        periodic_ntn_config_update_task(nr_cgi, cur_tp_sl->time_point, cur_tp_sl->slot_tx);
-      }
+      run_cell_update(nr_cgi, ctx_it->second);
 
       ctx_it->second.timer.run();
     });
   }
 
-  // Start all timers.
-  for (auto& [cgi, ctx] : cells) {
-    ctx.timer.run();
+  // The timers are armed by start(), not here: until the node accepts configuration updates they would only produce
+  // work that is discarded.
+}
+
+void ntn_configuration_manager_impl::run_cell_update(const nr_cell_global_id_t& nr_cgi, per_cell_context& ctx)
+{
+  const auto cur_tp_sl = time_provider->get_last_mapping(nr_cgi, ctx.common_scs);
+  if (cur_tp_sl and cur_tp_sl->slot_tx.valid()) {
+    logger.debug("Run periodic config update task cell={:#x} slot={} time={:%T}",
+                 nr_cgi.nci,
+                 cur_tp_sl->slot_tx,
+                 cur_tp_sl->time_point);
+    periodic_ntn_config_update_task(nr_cgi, cur_tp_sl->time_point, cur_tp_sl->slot_tx);
   }
 }
 
@@ -294,6 +300,55 @@ ntn_configuration_manager_impl::find_satellite_context(unsigned satellite_index)
 {
   auto it = satellite_contexts.find(satellite_index);
   return it != satellite_contexts.end() ? &it->second : nullptr;
+}
+
+void ntn_configuration_manager_impl::start()
+{
+  if (std::exchange(running, true)) {
+    return;
+  }
+
+  // Same contract as stop(): the timers are used from the manager execution context, so arm them from there and block
+  // until it is done.
+  sync_event ev;
+  while (not executor.execute([this, tk = ev.get_token()]() mutable {
+    for (auto& [cgi, ctx] : cells) {
+      // Run one update before arming the timer so the first SIB19 refresh and Doppler compensation do not wait a
+      // whole update period. It is a no-op until the node timeline produces its first slot mapping.
+      run_cell_update(cgi, ctx);
+      ctx.timer.run();
+    }
+  })) {
+    logger.warning("Unable to dispatch NTN configuration manager start. Retrying...");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  ev.wait();
+
+  logger.info("NTN configuration manager started");
+}
+
+void ntn_configuration_manager_impl::stop()
+{
+  if (not std::exchange(running, false)) {
+    // Never started, or already stopped: no timer can be armed.
+    return;
+  }
+
+  // The timers are used from the manager execution context and, per the timer_manager contract, must not be touched
+  // concurrently from another thread. Stop them from that context and block until it is done, so that once this
+  // returns no update task is running or pending and no reference held by this manager is dereferenced again.
+  sync_event ev;
+  while (not executor.execute([this, tk = ev.get_token()]() mutable {
+    for (auto& [cgi, ctx] : cells) {
+      ctx.timer.stop();
+    }
+  })) {
+    logger.warning("Unable to dispatch NTN configuration manager stop. Retrying...");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  ev.wait();
+
+  logger.info("NTN configuration manager stopped");
 }
 
 ntn_config_update_result ntn_configuration_manager_impl::handle_ntn_config_update(const ntn_config_update_info& req)

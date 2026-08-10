@@ -87,6 +87,10 @@ protected:
                                                 timers,
                                                 worker};
     manager = create_ntn_configuration_manager(cfg, std::move(deps));
+
+    // The periodic update timers are only armed by start(). Safe to call from here: manual_task_worker runs tasks
+    // inline when executed from the thread that created it.
+    manager->start();
   }
 
   /// Advances time by the given number of milliseconds, running expired timers.
