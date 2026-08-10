@@ -49,15 +49,15 @@ public:
 
     transport_layer_address::native_type dest_addr  = client_addr.native();
     int                                  bytes_sent = ::sctp_sendmsg(fd,
-                                                                     pdu_span.data(),
-                                                                     pdu_span.size(),
-                                                                     const_cast<struct sockaddr*>(dest_addr.addr),
-                                                                     dest_addr.addrlen,
-                                                                     htonl(ppid),
-                                                                     0,
-                                                                     stream_no,
-                                                                     0,
-                                                                     0);
+                                    pdu_span.data(),
+                                    pdu_span.size(),
+                                    const_cast<struct sockaddr*>(dest_addr.addr),
+                                    dest_addr.addrlen,
+                                    htonl(ppid),
+                                    0,
+                                    stream_no,
+                                    0,
+                                    0);
     if (bytes_sent == -1) {
       logger.error("{} assoc={}: Closing SCTP association. Cause: Couldn't send {} B of data. errno={}",
                    if_name,

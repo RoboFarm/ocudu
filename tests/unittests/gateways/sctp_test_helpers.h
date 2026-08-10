@@ -120,12 +120,12 @@ public:
 
     std::array<uint8_t, network_gateway_sctp_max_len> temp_buf;
     int                                               rx_bytes = ::sctp_recvmsg(socket.fd().value(),
-                                                                                temp_buf.data(),
-                                                                                temp_buf.size(),
-                                                                                (struct sockaddr*)&data.msg_src_addr,
-                                                                                &data.msg_src_addrlen,
-                                                                                &data.sri,
-                                                                                &data.msg_flags);
+                                  temp_buf.data(),
+                                  temp_buf.size(),
+                                  (struct sockaddr*)&data.msg_src_addr,
+                                  &data.msg_src_addrlen,
+                                  &data.sri,
+                                  &data.msg_flags);
     if (rx_bytes < 0) {
       if (errno != EAGAIN) {
         logger.error("Recv error: {}", ::strerror(errno));
