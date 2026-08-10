@@ -1011,8 +1011,8 @@ public:
 
   static scheduler_expert_config make_expert_cfg(bool multiplex_uci_on_cfra_msg3)
   {
-    auto cfg                          = config_helpers::make_default_scheduler_expert_config();
-    cfg.ra.multiplex_uci_on_cfra_msg3 = multiplex_uci_on_cfra_msg3;
+    auto cfg                                = config_helpers::make_default_scheduler_expert_config();
+    cfg.ra.multiplex_uci_on_cf_rar_ul_grant = multiplex_uci_on_cfra_msg3;
     return cfg;
   }
 

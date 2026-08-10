@@ -1684,10 +1684,10 @@ static void configure_cli11_prach_args(CLI::App& app, du_high_unit_rach_config& 
              "lower than 64")
       ->capture_default_str();
   add_option(app,
-             "--multiplex_uci_on_cfra_msg3",
-             prach_params.multiplex_uci_on_cfra_msg3,
-             "Whether to multiplex a CFRA UE's pending UCI into its Msg3 PUSCH, instead of restricting the Msg3 to "
-             "slots where the UE has no PUCCH. Disable it for UEs that do not multiplex UCI in RAR UL grants")
+             "--multiplex_uci_on_cf_rar_ul_grant",
+             prach_params.multiplex_uci_on_cf_rar_ul_grant,
+             "Whether to allow multiplexing pending UCI into Contention-free (CF) RAR UL grants, instead of "
+             "restricting the CF RAR UL grants to slots where the UE has no PUCCH.")
       ->capture_default_str();
   add_option(app,
              "--prach_frequency_start",

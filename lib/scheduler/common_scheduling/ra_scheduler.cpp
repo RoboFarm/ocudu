@@ -730,15 +730,16 @@ bool ra_scheduler::can_allocate_rar_ul_grant(rnti_t crnti, const cell_slot_resou
     // The UE's UCI will be moved from the PUCCH onto the Msg3 PUSCH, so a PUCCH in this slot is not an obstacle.
     return true;
   }
-  // A CFRA UE with a PUCCH in this slot would have to transmit PUCCH and Msg3 PUSCH simultaneously: TS38.213,
-  // Section 9 forbids multiplexing the UCI onto the Msg3 PUSCH, so avoid such slots.
+
+  // Multiplexing of UCI into RAR UL grant has been disabled or the beta offset config could not be fetched.
+  // Check if there aren't any other PUCCHs falling in the same slot as the RAR UL grant.
   span<const pucch_info> pucchs = slot_alloc.result.ul.pucchs.unsorted();
   return std::none_of(pucchs.begin(), pucchs.end(), [crnti](const pucch_info& pucch) { return pucch.crnti == crnti; });
 }
 
 const ue_cell_configuration* ra_scheduler::find_uci_on_msg3_ue_cfg(rnti_t crnti) const
 {
-  if (not sched_cfg.multiplex_uci_on_cfra_msg3) {
+  if (not sched_cfg.multiplex_uci_on_cf_rar_ul_grant) {
     return nullptr;
   }
   // For CFRA the RA scheduler is given the UE's real C-RNTI, so the UE cell lookup is keyed by it.
@@ -1503,8 +1504,6 @@ void ra_scheduler::schedule_msg3_retx(cell_resource_allocator& res_alloc, ra_ue_
       continue;
     }
 
-    // For a CFRA UE, avoid slots where it already has a PUCCH: it would multiplex its UCI onto the RAR UL grant,
-    // which the RA scheduler builds without UCI.
     if (not can_allocate_rar_ul_grant(msg3_ctx.preamble.tc_rnti, pusch_alloc)) {
       continue;
     }

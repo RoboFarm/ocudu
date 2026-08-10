@@ -686,8 +686,8 @@ TEST_F(cfra_scheduler_test, scheduler_is_stable_after_msg3_ack)
 /// deterministically regardless of the default.
 static scheduler_expert_config make_no_uci_on_msg3_sched_cfg()
 {
-  auto cfg                          = config_helpers::make_default_scheduler_expert_config();
-  cfg.ra.multiplex_uci_on_cfra_msg3 = false;
+  auto cfg                                = config_helpers::make_default_scheduler_expert_config();
+  cfg.ra.multiplex_uci_on_cf_rar_ul_grant = false;
   return cfg;
 }
 
