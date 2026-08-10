@@ -4,6 +4,8 @@
 #include "ocudu/ocuduvec/compare.h"
 #include "ocudu/ocuduvec/simd.h"
 #include "ocudu/support/math/math_utils.h"
+#include <array>
+#include <cmath>
 #include <numeric>
 
 using namespace ocudu;
@@ -134,6 +136,66 @@ std::pair<unsigned, float> ocudu::ocuduvec::max_abs_element(span<const cf_t> x)
   return {max_index, max_abs2};
 }
 
+std::pair<unsigned, float> ocudu::ocuduvec::max_abs_element(span<const ci16_t> x, float scale)
+{
+  unsigned       i         = 0;
+  const unsigned len       = x.size();
+  unsigned       max_index = 0;
+  uint64_t       max_abs2  = 0;
+
+  const int16_t* samples = reinterpret_cast<const int16_t*>(x.data());
+
+#if OCUDU_SIMD_CI16_SIZE
+  alignas(SIMD_BYTE_ALIGN) std::array<int32_t, OCUDU_SIMD_CI16_SIZE> simd_vector_max_indexes;
+  std::iota(simd_vector_max_indexes.begin(), simd_vector_max_indexes.end(), 0);
+  simd_i_t          simd_indexes     = ocudu_simd_i_load(simd_vector_max_indexes.data());
+  simd_i_t          simd_inc         = ocudu_simd_i_set1(OCUDU_SIMD_CI16_SIZE);
+  simd_i_t          simd_max_indexes = ocudu_simd_i_set1(0);
+  simd_i_t          simd_max_values  = ocudu_simd_i_set1(0);
+  constexpr int32_t unsigned_bias    = static_cast<int32_t>(INT32_MIN);
+  const simd_i_t    bias             = ocudu_simd_i_set1(unsigned_bias);
+
+  for (unsigned simd_end = OCUDU_SIMD_CI16_SIZE * (len / OCUDU_SIMD_CI16_SIZE); i != simd_end;
+       i += OCUDU_SIMD_CI16_SIZE) {
+    const simd_s_t   simd_v      = ocudu_simd_ci16_loadu(samples + 2 * i);
+    const simd_i_t   simd_abs2   = ocudu_simd_ci16_norm_sq(simd_v);
+    const simd_i_t   biased_abs2 = ocudu_simd_i_add(simd_abs2, bias);
+    const simd_i_t   biased_max  = ocudu_simd_i_add(simd_max_values, bias);
+    const simd_sel_t res         = ocudu_simd_i_cmpgt(biased_abs2, biased_max);
+
+    simd_max_indexes = ocudu_simd_i_select(simd_max_indexes, simd_indexes, res);
+    simd_max_values  = ocudu_simd_i_select(simd_max_values, simd_abs2, res);
+    simd_indexes     = ocudu_simd_i_add(simd_indexes, simd_inc);
+  }
+
+  alignas(SIMD_BYTE_ALIGN) std::array<int32_t, OCUDU_SIMD_CI16_SIZE> simd_vector_max_values;
+  ocudu_simd_i_store(simd_vector_max_indexes.data(), simd_max_indexes);
+  ocudu_simd_i_store(simd_vector_max_values.data(), simd_max_values);
+
+  for (unsigned lane = 0; lane != OCUDU_SIMD_CI16_SIZE; ++lane) {
+    const uint64_t lane_abs2 = static_cast<uint32_t>(simd_vector_max_values[lane]);
+    if (lane_abs2 > max_abs2) {
+      max_index = simd_vector_max_indexes[lane];
+      max_abs2  = lane_abs2;
+    }
+  }
+#endif // OCUDU_SIMD_CI16_SIZE
+
+  for (; i != len; ++i) {
+    const int32_t  re = x[i].real();
+    const int32_t  im = x[i].imag();
+    const uint64_t abs2 =
+        static_cast<uint64_t>(re) * static_cast<uint64_t>(re) + static_cast<uint64_t>(im) * static_cast<uint64_t>(im);
+    if (abs2 > max_abs2) {
+      max_index = i;
+      max_abs2  = abs2;
+    }
+  }
+
+  const float scale_sq = scale * scale;
+  return {max_index, static_cast<float>(max_abs2) / scale_sq};
+}
+
 std::pair<unsigned, float> ocudu::ocuduvec::max_element(span<const float> x)
 {
   unsigned i         = 0;
@@ -238,4 +300,14 @@ unsigned ocudu::ocuduvec::count_if_part_abs_greater_than(span<const ocudu::cf_t>
   return count + std::count_if(x.begin(), x.end(), [threshold](cf_t sample) {
            return (std::abs(sample.real()) > threshold) || (std::abs(sample.imag()) > threshold);
          });
+}
+
+unsigned
+ocudu::ocuduvec::count_if_part_abs_greater_than(span<const ci16_t> x, float normalized_part_threshold, float scale)
+{
+  const int32_t part_threshold = static_cast<int32_t>(std::lround(normalized_part_threshold * scale));
+
+  return std::count_if(x.begin(), x.end(), [part_threshold](ci16_t sample) {
+    return (std::abs(sample.real()) > part_threshold) || (std::abs(sample.imag()) > part_threshold);
+  });
 }
