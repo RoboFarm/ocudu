@@ -8,8 +8,12 @@
 Subcommands, each reading a file the wrapper produced:
 
   manifest <unique_compile_commands.json>
-      Exit 0 if the analysis scheduled at least one action (a non-empty JSON list), 1 otherwise. CodeChecker writes
-      this file only when it has work to do, so its absence or emptiness marks a 0%-coverage run.
+      Report whether the analysis scheduled any action. CodeChecker writes this file only when it has work to do.
+        0  at least one action was scheduled (a non-empty JSON list)
+        2  no action was scheduled (file absent or an empty list)
+        1  file present but unreadable or malformed
+      A 0%-coverage run is a failure by default; only a caller that passes --allow-no-actions may accept exit 2, and
+      exit 1 stays fatal for everyone because corruption is never a legitimate "nothing to do".
 
   metadata <metadata.json> <unique_compile_commands.json> <expected_analyzer> <allow_ctu_skip>
       Exit 0 if the requested analyzer accounted for every scheduled action, 1 otherwise (reason on stderr). Requires
@@ -32,6 +36,7 @@ import os
 import sys
 
 EXIT_CLEAN = 0
+EXIT_NO_ACTIONS = 2
 EXIT_FATAL = 10
 EXIT_SCHEMA_INVALID = 20
 EXIT_INTERNAL_ERROR = 30
@@ -49,11 +54,16 @@ def _nonneg_int(value, what):
 
 
 def cmd_manifest(path):
+    # An absent file and an empty list both mean "nothing was scheduled"; malformed content is corruption, not silence.
     try:
         data = _load(path)
-    except (OSError, ValueError):
+    except OSError:
+        return EXIT_NO_ACTIONS
+    except ValueError:
         return 1
-    return 0 if isinstance(data, list) and data else 1
+    if not isinstance(data, list):
+        return 1
+    return EXIT_CLEAN if data else EXIT_NO_ACTIONS
 
 
 def cmd_metadata(meta_path, manifest_path, expected, allow_ctu_skip):
@@ -188,8 +198,11 @@ def cmd_report(path):
 
 def main(argv):
     if len(argv) < 2:
-        print("usage: validate_analysis.py manifest <manifest> | "
-              "metadata <metadata> <manifest> <analyzer> <allow_ctu_skip> | report <report>", file=sys.stderr)
+        print(
+            "usage: validate_analysis.py manifest <manifest> | "
+            "metadata <metadata> <manifest> <analyzer> <allow_ctu_skip> | report <report>",
+            file=sys.stderr,
+        )
         return EXIT_INTERNAL_ERROR
     sub = argv[1]
     try:

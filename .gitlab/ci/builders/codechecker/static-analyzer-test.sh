@@ -52,6 +52,8 @@ case "$sub" in
 analyzer-version) echo "mock CodeChecker ${CC_VERSION:-6.28.2}" ;;
 analyze)
     mkdir -p "$out"
+    # Record the analyze command line so a case can assert what the wrapper forwarded to the analyzer.
+    printf '%s\n' "$@" >"$out/analyze_argv.txt"
     # Model CodeChecker's action manifest: it is written only when at least one action is analysed. An empty database
     # (CC_EMPTY_DATABASE) or an all-skipped one (CC_ALL_SKIPPED) leaves it absent; the other flags shape its contents.
     if [[ "${CC_EMPTY_DATABASE:-0}" != 1 && "${CC_ALL_SKIPPED:-0}" != 1 ]]; then
@@ -109,6 +111,8 @@ analyze)
     exit "${CC_ANALYZE_RC:-0}"
     ;;
 parse)
+    # Record every parse command line so a case can assert the skip list is replayed to report generation.
+    printf '%s\n' "$*" >>"${CC_PARSE_LOG:-/dev/null}"
     if [[ " $* " == *" -e codeclimate "* ]]; then
         printf '%s' "${CC_REPORT_JSON:-[]}" >"$out"
         exit "${CC_CODECLIMATE_RC:-0}"
@@ -181,9 +185,9 @@ MOCK
     local -a wrapper_args=()
     [[ -n "${CC_WRAPPER_ARGS:-}" ]] && read -r -a wrapper_args <<<"$CC_WRAPPER_ARGS"
     if [[ "${CC_NO_ANALYZER_ENV:-0}" == 1 ]]; then
-        PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
+        CC_PARSE_LOG="$work/parse.log" PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
     else
-        ANALYZER="${CC_ENV_ANALYZER:-$analyzer}" PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
+        ANALYZER="${CC_ENV_ANALYZER:-$analyzer}" CC_PARSE_LOG="$work/parse.log" PATH="$bin:$PATH" bash "$bin/static-analyzer.sh" "${wrapper_args[@]}" "$folder" >/dev/null 2>&1
     fi
     local rc=$?
 
@@ -205,6 +209,24 @@ MOCK
         ok=0
         reason+=" html=$html(exp $exp_html)"
     }
+    # Optional: assert the wrapper handed cppcheck a verbatim-args file holding the expected flag. cppcheck takes the
+    # recursion cap only on its own command line, so this proves the forwarding path end to end.
+    if [[ -n "${CC_EXPECT_VERBATIM:-}" ]]; then
+        local argv_file="$folder/build/codechecker_output/analyze_argv.txt" verbatim_file=""
+        verbatim_file="$(sed -n 's/^cppcheck:cc-verbatim-args-file=//p' "$argv_file" 2>/dev/null | head -1)"
+        if [[ -z "$verbatim_file" || ! -f "$verbatim_file" ]] || ! grep -qxF -- "$CC_EXPECT_VERBATIM" "$verbatim_file"; then
+            ok=0
+            reason+=" verbatim-args"
+        fi
+    fi
+    # Optional: assert every "CodeChecker parse" call carried the given argument. "analyze -i" alone leaves findings
+    # reported inside skipped files (e.g. external headers) in the report.
+    if [[ -n "${CC_EXPECT_PARSE_ARG:-}" ]]; then
+        if [[ ! -s "$work/parse.log" ]] || grep -qvF -- "$CC_EXPECT_PARSE_ARG" "$work/parse.log"; then
+            ok=0
+            reason+=" parse-arg"
+        fi
+    fi
     # A leftover temporary report is always a failure: the report is published atomically and its .tmp must never be
     # left behind for the "when: always" upload.
     [[ -f "${report}.tmp" ]] && {
@@ -264,6 +286,41 @@ CC_EMPTY_DATABASE=1 run_case 1 n - "empty compilation database (no action manife
 CC_ALL_SKIPPED=1 run_case 1 n - "non-empty database but all actions skipped (no manifest) -> fail, no report"
 CC_EMPTY_MANIFEST=1 run_case 1 n - "action manifest present but an empty list -> fail, no report"
 CC_BAD_MANIFEST=1 run_case 1 n - "action manifest malformed JSON -> fail, no report"
+
+# --allow-no-actions: the incremental job passes it only when the MR diff holds no C/C++, so a run that legitimately
+# had nothing to analyse publishes an empty report instead of failing. It must forgive only the zero-action state.
+CC_EMPTY_DATABASE=1 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 0 y y "--allow-no-actions + empty database -> pass, empty report and html published"
+CC_ALL_SKIPPED=1 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 0 y y "--allow-no-actions + all actions skipped -> pass, empty report published"
+CC_EMPTY_MANIFEST=1 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 0 y y "--allow-no-actions + empty manifest list -> pass, empty report published"
+CC_BAD_MANIFEST=1 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 1 n - "--allow-no-actions does not forgive a malformed manifest -> fail, no report"
+CC_EMPTY_DATABASE=1 CC_ANALYZE_RC=3 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 1 n - "--allow-no-actions does not forgive a non-zero analyze exit -> fail, no report"
+CC_EMPTY_DATABASE=1 CC_SUPPRESS_RC=2 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 1 n - "--allow-no-actions does not forgive a suppression-helper failure -> fail, no report"
+CC_EMPTY_DATABASE=1 CC_FAKE_FAILED=1 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 1 n - "--allow-no-actions does not forgive a non-empty failed/ -> fail, no report"
+CC_SUCCESSFUL=0 CC_WRAPPER_ARGS="--allow-no-actions" \
+    run_case 1 n - "--allow-no-actions does not forgive a scheduled-but-unexecuted run -> fail, no report"
+
+
+# --cppcheck-max-template-recursion: cppcheck accepts the cap only on its own command line, so the wrapper hands it
+# over through CodeChecker's cc-verbatim-args-file rather than patching the analyzer.
+CC_ANALYZER=cppcheck CC_WRAPPER_ARGS="--analyzers cppcheck --cppcheck-max-template-recursion 5" \
+    CC_EXPECT_VERBATIM="--max-template-recursion=5" \
+    run_case 0 y - "--cppcheck-max-template-recursion -> --max-template-recursion=5 in the verbatim-args file"
+CC_WRAPPER_ARGS="--analyzers clang-tidy --cppcheck-max-template-recursion 5" \
+    run_case 1 n - "--cppcheck-max-template-recursion with a non-cppcheck analyzer -> fail closed, no report"
+
+
+# The skip list must reach "parse" as well as "analyze": a skipped external header pulled into an analysed source
+# still produces findings, and only parse -i drops them from the report and the HTML.
+CC_WRAPPER_ARGS="--analyzers clang-tidy -i /tmp/skipfile.txt" CC_EXPECT_PARSE_ARG="-i /tmp/skipfile.txt" \
+    run_case 0 y - "skip list is replayed to every parse invocation"
+
 CC_NO_METADATA=1 run_case 1 n - "manifest present but metadata.json missing -> fail, no report"
 CC_BAD_METADATA=1 run_case 1 n - "metadata.json malformed -> fail, no report"
 CC_EMPTY_ANALYZERS=1 run_case 1 n - "metadata analyzers empty (no enabled checker) -> fail, no report"

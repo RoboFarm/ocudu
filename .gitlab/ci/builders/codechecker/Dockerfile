@@ -3,15 +3,15 @@
 
 ARG CODECHECKER_VERSION=6.28.2
 
-FROM ubuntu:22.04 AS codecheck_builder
+FROM ubuntu:26.04 AS codecheck_builder
 ARG CODECHECKER_VERSION
 RUN DEBIAN_FRONTEND=noninteractive TZ=Europe/Madrid \ 
   apt-get update && apt-get install -y --no-install-recommends \
   git python3-pip python3-dev gcc\
   && apt-get autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN pip install codechecker==${CODECHECKER_VERSION} 
+RUN pip install --break-system-packages codechecker==${CODECHECKER_VERSION} 
 
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 ARG CODECHECKER_VERSION
 RUN DEBIAN_FRONTEND=noninteractive TZ=Europe/Madrid \ 
   apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +19,7 @@ RUN DEBIAN_FRONTEND=noninteractive TZ=Europe/Madrid \
   cmake make ninja-build ccache \
   && apt-get autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=codecheck_builder /root/.cache/pip/wheels /root/.cache/pip/wheels
-RUN pip install codechecker==${CODECHECKER_VERSION} 
+RUN pip install --break-system-packages codechecker==${CODECHECKER_VERSION} 
 
 ADD codechecker/static-analyzer.sh codechecker/validate_analysis.py codechecker/cppcheck_suppress_unspecified.py /usr/local/bin/
 RUN chmod +x /usr/local/bin/static-analyzer.sh /usr/local/bin/validate_analysis.py /usr/local/bin/cppcheck_suppress_unspecified.py
