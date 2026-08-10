@@ -24,9 +24,9 @@ struct cg_configuration {
   /// \remark See TS 38.331, "ConfiguredGrantConfig" field \c resourceAllocation.
   enum class res_allocation { type_0, type_1, dynamic_switch };
 
-  /// \brief Number of PUSCH repetitions (repK) for CG transmissions.
+  /// \brief Number of PUSCH repetitions (repK) for CG transmissions. The enum value encodes the repetition count.
   /// \remark See TS 38.331, "ConfiguredGrantConfig" field \c repK.
-  enum class rep_k_t { n1, n2, n4, n8 };
+  enum class rep_k_t { n1 = 1, n2 = 2, n4 = 4, n8 = 8 };
 
   /// \brief RV sequence for CG PUSCH repetitions.
   ///

@@ -380,7 +380,9 @@ void ue_cell_event_manager::handle_ue_reconfiguration(ue_config_update_event ev)
     if (ue_cc.get_pcell_state().conres_st != ue_conres_state::pending_conres_crnti_ce) {
       uci_sched.reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
       srs_sched.reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
-      cg_sched.add_reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
+      if (cg_sched != nullptr) {
+        cg_sched->add_reconf_ue(ev.next_config().ue_cell_cfg(ue_cc.cell_index), ue_cc.cfg());
+      }
     }
 
     // Configure existing UE.
@@ -424,7 +426,9 @@ void ue_cell_event_manager::handle_ue_deletion(ue_config_delete_event ev)
       // it must not be removed either. All other UEs (including CFRA) were added at creation.
       uci_sched.rem_ue(u.get_pcell().cfg());
       srs_sched.rem_ue(u.get_pcell().cfg());
-      cg_sched.rem_ue(u.get_pcell().cfg());
+      if (cg_sched != nullptr) {
+        cg_sched->rem_ue(u.get_pcell().cfg());
+      }
     }
     // Schedule removal of UE from slice scheduler.
     slice_sched.rem_ue(ue_idx);

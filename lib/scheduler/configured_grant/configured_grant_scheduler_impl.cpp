@@ -7,6 +7,7 @@
 #include "../support/bwp_helpers.h"
 #include "../support/dmrs_helpers.h"
 #include "../support/mcs_tbs_calculator.h"
+#include "../support/repetition_helpers.h"
 #include "../support/sch_pdu_builder.h"
 #include "../uci_scheduling/uci_allocator_impl.h"
 #include "ocudu/ran/csi_report/csi_report_config_helpers.h"
@@ -14,20 +15,6 @@
 #include <optional>
 
 using namespace ocudu;
-
-static unsigned rep_to_rv(const cg_configuration::repetitions_t& reps, unsigned rep_idx)
-{
-  // RV index for the first repetition is always 0.
-  if (reps.rep_k == cg_configuration::rep_k_t::n1 or reps.rv_seq == cg_configuration::rep_k_rv::s3_0000) {
-    return 0U;
-  }
-  if (reps.rv_seq == cg_configuration::rep_k_rv::s1_0231) {
-    constexpr std::array<unsigned, 4> rv_0231 = {0, 2, 3, 1};
-    return rv_0231[rep_idx % static_cast<unsigned>(reps.rep_k)];
-  }
-  constexpr std::array<unsigned, 4> rv_0303 = {0, 3, 0, 3};
-  return rv_0303[rep_idx % static_cast<unsigned>(reps.rep_k)];
-}
 
 static harq_id_t get_harq_id(slot_point                      pusch_slot,
                              unsigned                        symbol,
@@ -378,7 +365,7 @@ bool configured_grant_scheduler_impl::allocate_cg_opportunity(cell_slot_resource
                       ue_cfg,
                       ue_cc->active_bwp(),
                       cg_vrbs,
-                      rep_to_rv(cg_cfg.rep, rep_idx),
+                      get_cg_repetition_rv(cg_cfg.rep, rep_idx),
                       h_ul.value().id());
 
   // Check if there is any UCI grant allocated on the PUCCH that can be moved to the PUSCH.

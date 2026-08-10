@@ -146,11 +146,12 @@ struct ul_harq_process_impl : public base_harq_process {
     uint8_t                       nof_layers;
     std::optional<ran_slice_id_t> slice_id;
     std::optional<sch_mcs_index>  olla_mcs;
+    /// Whether the HARQ process was allocated for a Configured Grant PUSCH. Fixed across HARQ retxs.
+    bool is_cg = false;
   };
 
   /// Parameters used for the last Tx of this HARQ process.
   alloc_params prev_tx_params;
-  bool         is_cg = false;
 };
 
 class ntn_dl_harq_alloc_history;
@@ -410,7 +411,7 @@ public:
 
   const grant_params& get_grant_params() const { return impl->prev_tx_params; }
 
-  bool is_cg() const { return impl->is_cg; }
+  bool is_cg() const { return impl->prev_tx_params.is_cg; }
 };
 
 namespace harq_utils {

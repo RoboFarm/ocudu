@@ -347,9 +347,6 @@ cell_harq_repository<IsDl>::alloc_harq(du_ue_index_t                       ue_id
   h.ndi                = !h.ndi;
   h.max_nof_harq_retxs = max_nof_harq_retxs;
   h.retxs_cancelled    = false;
-  if constexpr (not IsDl) {
-    h.is_cg = cg_params.has_value();
-  }
 
   // Set UE HARQ entity common params. last_slot_tx covers the whole transmission (all repetition occasions, not just
   // sl_tx), so that ordering checks relying on it (ue_cell::is_pdsch_enabled, the fallback scheduler) know that the
@@ -763,7 +760,8 @@ harq_utils::ul_harq_process_impl* cell_harq_manager::new_ul_tx(du_ue_index_t    
   }
 
   // Save UL-specific parameters.
-  h->prev_tx_params = {};
+  h->prev_tx_params       = {};
+  h->prev_tx_params.is_cg = cg_params.has_value();
 
   return h;
 }

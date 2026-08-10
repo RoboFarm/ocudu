@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "../configured_grant/configured_grant_scheduler_impl.h"
 #include "../slicing/inter_slice_scheduler.h"
 #include "../srs/srs_scheduler_impl.h"
 #include "../uci_scheduling/uci_indication_selector.h"
@@ -21,6 +20,8 @@
 #include <mutex>
 
 namespace ocudu {
+
+class configured_grant_scheduler_impl;
 
 /// \brief Interface of data scheduler that is used to allocate UE DL and UL grants in a given slot.
 /// The data_scheduler object will be common to all cells and slots.
@@ -65,7 +66,7 @@ private:
     srs_scheduler_impl srs_sched;
 
     /// Configured Grant scheduler.
-    configured_grant_scheduler_impl cg_sched;
+    std::unique_ptr<configured_grant_scheduler_impl> cg_sched;
 
     /// Triggered UL grant sub-scheduler.
     triggered_ul_grant_scheduler trig_ul_sched;
