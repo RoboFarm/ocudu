@@ -46,7 +46,7 @@ struct mac_cell_sys_info_pdu_update {
   /// SI period in nof slots, required if more than one are SI PDU passed.
   std::optional<unsigned> si_slot_period;
   /// Packed content of SIB messages.
-  span<byte_buffer> si_messages;
+  span<const byte_buffer> si_messages;
   /// If not empty, requests a repeated PWS short-message broadcast indication for this SI PDU update.
   std::optional<pws_broadcast_indication> pws_broadcast;
 };

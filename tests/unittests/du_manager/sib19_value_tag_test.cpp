@@ -12,6 +12,7 @@
 #include "ocudu/support/async/async_no_op_task.h"
 #include <gtest/gtest.h>
 #include <optional>
+#include <utility>
 
 using namespace ocudu;
 using namespace ocudu_ntn;
@@ -39,7 +40,7 @@ public:
     return launch_no_op_task(du_param_config_response{true});
   }
 
-  void handle_ntn_param_update(const du_ntn_param_update_request& req) override { last_ntn_req = req; }
+  void handle_ntn_param_update(du_ntn_param_update_request req) override { last_ntn_req = std::move(req); }
 };
 
 // ---------------------------------------------------------------------------

@@ -43,7 +43,7 @@ public:
     });
   }
 
-  void handle_ntn_param_update(const odu::du_ntn_param_update_request&) override {}
+  void handle_ntn_param_update(odu::du_ntn_param_update_request) override {}
 };
 
 /// Build a minimal valid cell skeleton (plmn, nci) with an empty sib section that the caller fills in.

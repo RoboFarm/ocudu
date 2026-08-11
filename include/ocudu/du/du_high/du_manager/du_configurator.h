@@ -104,8 +104,8 @@ struct du_cell_ntn_param_update_request {
   slot_point slot;
   /// SI period in nof slots, required if more than one are SI PDU passed.
   std::optional<unsigned> si_slot_period;
-  /// Packed content of SIB messages.
-  span<byte_buffer> si_messages;
+  /// Packed content of SIB messages. Owned by the request so the buffers outlive the deferred MAC update.
+  std::vector<byte_buffer> si_messages;
   /// SIB19 update. When present, triggers SIB1 systemInfoValueTag increment.
   std::optional<sib19_info> sib19;
 };
@@ -144,7 +144,9 @@ public:
                                                                       task_executor& continuation_exec) = 0;
 
   /// Update NTN parameters from outside the DU.
-  virtual void handle_ntn_param_update(const du_ntn_param_update_request& req) = 0;
+  /// \note The request is taken by value so the DU manager can move it into the deferred update task; the request owns
+  /// the SI message buffers, which would otherwise dangle once the caller's stack unwinds.
+  virtual void handle_ntn_param_update(du_ntn_param_update_request req) = 0;
 };
 
 } // namespace odu

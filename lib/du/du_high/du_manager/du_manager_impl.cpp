@@ -181,9 +181,11 @@ du_param_config_response du_manager_impl::handle_sync_operator_config(const du_p
   return resp;
 }
 
-void du_manager_impl::handle_ntn_param_update(const du_ntn_param_update_request& req)
+void du_manager_impl::handle_ntn_param_update(du_ntn_param_update_request req)
 {
-  schedule_async_task(launch_async([&req, this](coro_context<async_task<void>>& ctx) {
+  // Capture the request by move: the coroutine must own the SI message buffers until the update runs. A by-reference
+  // capture would dangle, since the caller's request and its buffers are freed as soon as this function returns.
+  schedule_async_task(launch_async([this, req = std::move(req)](coro_context<async_task<void>>& ctx) {
     CORO_BEGIN(ctx);
 
     if (not ctxt.running) {

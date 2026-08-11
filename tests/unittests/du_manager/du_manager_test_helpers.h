@@ -276,12 +276,26 @@ public:
     wait_manual_event_tester<void>           wait_start;
     wait_manual_event_tester<void>           wait_stop;
     std::optional<mac_cell_reconfig_request> last_cell_recfg_req;
+    /// Deep copies of the SI PDU buffers, taken while reconfigure() runs. The request only carries a non-owning span,
+    /// so a test must copy the bytes here to inspect them after the async update completes; reading each buffer also
+    /// exercises the SI message path under ASan.
+    std::vector<byte_buffer> last_si_msg_bytes;
 
     async_task<void>                       start() override { return wait_start.launch(); }
     async_task<void>                       stop() override { return wait_stop.launch(); }
     async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override
     {
       last_cell_recfg_req = request;
+      last_si_msg_bytes.clear();
+      if (request.new_si_pdu_info.has_value()) {
+        for (const byte_buffer& si_msg : request.new_si_pdu_info->si_messages) {
+          last_si_msg_bytes.push_back(si_msg.deep_copy().value());
+        }
+        // The stored request keeps a shallow copy of new_si_pdu_info->si_messages, a non-owning span into the caller's
+        // storage that dangles once the update procedure returns. Drop it so a later test cannot dereference the stale
+        // span; tests should read the deep copies in last_si_msg_bytes instead.
+        last_cell_recfg_req->new_si_pdu_info->si_messages = {};
+      }
       return launch_no_op_task(mac_cell_reconfig_response{true, true});
     }
   };

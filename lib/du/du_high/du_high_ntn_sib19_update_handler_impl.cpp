@@ -47,7 +47,7 @@ void du_high_ntn_sib19_update_handler_impl::handle_sib19_msg_update(const ocudu_
   cell_req.sib_idx        = req.sib_idx;
   cell_req.slot           = req.slot;
   cell_req.si_slot_period = req.si_slot_period;
-  cell_req.si_messages    = span<byte_buffer>(msgs);
+  cell_req.si_messages    = std::move(msgs);
 
   // Populate NTN assistance info. Absent for TN serving cells reporting only NTN neighbor cells.
   if (req.sib19.ntn_cfg.has_value()) {
@@ -69,6 +69,6 @@ void du_high_ntn_sib19_update_handler_impl::handle_sib19_msg_update(const ocudu_
   du_ntn_param_update_request du_req;
   du_req.cells.push_back(std::move(cell_req));
 
-  // Forward to DU configurator.
-  du_cfgr.handle_ntn_param_update(du_req);
+  // Forward to DU configurator. Move the request so it owns the SI message buffers past this stack frame.
+  du_cfgr.handle_ntn_param_update(std::move(du_req));
 }

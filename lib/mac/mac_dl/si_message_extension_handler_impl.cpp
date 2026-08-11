@@ -99,7 +99,7 @@ public:
       if (req.slot.has_value()) {
         tx_slot = *req.slot + idx * req.si_slot_period.value_or(0);
       }
-      byte_buffer& pdu = req.si_messages[idx];
+      const byte_buffer& pdu = req.si_messages[idx];
       logger.debug("New SIB{} PDU enqueued for tx_slot: {}, si_msg_idx: {} size: {}",
                    req.sib_idx,
                    tx_slot.has_value() ? fmt::to_string(*tx_slot) : "asap",
