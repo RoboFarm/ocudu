@@ -408,3 +408,43 @@ TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_etw
   // The epoch is only handed out once per change.
   ASSERT_FALSE(bench.si_mng.take_etws_command().has_value());
 }
+
+TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_then_etws_epoch_is_derived_again)
+{
+  // Start a warning, and keep the SI-message encoder it produced.
+  std::vector<byte_buffer>     segments = make_random_segmented_pdu(50, 1);
+  mac_cell_sys_info_pdu_update pws_req;
+  pws_req.si_msg_idx    = 0;
+  pws_req.sib_idx       = 7;
+  pws_req.si_messages   = span<byte_buffer>(segments);
+  pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 1};
+  ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
+
+  std::optional<si_update_command> first_etws = bench.si_mng.take_etws_command();
+  ASSERT_TRUE(first_etws.has_value());
+
+  // An unrelated SI change arrives while the warning is on air: a SIB2 SI-message is added, so both SIB1 and the SI
+  // scheduling configuration differ from the ones the warning epoch was derived from.
+  static const std::array<sib_type, 2> reconf_sibs{sib_type::sib7, sib_type::sib2};
+
+  mac_cell_sys_info_config reconf = bench.sys_info_cfg;
+  reconf.sib1                     = make_sib1_with_si_sched_info(reconf_sibs);
+  reconf.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
+  reconf.si_sched_cfg.si_messages.emplace_back().sibs = sib_type_set{sib_type::sib2};
+
+  std::optional<si_update_command> baseline = bench.update_si(reconf);
+  ASSERT_TRUE(baseline.has_value());
+
+  std::optional<si_update_command> second_etws = bench.si_mng.take_etws_command();
+  ASSERT_TRUE(second_etws.has_value()) << "The warning epoch must be derived again from the new System Information";
+  ASSERT_NE(second_etws->version, first_etws->version);
+  ASSERT_NE(second_etws->version, baseline->version) << "Both epochs must stay distinguishable by version alone";
+
+  // It still lists the warning as broadcasting, while the normal operation epoch lists it as dormant. The SIB2
+  // SI-message that came with the SI change is broadcasting in both.
+  ASSERT_EQ(broadcast_status_of(*second_etws), (std::vector<bool>{true, true}));
+  ASSERT_EQ(broadcast_status_of(*baseline), (std::vector<bool>{false, true}));
+
+  // The warning content itself is untouched, so its segment cycle is not restarted.
+  ASSERT_EQ(second_etws->si_msgs[0], first_etws->si_msgs[0]);
+}

@@ -57,9 +57,12 @@ inline byte_buffer make_sib1_with_si_sched_info(span<const sib_type> si_msg_sibs
   sib1.si_sched_info.si_win_len.value = asn1::rrc_nr::si_sched_info_s::si_win_len_opts::s20;
   sib1.si_sched_info.sched_info_list.resize(si_msg_sibs.size());
   for (unsigned i = 0, e = si_msg_sibs.size(); i != e; ++i) {
-    const sib_type sib                   = si_msg_sibs[i];
-    auto&          sched_info            = sib1.si_sched_info.sched_info_list[i];
-    sched_info.si_broadcast_status.value = asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting;
+    const sib_type sib        = si_msg_sibs[i];
+    auto&          sched_info = sib1.si_sched_info.sched_info_list[i];
+    // Mirrors the DU packer: a PWS SI message is listed as dormant until a warning is on air.
+    sched_info.si_broadcast_status.value = is_pws_sib(sib)
+                                               ? asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting
+                                               : asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::broadcasting;
     sched_info.si_periodicity.value      = asn1::rrc_nr::sched_info_s::si_periodicity_opts::rf16;
     sched_info.sib_map_info.resize(1);
     auto& sib_info = sched_info.sib_map_info[0];

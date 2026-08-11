@@ -140,7 +140,12 @@ bool si_scheduler::try_handle_si_mod_request(slot_point_extended slot_sched)
   logger.debug("SI change with version {} starting after slot {}", on_going_req->version, slot_sched);
 
   // Apply the SIB1 and SI message changes.
-  sib1_sched.handle_sib1_update_indication(on_going_req->version, on_going_req->si_sched_cfg.sib1_payload_size);
+  if (not si_msg_sched.etws_epoch_in_effect()) {
+    sib1_sched.handle_sib1_update_indication(on_going_req->version, on_going_req->si_sched_cfg.sib1_payload_size);
+  }
+  // Note: while a warning is on air, the SI epoch of the normal operation is only kept aside, to be reverted to. Its
+  // SIB1 lists the warning as dormant, so broadcasting it now would advertise a warning that is still being
+  // transmitted. The MAC derives the warning epoch again from this update, and that is what updates SIB1.
   si_msg_sched.handle_si_message_update_indication(on_going_req->version, on_going_req->si_sched_cfg);
 
   // Delete the on-going request.

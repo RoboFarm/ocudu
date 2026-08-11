@@ -408,6 +408,12 @@ std::optional<si_update_command> si_message_controller::handle_si_change_request
   last_cmd.version = ++last_version;
   build_command(req);
 
+  if (not broadcasting_warnings.empty()) {
+    // A warning is on air, so its epoch is the one being broadcast. Derive it again from the System Information that
+    // just changed, otherwise it keeps serving a SIB1 that this update has superseded, with its old valueTag.
+    build_etws_command(broadcasting_warnings);
+  }
+
   return last_cmd;
 }
 
