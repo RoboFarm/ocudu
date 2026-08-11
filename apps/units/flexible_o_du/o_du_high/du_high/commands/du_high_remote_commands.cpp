@@ -23,8 +23,7 @@ constexpr uint64_t max_int64_as_uint64 = static_cast<uint64_t>(std::numeric_limi
 constexpr int64_t prb_policy_ratio_min_percent = 0;
 constexpr int64_t prb_policy_ratio_max_percent = 100;
 
-/// True if the int64 value v is representable in the integral type T (a C++17 stand-in for C++20 std::in_range), used
-/// to assert a caller's [lo, hi] fits the output type before the narrowing cast below.
+/// True if int64 `v` is representable in integral type `T` (a C++17 stand-in for C++20 std::in_range).
 template <typename T>
 constexpr bool value_fits_type(int64_t v)
 {
@@ -36,13 +35,9 @@ constexpr bool value_fits_type(int64_t v)
   }
 }
 
-/// Reads a JSON integer and range-checks it against the compile-time bounds [Lo, Hi] before narrowing to T. nlohmann
-/// stores integers in two slots (int64 and uint64) and is_number_integer() is true for both, so a plain get<T>() can
-/// silently narrow and even a straight get<int64_t>() can wrap (e.g. 2^32+25 -> 25, or UINT64_MAX -> -1, which sits
-/// inside a signed range). Every bound fits in int64, so reject a uint64 above INT64_MAX up front, then read losslessly
-/// as int64 and check. Lo/Hi are template parameters so the "bounds must fit T" contract is a static_assert enforced in
-/// every build mode (a runtime ocudu_assert would be compiled out of the default Release build), permanently ruling out
-/// a caller whose bounds overflow T and let the final cast truncate (e.g. Hi=1000 into a uint8_t).
+/// Reads a JSON integer and range-checks it against [Lo, Hi] before narrowing to T. nlohmann stores integers in an
+/// int64 or uint64 slot, so get<int64_t>() alone can wrap (UINT64_MAX -> -1); reject a uint64 above INT64_MAX first,
+/// then read as int64. Lo/Hi are template params so "bounds fit T" is a static_assert, not a runtime check.
 template <int64_t Lo, int64_t Hi, typename T>
 error_type<std::string> parse_int_in_range(const nlohmann::json& value, std::string_view field, T& out)
 {
@@ -350,9 +345,8 @@ static expected<q_hyst_t, std::string> parse_q_hyst_db(const nlohmann::json& obj
 static expected<q_offset_range_t, std::string> parse_q_offset_range(const nlohmann::json& val,
                                                                     std::string_view      field_name)
 {
-  // Outer bounds of q_offset_range_t; the discrete switch below still enforces the valid subset (odd-value gaps above
-  // +/-5). A full-width range parse first rejects the uint64 wrap where e.g. UINT64_MAX -> -1 lands on a valid dB
-  // offset.
+  // Outer bounds of q_offset_range_t; the switch below enforces the valid subset (odd-value gaps above +/-5). A
+  // full-width parse first rejects a uint64 wrap (UINT64_MAX -> -1) landing on a valid dB offset.
   static constexpr int64_t q_offset_range_min_db = static_cast<int64_t>(q_offset_range_t::db_24);
   static constexpr int64_t q_offset_range_max_db = static_cast<int64_t>(q_offset_range_t::db24);
   int64_t                  v                     = 0;
@@ -441,8 +435,7 @@ static expected<bounded_integer<T, MIN, MAX>, std::string> parse_bounded_int(con
   if (!val.is_number_integer()) {
     return make_unexpected(fmt::format("'{}' value type should be an integer", field_name));
   }
-  // A uint64 above INT64_MAX would wrap to a negative int64 that could land inside a signed range (e.g. q_rx_lev_min's
-  // [-70,-22]); every bound fits in int64, so reject it before the now-lossless int64 read.
+  // Reject a uint64 above INT64_MAX first (it would wrap to a negative int64 in the valid range), then read as int64.
   if (val.is_number_unsigned() && val.get<uint64_t>() > max_int64_as_uint64) {
     return make_unexpected(fmt::format(
         "'{}' value out of range [{},{}]", field_name, static_cast<int64_t>(MIN), static_cast<int64_t>(MAX)));
