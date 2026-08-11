@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
-#include "../bcch_dl_sch_encoder.h"
+#include "bcch_dl_sch_encoder.h"
 #include "ocudu/adt/spsc_queue.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include "ocudu/support/units.h"

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../bcch_dl_sch_encoder.h"
+#include "../mac_dl/bcch_dl_sch_encoder.h"
 #include "ocudu/ocudulog/logger.h"
 #include "ocudu/support/timers.h"
 
@@ -12,10 +12,10 @@ namespace ocudu {
 
 class mac_scheduler_cell_configurator;
 
-/// \brief Entity that owns the System Information broadcast by a MAC cell.
+/// \brief Entity that manages the System Information broadcast by a MAC cell.
 ///
-/// It holds the SI epoch counter and the encoders used to generate the BCCH-DL-SCH payloads, and turns System
-/// Information updates into commands to apply in the MAC cell.
+/// It manages the updating of the BCCH-DL-SCH payloads and turns System Information updates into commands to apply in
+/// the MAC cell.
 class si_message_controller
 {
 public:
@@ -25,8 +25,8 @@ public:
                         mac_scheduler_cell_configurator& sched);
   ~si_message_controller();
 
-  /// Command with the System Information the cell was created with.
-  const si_update_command& initial_command() const { return last_cmd; }
+  /// Command generated from the last System Information update.
+  const si_update_command& last_command() const { return last_cmd; }
 
   /// Handler used to serve SI PDU updates that bypass the SI modification window.
   std::shared_ptr<si_message_extension_handler> extension_handler() const { return ext_handler; }

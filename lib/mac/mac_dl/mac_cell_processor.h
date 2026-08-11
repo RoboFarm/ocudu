@@ -43,7 +43,8 @@ public:
   /// Stops configured cell.
   async_task<void> stop() override;
 
-  void set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) override;
+  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                       const si_update_command&                      cmd) override;
 
   void handle_si_update(const si_update_command& cmd) override;
 

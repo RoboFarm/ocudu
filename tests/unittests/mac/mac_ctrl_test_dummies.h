@@ -57,7 +57,10 @@ public:
 
   async_task<void> start() override;
   async_task<void> stop() override { return start(); }
-  void             set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) override {}
+  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler, const si_update_command& cmd) override
+  {
+    handle_si_update(cmd);
+  }
   void             handle_si_update(const si_update_command& cmd) override { last_si_version = cmd.version; }
   async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return start(); }
 };
@@ -161,9 +164,13 @@ public:
   manual_event<bool>                   ue_created_ev;
   std::optional<mac_ue_create_request> last_ue_create_request;
 
+  test_helpers::dummy_mac_scheduler_adapter cell_cfg;
+
   void add_cell(const mac_scheduler_cell_creation_request& msg) override {}
 
   void remove_cell(du_cell_index_t cell_index) override {}
+
+  mac_scheduler_cell_configurator& get_cell_configurator() override { return cell_cfg; }
 
   async_task<bool> handle_ue_creation_request(const mac_ue_create_request& msg) override;
   async_task<bool> handle_ue_reconfiguration_request(const mac_ue_reconfiguration_request& msg) override;

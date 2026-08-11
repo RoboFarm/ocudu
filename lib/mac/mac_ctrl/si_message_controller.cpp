@@ -3,8 +3,8 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "si_message_controller.h"
-#include "../mac_scheduler_cell_configurator.h"
-#include "../segmented_sib_list.h"
+#include "../mac_dl/mac_scheduler_cell_configurator.h"
+#include "../mac_dl/segmented_sib_list.h"
 #include "ocudu/adt/lockfree_triple_buffer.h"
 #include "ocudu/asn1/rrc_nr/bcch_dl_sch_msg.h"
 #include "ocudu/asn1/rrc_nr/sys_info.h"
@@ -322,8 +322,7 @@ si_message_controller::~si_message_controller() = default;
 std::optional<si_update_command> si_message_controller::handle_si_change_request(const mac_cell_sys_info_config& req)
 {
   if (not has_si_changed(req)) {
-    logger.info("cell={}: Discarding SI update. Cause: The System Information did not change",
-                fmt::underlying(cell_index));
+    logger.info("cell={}: Discarding SI update. Cause: The System Information did not change", cell_index);
     return std::nullopt;
   }
 
@@ -361,6 +360,7 @@ void si_message_controller::build_command(const mac_cell_sys_info_config& req)
 {
   // Generate SIB1 encoder, reusing the previous one if the payload did not change.
   if (last_cmd.sib1 == nullptr or req.sib1 != last_sib1 or req.sib1_contains_hypersfn != last_hypersfn_enabled) {
+    // SIB1 changes detected.
     last_sib1             = req.sib1.copy();
     last_hypersfn_enabled = req.sib1_contains_hypersfn;
     if (req.sib1_contains_hypersfn) {

@@ -13,10 +13,8 @@ mac_cell_controller_impl::mac_cell_controller_impl(const mac_cell_creation_reque
                                                    mac_dl_cell_controller&          dl_cell_) :
   si_mng(cell_cfg.cell_index, cell_cfg.sys_info, timers, sched), dl_cell(dl_cell_)
 {
-  dl_cell.set_si_extension_handler(si_mng.extension_handler());
-
   // Start broadcasting the System Information the cell was created with.
-  dl_cell.handle_si_update(si_mng.initial_command());
+  dl_cell.start_broadcast(si_mng.extension_handler(), si_mng.last_command());
 }
 
 async_task<void> mac_cell_controller_impl::start()

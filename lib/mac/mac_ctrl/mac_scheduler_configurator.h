@@ -10,6 +10,7 @@
 namespace ocudu {
 
 struct mac_cell_creation_request;
+class mac_scheduler_cell_configurator;
 class scheduler_cell_metrics_notifier;
 
 struct mac_scheduler_cell_creation_request {
@@ -36,6 +37,9 @@ public:
   ///
   /// \param cell_index DU-specific index of the cell to remove.
   virtual void remove_cell(du_cell_index_t cell_index) = 0;
+
+  /// Fetch the interface used to reconfigure cells that already exist in the scheduler.
+  virtual mac_scheduler_cell_configurator& get_cell_configurator() = 0;
 
   /// \brief Adds a new UE configuration to the scheduler.
   ///

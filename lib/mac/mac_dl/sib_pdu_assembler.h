@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../bcch_dl_sch_encoder.h"
+#include "bcch_dl_sch_encoder.h"
 #include "ocudu/adt/lockfree_triple_buffer.h"
 #include "ocudu/ocudulog/logger.h"
 
@@ -16,13 +16,16 @@ class sib_pdu_assembler
 public:
   sib_pdu_assembler();
 
-  /// Sets the handler used to serve SI PDU updates that bypass the SI modification window.
-  void set_extension_handler(std::shared_ptr<si_message_extension_handler> handler);
+  /// \brief Starts the broadcast of the cell System Information.
+  /// \param[in] ext_handler Handler used to serve SI PDU updates that bypass the SI modification window.
+  /// \param[in] first_cmd First SI epoch of the cell.
+  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler, const si_update_command& first_cmd);
 
   /// Applies a new SI epoch, to be used for the SI grants stamped with its version.
   void handle_si_update(const si_update_command& cmd);
 
   /// \brief Retrieve the encoded SI message.
+  /// \note Called from RT path, so it must be lock-free and non-blocking.
   span<const uint8_t> encode_si_pdu(slot_point_extended sl_tx, const sib_information& si_info);
 
 private:

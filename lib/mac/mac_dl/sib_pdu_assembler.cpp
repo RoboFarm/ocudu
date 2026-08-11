@@ -12,20 +12,22 @@ static const std::vector<uint8_t> zeros_payload(MAX_BCCH_DL_SCH_PDU_SIZE, 0);
 
 sib_pdu_assembler::sib_pdu_assembler() : logger(ocudulog::fetch_basic_logger("MAC")) {}
 
-void sib_pdu_assembler::set_extension_handler(std::shared_ptr<si_message_extension_handler> handler)
+void sib_pdu_assembler::start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler_,
+                                        const si_update_command&                      first_cmd)
 {
-  ocudu_assert(ext_handler == nullptr, "The SI message extension handler cannot be set more than once");
-  ext_handler = std::move(handler);
+  ocudu_assert(current.sib1 == nullptr, "The SI broadcast cannot be started more than once");
+  ext_handler = std::move(ext_handler_);
+
+  handle_si_update(first_cmd);
+
+  // No need to go through the pending buffer, as no slot indications are processed yet and there are no race
+  // conditions with the RT path at this point.
+  current = pending.read();
 }
 
 void sib_pdu_assembler::handle_si_update(const si_update_command& cmd)
 {
   pending.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
-
-  if (current.sib1 == nullptr) {
-    // First SI epoch of the cell. No slot indications are processed yet, so there is no race with the RT path.
-    current = pending.read();
-  }
 }
 
 span<const uint8_t> sib_pdu_assembler::encode_si_pdu(slot_point_extended sl_tx, const sib_information& si_info)

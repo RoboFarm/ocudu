@@ -29,12 +29,11 @@ class rnti_manager;
 class mac_controller final : public mac_ctrl_configurator, public mac_ue_configurator, public mac_cell_manager
 {
 public:
-  mac_controller(const mac_control_config&        cfg_,
-                 mac_ul_configurator&             ul_unit_,
-                 mac_dl_configurator&             dl_unit_,
-                 rnti_manager&                    rnti_table_,
-                 mac_scheduler_configurator&      sched_cfg_,
-                 mac_scheduler_cell_configurator& sched_cell_cfg_);
+  mac_controller(const mac_control_config&   cfg_,
+                 mac_ul_configurator&        ul_unit_,
+                 mac_dl_configurator&        dl_unit_,
+                 rnti_manager&               rnti_table_,
+                 mac_scheduler_configurator& sched_cfg_);
 
   /// Adds new cell configuration to MAC. The configuration is forwarded to the scheduler.
   mac_cell_controller& add_cell(const mac_cell_creation_request& cell_cfg) override;
@@ -75,14 +74,13 @@ private:
   void remove_ue(du_ue_index_t ue_index) override;
 
   // args
-  mac_control_config               cfg;
-  ocudulog::basic_logger&          logger;
-  mac_ul_configurator&             ul_unit;
-  mac_dl_configurator&             dl_unit;
-  rnti_manager&                    rnti_table;
-  mac_scheduler_configurator&      sched_cfg;
-  mac_scheduler_cell_configurator& sched_cell_cfg;
-  mac_clock_controller&            time_ctrl;
+  mac_control_config          cfg;
+  ocudulog::basic_logger&     logger;
+  mac_ul_configurator&        ul_unit;
+  mac_dl_configurator&        dl_unit;
+  rnti_manager&               rnti_table;
+  mac_scheduler_configurator& sched_cfg;
+  mac_clock_controller&       time_ctrl;
 
   // Metrics aggregator.
   mac_metrics_aggregator metrics;

@@ -130,9 +130,13 @@ async_task<void> mac_cell_processor::stop()
   });
 }
 
-void mac_cell_processor::set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler)
+void mac_cell_processor::start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                                         const si_update_command&                      cmd)
 {
-  sib_assembler.set_extension_handler(std::move(handler));
+  sib_assembler.start_broadcast(std::move(ext_handler), cmd);
+
+  // Notify scheduler of the initial SIB1/SI message scheduling.
+  sched.handle_si_change_indication(si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg});
 }
 
 void mac_cell_processor::handle_si_update(const si_update_command& cmd)

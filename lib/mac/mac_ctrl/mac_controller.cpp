@@ -15,19 +15,17 @@
 
 using namespace ocudu;
 
-mac_controller::mac_controller(const mac_control_config&        cfg_,
-                               mac_ul_configurator&             ul_unit_,
-                               mac_dl_configurator&             dl_unit_,
-                               rnti_manager&                    rnti_table_,
-                               mac_scheduler_configurator&      sched_cfg_,
-                               mac_scheduler_cell_configurator& sched_cell_cfg_) :
+mac_controller::mac_controller(const mac_control_config&   cfg_,
+                               mac_ul_configurator&        ul_unit_,
+                               mac_dl_configurator&        dl_unit_,
+                               rnti_manager&               rnti_table_,
+                               mac_scheduler_configurator& sched_cfg_) :
   cfg(cfg_),
   logger(cfg.logger),
   ul_unit(ul_unit_),
   dl_unit(dl_unit_),
   rnti_table(rnti_table_),
   sched_cfg(sched_cfg_),
-  sched_cell_cfg(sched_cell_cfg_),
   time_ctrl(cfg.time_source),
   metrics(cfg.metrics, cfg.ctrl_exec, cfg.time_source.get_timer_manager(), logger)
 {
@@ -66,7 +64,7 @@ mac_cell_controller& mac_controller::add_cell(const mac_cell_creation_request& c
   return cells.emplace(cell_add_req.cell_index,
                        cell_add_req,
                        timer_factory{cfg.time_source.get_timer_manager(), cfg.ctrl_exec},
-                       sched_cell_cfg,
+                       sched_cfg.get_cell_configurator(),
                        dl_cell);
 }
 

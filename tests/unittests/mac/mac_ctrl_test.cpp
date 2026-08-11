@@ -29,24 +29,23 @@ protected:
     t_launcher.emplace(t);
   }
 
-  manual_task_worker                        worker{128};
-  dummy_ue_executor_mapper                  ul_exec_mapper{worker};
-  dummy_dl_executor_mapper                  dl_exec_mapper{&worker};
-  dummy_mac_event_indicator                 du_mng_notifier;
-  timer_manager                             timers;
-  test_helpers::dummy_mac_clock_controller  clock_ctrl{timers};
-  mac_scheduler_dummy_adapter               sched_cfg_adapter;
-  test_helpers::dummy_mac_scheduler_adapter sched_cell_cfg_adapter;
-  dummy_mac_metrics_notifier                mac_notifier;
-  mac_control_config                        maccfg{du_mng_notifier,
+  manual_task_worker                       worker{128};
+  dummy_ue_executor_mapper                 ul_exec_mapper{worker};
+  dummy_dl_executor_mapper                 dl_exec_mapper{&worker};
+  dummy_mac_event_indicator                du_mng_notifier;
+  timer_manager                            timers;
+  test_helpers::dummy_mac_clock_controller clock_ctrl{timers};
+  mac_scheduler_dummy_adapter              sched_cfg_adapter;
+  dummy_mac_metrics_notifier               mac_notifier;
+  mac_control_config                       maccfg{du_mng_notifier,
                             worker,
                             clock_ctrl,
                             mac_control_config::metrics_config{std::chrono::milliseconds{1000}, mac_notifier}};
-  mac_ul_dummy_configurer                   ul_unit;
-  mac_dl_dummy_configurer                   dl_unit;
-  rnti_manager                              rnti_table;
+  mac_ul_dummy_configurer                  ul_unit;
+  mac_dl_dummy_configurer                  dl_unit;
+  rnti_manager                             rnti_table;
 
-  mac_controller mac_ctrl{maccfg, ul_unit, dl_unit, rnti_table, sched_cfg_adapter, sched_cell_cfg_adapter};
+  mac_controller mac_ctrl{maccfg, ul_unit, dl_unit, rnti_table, sched_cfg_adapter};
 
   async_task<mac_ue_create_response>                        t;
   std::optional<lazy_task_launcher<mac_ue_create_response>> t_launcher;

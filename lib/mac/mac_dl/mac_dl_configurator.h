@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../bcch_dl_sch_encoder.h"
+#include "bcch_dl_sch_encoder.h"
 #include "ocudu/mac/mac_cell_manager.h"
 #include "ocudu/mac/mac_clock_controller.h"
 #include "ocudu/mac/mac_metrics.h"
@@ -62,9 +62,12 @@ public:
   /// Stop the cell.
   virtual async_task<void> stop() = 0;
 
-  /// \brief Sets the handler of the SI PDU updates that bypass the SI modification window.
+  /// \brief Starts the broadcast of the cell System Information.
+  /// \param[in] ext_handler Handler of the SI PDU updates that bypass the SI modification window.
+  /// \param[in] cmd First SI epoch of the cell.
   /// \remark Must be called once, before the cell is started.
-  virtual void set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) = 0;
+  virtual void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                               const si_update_command&                      cmd) = 0;
 
   /// \brief Applies a new SI epoch, to be broadcast by the cell.
   /// \remark Must be called from the cell control executor.

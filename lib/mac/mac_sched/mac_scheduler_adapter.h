@@ -22,6 +22,8 @@ class mac_scheduler_adapter : public mac_scheduler_configurator,
 public:
   virtual ~mac_scheduler_adapter() = default;
 
+  mac_scheduler_cell_configurator& get_cell_configurator() override { return *this; }
+
   /// \brief Gets the control info handler for a given cell.
   ///
   /// \param cell_index DU-specific index of the cell for which the control info handler is being retrieved.

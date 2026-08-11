@@ -27,7 +27,7 @@ public:
 
 TEST_F(si_message_controller_test, when_cell_is_created_then_initial_command_holds_version_zero_and_encoders)
 {
-  const si_update_command& cmd = bench.si_mng.initial_command();
+  const si_update_command& cmd = bench.si_mng.last_command();
 
   ASSERT_EQ(cmd.version, 0);
   ASSERT_NE(cmd.sib1, nullptr);
@@ -44,7 +44,7 @@ TEST_F(si_message_controller_test, when_system_information_is_unchanged_then_no_
 
 TEST_F(si_message_controller_test, when_sib1_changes_then_version_is_bumped_and_sib1_encoder_is_replaced)
 {
-  const si_update_command previous = bench.si_mng.initial_command();
+  const si_update_command previous = bench.si_mng.last_command();
 
   mac_cell_sys_info_config req = bench.sys_info_cfg;
   req.sib1                     = make_random_pdu();
@@ -58,7 +58,7 @@ TEST_F(si_message_controller_test, when_sib1_changes_then_version_is_bumped_and_
 
 TEST_F(si_message_controller_test, when_only_si_scheduling_config_changes_then_version_is_bumped)
 {
-  const si_update_command previous = bench.si_mng.initial_command();
+  const si_update_command previous = bench.si_mng.last_command();
 
   mac_cell_sys_info_config req            = bench.sys_info_cfg;
   req.si_sched_cfg.si_messages[0].msg_len = units::bytes{123};

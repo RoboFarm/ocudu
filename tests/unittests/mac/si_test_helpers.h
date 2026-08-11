@@ -60,8 +60,7 @@ public:
     sys_info_cfg(std::move(sys_info_cfg_)),
     si_mng(to_du_cell_index(0), sys_info_cfg, timer_factory{timers, task_worker}, sched)
   {
-    assembler.set_extension_handler(si_mng.extension_handler());
-    assembler.handle_si_update(si_mng.initial_command());
+    assembler.start_broadcast(si_mng.extension_handler(), si_mng.last_command());
   }
 
   /// Forwards a new System Information config to the controller and applies the resulting command, if any.

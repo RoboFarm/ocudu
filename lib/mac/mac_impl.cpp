@@ -37,7 +37,6 @@ mac_impl::mac_impl(const mac_config& params) :
             ul_unit,
             dl_unit,
             rnti_table,
-            *mac_sched,
             *mac_sched)
 {
 }

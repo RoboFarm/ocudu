@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../mac_scheduler_cell_configurator.h"
+#include "mac_scheduler_cell_configurator.h"
 #include "ocudu/mac/mac_cell_manager.h"
 #include "ocudu/mac/mac_cell_rach_handler.h"
 #include "ocudu/mac/mac_cell_slot_handler.h"
