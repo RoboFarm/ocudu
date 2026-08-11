@@ -54,13 +54,17 @@ private:
   /// \brief Encoder for a static (non-PWS) SI-message, replaced wholesale whenever its content changes.
   class static_si_msg_encoder;
 
-  /// \brief Encoder owning the repeat/count timing and content of an on-going PWS (Write-Replace Warning) broadcast
-  /// sequence for a single SI-message index.
+  /// \brief Encoder of the content of a PWS (Write-Replace Warning) broadcast, cycling through its segments.
   ///
-  /// Unlike \c static_si_msg_encoder, this object is created once and persists across unrelated SI reconfigurations.
-  /// It is mutated in place by \c handle_pws_broadcast rather than being replaced, since it owns a live repeat timer
-  /// that must survive across CU-driven Write-Replace Warning content pushes.
+  /// Its content is immutable, so a new warning is broadcast by replacing the encoder, which also restarts the
+  /// segment cycle.
   class pws_si_msg_encoder;
+
+  /// \brief Repeat/count sequence of the PWS (Write-Replace Warning) broadcasts of one SI message.
+  ///
+  /// Unlike the encoders, it persists across unrelated SI reconfigurations, since it owns a live repeat timer that
+  /// must survive across CU-driven Write-Replace Warning content pushes.
+  class pws_broadcast_sequence;
 
   /// Whether the System Information differs from the one the current encoders were built from.
   bool has_si_changed(const mac_cell_sys_info_config& req) const;
@@ -73,10 +77,9 @@ private:
   /// Derives the ETWS/CMAS SI epoch from the current one, listing the given SI messages as broadcasting.
   void build_etws_command(span<const sib_type_set> broadcasting);
 
-  /// \brief Fetches the PWS encoder of the SI message at a given position of an SI scheduling configuration.
-  /// \return The encoder, or nullptr if the position does not exist or its SI message carries no PWS SIB.
-  std::shared_ptr<pws_si_msg_encoder> find_pws_encoder(const si_scheduling_config& si_sched_cfg,
-                                                       unsigned                    si_msg_idx) const;
+  /// \brief Fetches the PWS broadcast sequence of the SI message at a given position of an SI scheduling config.
+  /// \return The sequence, or nullptr if the position does not exist or its SI message carries no PWS SIB.
+  pws_broadcast_sequence* find_pws_sequence(const si_scheduling_config& si_sched_cfg, unsigned si_msg_idx) const;
 
   ocudulog::basic_logger&          logger;
   du_cell_index_t                  cell_index;
@@ -105,9 +108,10 @@ private:
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 
-  // PWS encoders, one entry per SI message carrying PWS SIBs, keyed by the SI message identity. Keying by identity
-  // rather than by position keeps an on-going warning attached to its SIBs when the SI scheduling layout changes.
-  std::vector<std::pair<sib_type_set, std::shared_ptr<pws_si_msg_encoder>>> pws_encoders;
+  // PWS broadcast sequences, one entry per SI message carrying PWS SIBs, keyed by the SI message identity. Keying by
+  // identity rather than by position keeps an on-going warning attached to its SIBs when the SI scheduling layout
+  // changes.
+  std::vector<std::pair<sib_type_set, std::unique_ptr<pws_broadcast_sequence>>> pws_sequences;
 };
 
 } // namespace ocudu

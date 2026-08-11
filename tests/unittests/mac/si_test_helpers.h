@@ -160,6 +160,17 @@ public:
     return cmd;
   }
 
+  /// \brief Applies the ETWS/CMAS epoch the controller generated, if any.
+  /// \return The applied epoch, whose version the warning grants are stamped with.
+  std::optional<si_update_command> apply_pending_etws_si()
+  {
+    std::optional<si_update_command> cmd = si_mng.take_etws_command();
+    if (cmd.has_value()) {
+      assembler.handle_etws_si_update(*cmd);
+    }
+    return cmd;
+  }
+
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
   void tick(unsigned nof_ticks)
   {

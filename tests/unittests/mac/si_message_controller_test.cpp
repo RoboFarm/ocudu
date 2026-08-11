@@ -94,8 +94,10 @@ public:
 
   static mac_cell_sys_info_config make_sys_info_cfg()
   {
+    static const std::array<sib_type, 1> si_msg_sibs{sib_type::sib7};
+
     mac_cell_sys_info_config cfg;
-    cfg.sib1 = make_random_pdu();
+    cfg.sib1 = make_sib1_with_si_sched_info(si_msg_sibs);
     cfg.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
     // Mark SI-message index 0 as requiring activation, mirroring a cell configured with a reserved SIB6/7/8
     // occasion -- si_message_controller only allocates PWS broadcast state for such indices.
@@ -136,8 +138,12 @@ TEST_F(si_message_controller_pws_test, when_pws_broadcast_content_is_encoded_the
   req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 1};
   bench.si_mng.handle_si_message_pdu_updates(req);
 
+  // The warning content is broadcast from the ETWS/CMAS epoch.
+  std::optional<si_update_command> etws_cmd = bench.apply_pending_etws_si();
+  ASSERT_TRUE(etws_cmd.has_value());
+
   units::bytes    tbs{static_cast<unsigned>(segments[0].length())};
-  sib_information si_info = make_sib_pdu(0, 0, tbs);
+  sib_information si_info = make_sib_pdu(0, etws_cmd->version, tbs);
 
   si_info.is_repetition    = false;
   span<const uint8_t> pdu0 = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
@@ -207,8 +213,11 @@ TEST_F(si_message_controller_pws_test, when_new_pws_broadcast_replaces_previous_
   bench.si_mng.handle_si_message_pdu_updates(req_b);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
 
+  std::optional<si_update_command> etws_cmd = bench.apply_pending_etws_si();
+  ASSERT_TRUE(etws_cmd.has_value());
+
   units::bytes        tbs{static_cast<unsigned>(segment_b.length())};
-  sib_information     si_info = make_sib_pdu(0, 0, tbs);
+  sib_information     si_info = make_sib_pdu(0, etws_cmd->version, tbs);
   span<const uint8_t> pdu     = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
   ASSERT_EQ(byte_buffer::create(pdu).value(), segment_b)
       << "Replacement content must be served from segment 0, not the superseded warning";
