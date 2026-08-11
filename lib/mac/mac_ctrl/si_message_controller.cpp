@@ -141,6 +141,12 @@ public:
   {
   }
 
+  /// \brief Updates the position this SI message occupies in the current SI scheduling configuration.
+  ///
+  /// The scheduler addresses SI messages by position, and an on-going broadcast outlives the SI scheduling
+  /// configuration it started in.
+  void set_si_msg_idx(unsigned si_msg_idx_) { si_msg_idx = si_msg_idx_; }
+
   /// Handles a new Write-Replace Warning content push, called from the control executor. A new warning for this
   /// index replaces any in-flight one outright.
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req)
@@ -298,16 +304,16 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
   sched(sched_),
   ext_handler(create_si_message_extension_handler(sys_info))
 {
-  // Set up PWS encoders, one entry per SI-message index.
+  // Set up PWS encoders, one entry per SI message carrying PWS SIBs.
   const auto& si_sched_messages = sys_info.si_sched_cfg.si_messages;
-  pws_encoders.resize(sys_info.si_messages.size());
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation()) {
-      pws_encoders[i] = std::make_shared<pws_si_msg_encoder>(i, timers, sched, cell_index);
+      auto encoder = std::make_shared<pws_si_msg_encoder>(i, timers, sched, cell_index);
+      pws_encoders.emplace_back(si_sched_messages[i].sibs, encoder);
       if (si_sched_messages[i].test_mode_auto_broadcast) {
         // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right
         // away, indefinitely, instead of waiting for a real Write-Replace Warning.
-        pws_encoders[i]->activate_forever(sys_info.si_messages[i]);
+        encoder->activate_forever(sys_info.si_messages[i]);
       }
     }
   }
@@ -344,8 +350,8 @@ bool si_message_controller::has_si_changed(const mac_cell_sys_info_config& req) 
     return true;
   }
   for (unsigned i = 0, e = req.si_messages.size(); i != e; ++i) {
-    if (i < pws_encoders.size() and pws_encoders[i] != nullptr) {
-      // This SI-message index is exclusively managed by its PWS encoder, and its content does not flow through this
+    if (find_pws_encoder(req.si_sched_cfg, i) != nullptr) {
+      // This SI message is exclusively managed by its PWS encoder, and its content does not flow through this
       // (possibly unrelated) SI reconfiguration.
       continue;
     }
@@ -375,10 +381,12 @@ void si_message_controller::build_command(const mac_cell_sys_info_config& req)
   last_cmd.si_msgs.resize(req.si_messages.size());
   last_si_messages.resize(req.si_messages.size());
   for (unsigned i = 0, e = req.si_messages.size(); i != e; ++i) {
-    if (i < pws_encoders.size() and pws_encoders[i] != nullptr) {
-      // This SI-message index is exclusively managed by its PWS encoder. Its content flows through
-      // handle_pws_broadcast, not through this (possibly unrelated) SI reconfiguration. Leave it untouched.
-      last_cmd.si_msgs[i] = pws_encoders[i];
+    if (auto pws_encoder = find_pws_encoder(req.si_sched_cfg, i)) {
+      // This SI message is exclusively managed by its PWS encoder. Its content flows through handle_pws_broadcast,
+      // not through this (possibly unrelated) SI reconfiguration. Leave it untouched, and only refresh the position
+      // it now occupies, which is what the scheduler is addressed by.
+      pws_encoder->set_si_msg_idx(i);
+      last_cmd.si_msgs[i] = std::move(pws_encoder);
       continue;
     }
 
@@ -401,11 +409,25 @@ bool si_message_controller::handle_si_message_pdu_updates(const mac_cell_sys_inf
   return ext_handler != nullptr and ext_handler->enqueue_si_pdu_updates(req);
 }
 
+std::shared_ptr<si_message_controller::pws_si_msg_encoder>
+si_message_controller::find_pws_encoder(const si_scheduling_config& si_sched_cfg, unsigned si_msg_idx) const
+{
+  if (si_msg_idx >= si_sched_cfg.si_messages.size()) {
+    return nullptr;
+  }
+  const sib_type_set si_msg = si_sched_cfg.si_messages[si_msg_idx].sibs;
+
+  auto it = std::find_if(
+      pws_encoders.begin(), pws_encoders.end(), [si_msg](const auto& entry) { return entry.first == si_msg; });
+  return it != pws_encoders.end() ? it->second : nullptr;
+}
+
 bool si_message_controller::handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req)
 {
-  if (req.si_msg_idx >= pws_encoders.size() or not pws_encoders[req.si_msg_idx]) {
-    // SI-message index does not exist, or does not require activation (see si_message_controller constructor).
+  auto pws_encoder = find_pws_encoder(last_cmd.si_sched_cfg, req.si_msg_idx);
+  if (pws_encoder == nullptr) {
+    // The SI message carries no PWS SIB, so no PWS broadcast state was allocated for it.
     return false;
   }
-  return pws_encoders[req.si_msg_idx]->handle_pws_broadcast(req);
+  return pws_encoder->handle_pws_broadcast(req);
 }

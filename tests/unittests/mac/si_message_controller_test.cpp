@@ -86,8 +86,7 @@ TEST_F(si_message_controller_test, when_si_message_does_not_require_activation_t
 }
 
 /// Fixture with a single SI-message pre-provisioned at index 0, mirroring a cell configured with a reserved
-/// SIB6/7/8 occasion (the PWS broadcast per-index state in \c si_message_controller is sized once, at construction,
-/// from the initial number of SI-messages).
+/// SIB6/7/8 occasion -- \c si_message_controller only allocates PWS broadcast state for such SI messages.
 class si_message_controller_pws_test : public ::testing::Test
 {
 public:
@@ -249,6 +248,40 @@ TEST_F(si_message_controller_pws_test, when_unrelated_si_reconfiguration_occurs_
   // The repeat timer must still fire the remaining broadcasts.
   bench.tick(2000);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 3);
+}
+
+TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warning_stays_attached_to_its_sibs)
+{
+  // Start a warning on the SIB7 SI-message, which sits at index 0.
+  auto                         segment = make_random_pdu();
+  std::vector<byte_buffer>     segments{segment.copy()};
+  mac_cell_sys_info_pdu_update pws_req;
+  pws_req.si_msg_idx    = 0;
+  pws_req.sib_idx       = 7;
+  pws_req.si_messages   = span<byte_buffer>(segments);
+  pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 3};
+  ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
+  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 0);
+
+  // An SI reconfiguration prepends a normal SI-message, pushing the SIB7 one from index 0 to index 1.
+  mac_cell_sys_info_config reconf;
+  reconf.sib1 = bench.sys_info_cfg.sib1.copy();
+  reconf.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
+  reconf.si_messages.push_back(bench.sys_info_cfg.si_messages[0]);
+  reconf.si_sched_cfg.si_messages.emplace_back().sibs = sib_type_set{sib_type::sib2};
+  reconf.si_sched_cfg.si_messages.emplace_back().sibs = sib_type_set{sib_type::sib7};
+  ASSERT_TRUE(bench.update_si(reconf).has_value());
+
+  // The on-going warning must follow its SIBs to the new position, rather than staying bound to index 0.
+  bench.tick(1000);
+  ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
+  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 1)
+      << "The repeat must target the SI-message carrying SIB7, not whatever now sits at its old index";
+
+  // A further Write-Replace Warning must reach the same encoder through the new position.
+  pws_req.si_msg_idx = 1;
+  ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
+  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 1);
 }
 
 /// Fixture with a single SI-message pre-provisioned at index 0, marked both requires_activation and

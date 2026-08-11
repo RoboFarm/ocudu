@@ -66,6 +66,11 @@ private:
 
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req);
 
+  /// \brief Fetches the PWS encoder of the SI message at a given position of an SI scheduling configuration.
+  /// \return The encoder, or nullptr if the position does not exist or its SI message carries no PWS SIB.
+  std::shared_ptr<pws_si_msg_encoder> find_pws_encoder(const si_scheduling_config& si_sched_cfg,
+                                                       unsigned                    si_msg_idx) const;
+
   ocudulog::basic_logger&          logger;
   du_cell_index_t                  cell_index;
   timer_factory                    timers;
@@ -83,10 +88,9 @@ private:
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 
-  // PWS encoders, one entry per SI-message index. Only indices that require activation (see
-  // si_message_scheduling_config::requires_activation) have a non-null entry. This is decided once at construction
-  // time, so checking for null is safe from the real-time path without further synchronization.
-  std::vector<std::shared_ptr<pws_si_msg_encoder>> pws_encoders;
+  // PWS encoders, one entry per SI message carrying PWS SIBs, keyed by the SI message identity. Keying by identity
+  // rather than by position keeps an on-going warning attached to its SIBs when the SI scheduling layout changes.
+  std::vector<std::pair<sib_type_set, std::shared_ptr<pws_si_msg_encoder>>> pws_encoders;
 };
 
 } // namespace ocudu
