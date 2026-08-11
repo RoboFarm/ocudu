@@ -211,15 +211,15 @@ sctp_network_server_impl::sctp_network_server_impl(const ocudu::sctp_network_gat
 sctp_network_server_impl::~sctp_network_server_impl()
 {
   if (*keepalive_token) {
-    logger.error("stop() must be called before destroying the SCTP server");
-    report_error("stop() must be called before destroying the SCTP server");
+    logger.error("{}: stop() must be called before destroying the SCTP server", node_cfg.if_name);
+    report_error("{}: stop() must be called before destroying the SCTP server", node_cfg.if_name);
   }
 }
 
 void sctp_network_server_impl::stop()
 {
   sync_event ev;
-  defer_socket_shutdown(nullptr);
+  defer_socket_shutdown(nullptr, ev.get_token());
   ev.wait();
 }
 
@@ -303,9 +303,9 @@ void sctp_network_server_impl::handle_socket_shutdown(const char* cause)
   io_sub.reset();
 }
 
-void sctp_network_server_impl::defer_socket_shutdown(const char* cause)
+void sctp_network_server_impl::defer_socket_shutdown(const char* cause, std::optional<scoped_sync_token> token)
 {
-  while (not app_exec.defer([this, keepalive = keepalive_token]() {
+  while (not app_exec.defer([this, keepalive = keepalive_token, token = std::move(token)]() {
     if (*keepalive) {
       *keepalive = false;
       handle_socket_shutdown(nullptr);
