@@ -13,6 +13,76 @@
 
 using namespace ocudu;
 
+/// Converts an ASN.1 SIB type into its RAN representation, or sib_invalid if it has no representation.
+static sib_type to_sib_type(const asn1::rrc_nr::sib_type_info_s& sib_info)
+{
+  using type_opts = asn1::rrc_nr::sib_type_info_s::type_opts;
+  switch (sib_info.type.value) {
+    case type_opts::sib_type2:
+      return sib_type::sib2;
+    case type_opts::sib_type3:
+      return sib_type::sib3;
+    case type_opts::sib_type4:
+      return sib_type::sib4;
+    case type_opts::sib_type5:
+      return sib_type::sib5;
+    case type_opts::sib_type6:
+      return sib_type::sib6;
+    case type_opts::sib_type7:
+      return sib_type::sib7;
+    case type_opts::sib_type8:
+      return sib_type::sib8;
+    default:
+      return sib_type::sib_invalid;
+  }
+}
+
+/// \brief Repacks a SIB1 payload, marking as broadcasting the SI messages that carry a warning.
+///
+/// PWS SI messages are only listed as broadcasting while their warning is on air. As per TS 38.331, 5.2.2.2.2, this
+/// does not require an SI change notification: the etwsAndCmasIndication short message makes the UE re-acquire SIB1.
+/// \return The repacked payload, or an empty buffer if the reference payload could not be processed.
+static byte_buffer repack_sib1_broadcast_status(const byte_buffer& sib1, span<const sib_type_set> broadcasting)
+{
+  asn1::rrc_nr::bcch_dl_sch_msg_s msg;
+  {
+    asn1::cbit_ref bref{sib1};
+    if (msg.unpack(bref) != asn1::OCUDUASN_SUCCESS or
+        msg.msg.type().value != asn1::rrc_nr::bcch_dl_sch_msg_type_c::types_opts::c1 or
+        msg.msg.c1().type().value != asn1::rrc_nr::bcch_dl_sch_msg_type_c::c1_c_::types_opts::sib_type1) {
+      return {};
+    }
+  }
+
+  // Note: PWS SIBs are release 15 SIBs, and an SI message cannot mix release 17 and non-release 17 SIBs. Hence, a PWS
+  // SI message is always listed in schedulingInfoList, and never in schedulingInfoList2.
+  for (asn1::rrc_nr::sched_info_s& sched_info : msg.msg.c1().sib_type1().si_sched_info.sched_info_list) {
+    sib_type_set si_msg;
+    for (const asn1::rrc_nr::sib_type_info_s& sib_info : sched_info.sib_map_info) {
+      const sib_type sib = to_sib_type(sib_info);
+      if (sib != sib_type::sib_invalid) {
+        si_msg.add(sib);
+      }
+    }
+    if (not si_msg.is_etws_cmas()) {
+      continue;
+    }
+
+    const bool is_broadcasting =
+        std::any_of(broadcasting.begin(), broadcasting.end(), [si_msg](sib_type_set entry) { return entry == si_msg; });
+    sched_info.si_broadcast_status.value = is_broadcasting
+                                               ? asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::broadcasting
+                                               : asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting;
+  }
+
+  byte_buffer   repacked;
+  asn1::bit_ref bref{repacked};
+  if (msg.pack(bref) != asn1::OCUDUASN_SUCCESS) {
+    return {};
+  }
+  return repacked;
+}
+
 /// Encoder for a static BCCH-DL-SCH SIB1 payload.
 class si_message_controller::sib1_static_encoder final : public bcch_dl_sch_msg_encoder
 {
@@ -326,7 +396,7 @@ std::optional<si_update_command> si_message_controller::handle_si_change_request
   }
 
   // Bump the SI epoch and rebuild the encoders that changed.
-  ++last_cmd.version;
+  last_cmd.version = ++last_version;
   build_command(req);
 
   return last_cmd;
@@ -420,5 +490,37 @@ bool si_message_controller::handle_pws_broadcast(const mac_cell_sys_info_pdu_upd
     // The SI message carries no PWS SIB, so no PWS broadcast state was allocated for it.
     return false;
   }
-  return pws_encoder->handle_pws_broadcast(req);
+  if (not pws_encoder->handle_pws_broadcast(req)) {
+    return false;
+  }
+
+  // The SI message starts being listed as broadcasting in SIB1, for as long as the warning is on air.
+  const sib_type_set si_msg = last_cmd.si_sched_cfg.si_messages[req.si_msg_idx].sibs;
+  if (std::find(broadcasting_warnings.begin(), broadcasting_warnings.end(), si_msg) == broadcasting_warnings.end()) {
+    broadcasting_warnings.push_back(si_msg);
+    build_etws_command(broadcasting_warnings);
+  }
+  return true;
+}
+
+void si_message_controller::build_etws_command(span<const sib_type_set> broadcasting)
+{
+  byte_buffer etws_sib1 = repack_sib1_broadcast_status(last_sib1, broadcasting);
+  if (etws_sib1.empty()) {
+    logger.error("cell={}: Failed to generate the SIB1 of a warning broadcast", cell_index);
+    return;
+  }
+
+  // The ETWS/CMAS epoch only differs from the normal operation one in SIB1, so the remaining encoders are shared.
+  si_update_command cmd = last_cmd;
+  cmd.version           = ++last_version;
+  cmd.sib1              = std::make_shared<sib1_static_encoder>(etws_sib1);
+  pending_etws_cmd      = std::move(cmd);
+}
+
+std::optional<si_update_command> si_message_controller::take_etws_command()
+{
+  std::optional<si_update_command> cmd = std::move(pending_etws_cmd);
+  pending_etws_cmd.reset();
+  return cmd;
 }

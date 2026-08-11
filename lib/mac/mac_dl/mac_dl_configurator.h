@@ -44,6 +44,8 @@ struct mac_cell_config_dependencies {
 struct mac_dl_cell_reconfig_request {
   /// If not empty, contains the new System Information to broadcast.
   std::optional<si_update_command> si_update;
+  /// If not empty, contains the new System Information to broadcast while a warning is on air.
+  std::optional<si_update_command> etws_si_update;
   /// If not empty, contains the updates to be applied to the RRM policies.
   std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
   /// If not empty, contains a new reference location uplink timing advance for an NTN cell.

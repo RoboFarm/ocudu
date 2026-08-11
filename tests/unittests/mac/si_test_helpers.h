@@ -8,6 +8,8 @@
 #include "lib/mac/mac_dl/sib_pdu_assembler.h"
 #include "mac_test_helpers.h"
 #include "tests/test_doubles/utils/test_rng.h"
+#include "ocudu/asn1/rrc_nr/bcch_dl_sch_msg.h"
+#include "ocudu/asn1/rrc_nr/sys_info.h"
 #include "ocudu/support/executors/manual_task_worker.h"
 
 namespace ocudu {
@@ -27,6 +29,73 @@ inline std::vector<byte_buffer> make_random_segmented_pdu(unsigned segment_size 
     segmented_pdu.emplace_back(make_random_pdu(segment_size));
   }
   return segmented_pdu;
+}
+
+/// \brief Packs a BCCH-DL-SCH message carrying a SIB1 that schedules one SI message per given SIB set.
+///
+/// Only the fields the SI message controller reads back are filled, so that the payload round-trips through the ASN.1
+/// unpacking that a si-BroadcastStatus update requires.
+inline byte_buffer make_sib1_with_si_sched_info(span<const sib_type> si_msg_sibs)
+{
+  asn1::rrc_nr::bcch_dl_sch_msg_s msg;
+  asn1::rrc_nr::sib1_s&           sib1 = msg.msg.set_c1().set_sib_type1();
+
+  sib1.cell_access_related_info.plmn_id_info_list.resize(1);
+  auto& plmn_info = sib1.cell_access_related_info.plmn_id_info_list[0];
+  plmn_info.plmn_id_list.resize(1);
+  auto& plmn       = plmn_info.plmn_id_list[0];
+  plmn.mcc_present = true;
+  plmn.mcc         = {0, 0, 1};
+  plmn.mnc.resize(2);
+  plmn.mnc[0]           = 0;
+  plmn.mnc[1]           = 1;
+  plmn_info.tac_present = false;
+  plmn_info.cell_id.from_number(0x19b0);
+  plmn_info.cell_reserved_for_oper.value = asn1::rrc_nr::plmn_id_info_s::cell_reserved_for_oper_opts::not_reserved;
+
+  sib1.si_sched_info_present          = true;
+  sib1.si_sched_info.si_win_len.value = asn1::rrc_nr::si_sched_info_s::si_win_len_opts::s20;
+  sib1.si_sched_info.sched_info_list.resize(si_msg_sibs.size());
+  for (unsigned i = 0, e = si_msg_sibs.size(); i != e; ++i) {
+    const sib_type sib                   = si_msg_sibs[i];
+    auto&          sched_info            = sib1.si_sched_info.sched_info_list[i];
+    sched_info.si_broadcast_status.value = asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting;
+    sched_info.si_periodicity.value      = asn1::rrc_nr::sched_info_s::si_periodicity_opts::rf16;
+    sched_info.sib_map_info.resize(1);
+    auto& sib_info = sched_info.sib_map_info[0];
+    switch (sib) {
+      case sib_type::sib7:
+        sib_info.type.value = asn1::rrc_nr::sib_type_info_s::type_opts::sib_type7;
+        break;
+      case sib_type::sib8:
+        sib_info.type.value = asn1::rrc_nr::sib_type_info_s::type_opts::sib_type8;
+        break;
+      default:
+        sib_info.type.value = asn1::rrc_nr::sib_type_info_s::type_opts::sib_type2;
+        break;
+    }
+  }
+
+  byte_buffer   buf;
+  asn1::bit_ref bref{buf};
+  report_fatal_error_if_not(msg.pack(bref) == asn1::OCUDUASN_SUCCESS, "Failed to pack the test SIB1");
+  return buf;
+}
+
+/// Returns the si-BroadcastStatus of each SI message listed in a packed BCCH-DL-SCH SIB1 payload.
+inline std::vector<bool> get_si_broadcast_status(span<const uint8_t> sib1_pdu)
+{
+  byte_buffer                     sib1_buf = byte_buffer::create(sib1_pdu).value();
+  asn1::rrc_nr::bcch_dl_sch_msg_s msg;
+  asn1::cbit_ref                  bref{sib1_buf};
+  report_fatal_error_if_not(msg.unpack(bref) == asn1::OCUDUASN_SUCCESS, "Failed to unpack the SIB1");
+
+  std::vector<bool> broadcasting;
+  for (const auto& sched_info : msg.msg.c1().sib_type1().si_sched_info.sched_info_list) {
+    broadcasting.push_back(sched_info.si_broadcast_status.value ==
+                           asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::broadcasting);
+  }
+  return broadcasting;
 }
 
 inline byte_buffer make_pdu_with_padding(const byte_buffer& payload, units::bytes tbs)

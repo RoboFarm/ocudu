@@ -40,6 +40,10 @@ public:
   /// enqueued at its proper Tx slots.
   bool handle_si_message_pdu_updates(const mac_cell_sys_info_pdu_update& req);
 
+  /// \brief Retrieves the ETWS/CMAS SI epoch to apply, if the set of SI messages carrying a warning changed.
+  /// \remark The returned command is only generated once per change.
+  std::optional<si_update_command> take_etws_command();
+
 private:
   /// Encoder for a static BCCH-DL-SCH SIB1 payload.
   class sib1_static_encoder;
@@ -66,6 +70,9 @@ private:
 
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req);
 
+  /// Derives the ETWS/CMAS SI epoch from the current one, listing the given SI messages as broadcasting.
+  void build_etws_command(span<const sib_type_set> broadcasting);
+
   /// \brief Fetches the PWS encoder of the SI message at a given position of an SI scheduling configuration.
   /// \return The encoder, or nullptr if the position does not exist or its SI message carries no PWS SIB.
   std::shared_ptr<pws_si_msg_encoder> find_pws_encoder(const si_scheduling_config& si_sched_cfg,
@@ -83,8 +90,18 @@ private:
   // Last SI messages used to build the current SI-message encoders.
   static_vector<bcch_dl_sch_payload_type, MAX_SI_MESSAGES> last_si_messages;
 
+  // Last SI epoch handed out. Both the normal operation and the ETWS/CMAS epochs draw from it, so that a version
+  // identifies an epoch on its own.
+  si_version_type last_version = 0;
+
   // Command matching the System Information currently being broadcast.
   si_update_command last_cmd;
+
+  // SI messages that are currently carrying a warning.
+  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting_warnings;
+
+  // ETWS/CMAS SI epoch waiting to be applied in the MAC cell.
+  std::optional<si_update_command> pending_etws_cmd;
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 

@@ -44,6 +44,9 @@ async_task<mac_cell_reconfig_response> mac_cell_controller_impl::reconfigure(con
       resp.si_pdus_enqueued = si_mng.handle_si_message_pdu_updates(*request.new_si_pdu_info);
     }
 
+    // A warning that started or stopped being broadcast changes the si-BroadcastStatus listed in SIB1.
+    dl_req.etws_si_update = si_mng.take_etws_command();
+
     dl_req.slice_reconf_req           = request.slice_reconf_req;
     dl_req.ntn_ul_ta_update           = request.ntn_ul_ta_update;
     dl_req.cell_barred_mod            = request.cell_barred_mod;

@@ -158,6 +158,11 @@ async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_requ
       handle_si_update(*request.si_update);
     }
 
+    if (request.etws_si_update.has_value()) {
+      // Provide the encoders before the scheduler starts stamping its grants with this epoch, as above.
+      sib_assembler.handle_etws_si_update(*request.etws_si_update);
+    }
+
     if (request.slice_reconf_req.has_value() or request.ntn_ul_ta_update.has_value()) {
       // Change to respective DL cell executor context. Both updates mutate the scheduler cell configuration, which is
       // read on the slot indication critical path.

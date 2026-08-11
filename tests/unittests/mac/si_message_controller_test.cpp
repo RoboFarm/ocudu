@@ -348,3 +348,63 @@ TEST_F(si_message_controller_auto_broadcast_test,
   ASSERT_EQ(bench.sched.last_pws_nof_segments, 1);
   ASSERT_EQ(bench.sched.last_pws_msg_len, units::bytes{50});
 }
+
+/// Fixture whose SIB1 is a real ASN.1 payload listing one dormant SIB7 SI message, so that its si-BroadcastStatus can
+/// be read back from the generated payloads.
+class si_message_controller_broadcast_status_test : public ::testing::Test
+{
+public:
+  si_message_controller_broadcast_status_test() : bench(make_sys_info_cfg()) {}
+
+  static mac_cell_sys_info_config make_sys_info_cfg()
+  {
+    static const std::array<sib_type, 1> si_msg_sibs{sib_type::sib7};
+
+    mac_cell_sys_info_config cfg;
+    cfg.sib1 = make_sib1_with_si_sched_info(si_msg_sibs);
+    cfg.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
+    cfg.si_sched_cfg.si_messages.emplace_back().sibs = sib_type_set{sib_type::sib7};
+    return cfg;
+  }
+
+  /// Encodes SIB1 out of a given epoch and returns the si-BroadcastStatus it lists per SI message.
+  std::vector<bool> broadcast_status_of(const si_update_command& cmd)
+  {
+    units::bytes    tbs{MAX_BCCH_DL_SCH_PDU_SIZE / 2};
+    sib_information si_info = make_sib_pdu(std::nullopt, cmd.version, tbs);
+    auto            payload = cmd.sib1->encode(bench.current_slot, si_info);
+    report_fatal_error_if_not(payload.has_value(), "Failed to encode SIB1");
+    return get_si_broadcast_status(payload.value());
+  }
+
+  si_bench bench;
+};
+
+TEST_F(si_message_controller_broadcast_status_test, when_no_warning_is_on_air_then_no_etws_epoch_is_generated)
+{
+  ASSERT_FALSE(bench.si_mng.take_etws_command().has_value());
+  ASSERT_EQ(broadcast_status_of(bench.si_mng.last_command()), std::vector<bool>{false});
+}
+
+TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_etws_epoch_lists_it_as_broadcasting)
+{
+  std::vector<byte_buffer>     segments = make_random_segmented_pdu(50, 1);
+  mac_cell_sys_info_pdu_update req;
+  req.si_msg_idx    = 0;
+  req.sib_idx       = 7;
+  req.si_messages   = span<byte_buffer>(segments);
+  req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 1};
+  ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
+
+  std::optional<si_update_command> etws_cmd = bench.si_mng.take_etws_command();
+  ASSERT_TRUE(etws_cmd.has_value()) << "Starting a warning must generate an ETWS/CMAS epoch";
+  ASSERT_EQ(broadcast_status_of(*etws_cmd), std::vector<bool>{true});
+
+  // The normal-operation epoch keeps listing it as dormant, so that it resumes on its own once the warning stops.
+  ASSERT_EQ(broadcast_status_of(bench.si_mng.last_command()), std::vector<bool>{false});
+  ASSERT_NE(etws_cmd->version, bench.si_mng.last_command().version)
+      << "Both epochs must be distinguishable by version alone";
+
+  // The epoch is only handed out once per change.
+  ASSERT_FALSE(bench.si_mng.take_etws_command().has_value());
+}
