@@ -512,10 +512,12 @@ void si_message_controller::build_etws_command(span<const sib_type_set> broadcas
   }
 
   // The ETWS/CMAS epoch only differs from the normal operation one in SIB1, so the remaining encoders are shared.
-  si_update_command cmd = last_cmd;
-  cmd.version           = ++last_version;
-  cmd.sib1              = std::make_shared<sib1_static_encoder>(etws_sib1);
-  pending_etws_cmd      = std::move(cmd);
+  si_update_command cmd              = last_cmd;
+  cmd.version                        = ++last_version;
+  cmd.si_sched_cfg.sib1_payload_size = units::bytes{static_cast<unsigned>(etws_sib1.length())};
+  cmd.sib1                           = std::make_shared<sib1_static_encoder>(etws_sib1);
+  cmd.broadcasting.assign(broadcasting.begin(), broadcasting.end());
+  pending_etws_cmd = std::move(cmd);
 }
 
 std::optional<si_update_command> si_message_controller::take_etws_command()

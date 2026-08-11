@@ -28,6 +28,25 @@ public:
   /// \brief Update the SI messages.
   void handle_si_message_update_indication(unsigned version, const si_scheduling_config& new_si_sched_cfg);
 
+  /// \brief Makes the ETWS/CMAS SI epoch the one in effect, activating only the SI messages it lists as broadcasting.
+  ///
+  /// The SI epoch of the normal operation is kept aside, and keeps being updated, so that it can be reverted to.
+  void apply_etws_epoch(unsigned                    version,
+                        const si_scheduling_config& etws_si_sched_cfg,
+                        span<const sib_type_set>    broadcasting);
+
+  /// Makes the SI epoch of the normal operation the one in effect again, with every warning back to dormant.
+  void revert_etws_epoch();
+
+  /// Whether the ETWS/CMAS SI epoch is the one in effect.
+  bool etws_epoch_in_effect() const { return baseline.has_value(); }
+
+  /// SI epoch currently in effect.
+  unsigned get_version() const { return version; }
+
+  /// SIB1 payload size of the SI epoch currently in effect.
+  units::bytes get_sib1_payload_size() const { return si_sched_cfg.sib1_payload_size; }
+
   /// \brief Activates an SI-message that requires explicit activation.
   /// \param si_msg SIBs carried by the SI-message to activate.
   /// \param activation_slot Slot at which this activation is being processed, used as the origin for the
@@ -35,10 +54,11 @@ public:
   /// \param nof_segments Number of segments that should reach the UE for this SI-message activation. If equal to
   /// \c std::nullopt, the SI-message should remain active indefinitely.
   /// \param msg_len Length, in bytes, of the largest segment of the content being activated.
-  void activate_si_message(sib_type_set            si_msg,
-                           slot_point_extended     activation_slot,
-                           std::optional<unsigned> nof_segments,
-                           units::bytes            msg_len);
+  /// \return Slot until which this activation must keep being broadcast, or \c std::nullopt if indefinitely.
+  std::optional<slot_point_extended> activate_si_message(sib_type_set            si_msg,
+                                                         slot_point_extended     activation_slot,
+                                                         std::optional<unsigned> nof_segments,
+                                                         units::bytes            msg_len);
 
   /// \brief Applies the PDSCH grant sizing (msg_len) from a new SI scheduling config, immediately and without touching
   /// window/active state or bumping version, but only for SI-messages whose content is exempt from the SI change
@@ -94,8 +114,15 @@ private:
   si_scheduling_config              si_sched_cfg;
   ocudulog::basic_logger&           logger;
 
+  /// SI epoch of the normal operation, kept aside while the ETWS/CMAS one is in effect.
+  struct baseline_epoch {
+    unsigned             version = 0;
+    si_scheduling_config si_sched_cfg;
+  };
+
   std::vector<message_window_context> pending_messages;
   unsigned                            version = 0;
+  std::optional<baseline_epoch>       baseline;
 };
 
 } // namespace ocudu

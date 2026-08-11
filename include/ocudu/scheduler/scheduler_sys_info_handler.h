@@ -45,6 +45,22 @@ struct pws_broadcast_request {
   units::bytes msg_len;
 };
 
+/// \brief Information relative to the update of the System Information broadcast while a warning is on air.
+///
+/// It coexists with the SI epoch of the normal operation, which the scheduler goes back to once no warning is being
+/// broadcast anymore. Applying it replaces the set of SI messages that carry a warning, so that what the scheduler
+/// broadcasts and what its SIB1 lists as broadcasting cannot disagree.
+struct etws_si_scheduling_update_request {
+  /// Cell index specific to the update of the SI scheduling.
+  du_cell_index_t cell_index;
+  /// SI epoch counter, drawn from the same space as the normal operation one.
+  si_version_type version;
+  /// Configuration of SI scheduling, including SIB1 payload length and SI messages.
+  si_scheduling_config si_sched_cfg;
+  /// SI messages that are broadcasting a warning.
+  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting;
+};
+
 /// Interface used to notify new SIB1 or SI message updates to the scheduler.
 class scheduler_sys_info_handler
 {
@@ -53,6 +69,9 @@ public:
 
   /// Handle cell system information scheduling update.
   virtual void handle_si_update_request(const si_scheduling_update_request& req) = 0;
+
+  /// Handle an update of the System Information broadcast while a warning is on air.
+  virtual void handle_etws_si_update_request(const etws_si_scheduling_update_request& req) = 0;
 
   /// Handle a PWS (Write-Replace Warning) broadcast indication for one complete broadcast.
   virtual void handle_pws_broadcast_indication(const pws_broadcast_request& req) = 0;

@@ -29,6 +29,7 @@ public:
 
   // Sys Info handling.
   void handle_si_update_request(const si_scheduling_update_request& req) override;
+  void handle_etws_si_update_request(const etws_si_scheduling_update_request& req) override;
   void handle_pws_broadcast_indication(const pws_broadcast_request& req) override;
 
   // scheduler_slot_handler interface methods.

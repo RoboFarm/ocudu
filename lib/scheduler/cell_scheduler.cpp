@@ -45,6 +45,11 @@ cell_scheduler::cell_scheduler(const scheduler_expert_config&                  s
                                                                    &ue_cell_db});
 }
 
+void cell_scheduler::handle_etws_si_update_request(const etws_si_scheduling_update_request& msg)
+{
+  si_sch.handle_etws_si_update_request(msg);
+}
+
 void cell_scheduler::handle_si_update_request(const si_scheduling_update_request& msg)
 {
   si_sch.handle_si_update_request(msg);

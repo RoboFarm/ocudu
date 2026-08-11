@@ -160,7 +160,11 @@ async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_requ
 
     if (request.etws_si_update.has_value()) {
       // Provide the encoders before the scheduler starts stamping its grants with this epoch, as above.
-      sib_assembler.handle_etws_si_update(*request.etws_si_update);
+      const si_update_command& etws_cmd = *request.etws_si_update;
+      sib_assembler.handle_etws_si_update(etws_cmd);
+
+      sched.handle_etws_si_change_indication(etws_si_scheduling_update_request{
+          cell_cfg.cell_index, etws_cmd.version, etws_cmd.si_sched_cfg, etws_cmd.broadcasting});
     }
 
     if (request.slice_reconf_req.has_value() or request.ntn_ul_ta_update.has_value()) {

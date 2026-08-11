@@ -90,6 +90,7 @@ public:
                                mac_cell_slot_handler::error_event event) override;
 
   void handle_si_change_indication(const si_scheduling_update_request& request) override;
+  void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) override;
 
   void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
                                        sib_type_set            si_msg,

@@ -13,6 +13,7 @@ namespace ocudu {
 
 struct du_cell_slice_reconfig_request;
 struct sched_cell_ntn_ul_ta_update;
+struct etws_si_scheduling_update_request;
 struct si_scheduling_update_request;
 
 /// \brief Interface used to reconfigure a cell that has already been created in the MAC scheduler.
@@ -25,6 +26,10 @@ public:
   /// \param[in] request Request to change SI sched info and messages.
   /// \remark Must be called from the cell control executor.
   virtual void handle_si_change_indication(const si_scheduling_update_request& request) = 0;
+
+  /// \brief Update the System Information broadcast while a warning is on air.
+  /// \remark Must be called from the cell control executor.
+  virtual void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) = 0;
 
   /// \brief Request the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification and activate the target
   /// SI-message.

@@ -103,6 +103,7 @@ public:
   void handle_ue_config_applied(du_ue_index_t ue_index) override {}
   void handle_ue_deactivation_request(du_ue_index_t ue_index) override {}
   void handle_si_update_request(const si_scheduling_update_request& req) override {}
+  void handle_etws_si_update_request(const etws_si_scheduling_update_request& req) override {}
   void handle_pws_broadcast_indication(const pws_broadcast_request& req) override {}
   void handle_ul_bsr_indication(const ul_bsr_indication_message& bsr) override {}
   void handle_crc_indication(const ul_crc_indication& crc) override {}
@@ -185,6 +186,13 @@ public:
   }
 
   void handle_si_change_indication(const si_scheduling_update_request& request) override {}
+
+  std::optional<etws_si_scheduling_update_request> last_etws_si_change;
+
+  void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) override
+  {
+    last_etws_si_change = request;
+  }
 
   unsigned                nof_pws_broadcast_indications = 0;
   sib_type_set            last_pws_si_msg;

@@ -84,6 +84,8 @@ struct si_update_command {
   static_vector<std::shared_ptr<bcch_dl_sch_msg_encoder>, MAX_SI_MESSAGES> si_msgs;
   /// Scheduling parameters of SIB1 and of each SI-message.
   si_scheduling_config si_sched_cfg;
+  /// SI messages that are broadcasting a warning. Only filled for an ETWS/CMAS epoch.
+  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting;
 };
 
 } // namespace ocudu

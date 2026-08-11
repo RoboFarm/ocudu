@@ -68,6 +68,14 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
     }
   }
 
+  if (baseline.has_value()) {
+    // The ETWS/CMAS epoch is in effect. Update the epoch kept aside, so that reverting to it does not bring back
+    // superseded System Information.
+    baseline->version      = new_version;
+    baseline->si_sched_cfg = new_si_sched_cfg;
+    return;
+  }
+
   // Update SI messages.
   version      = new_version;
   si_sched_cfg = new_si_sched_cfg;
@@ -91,17 +99,17 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   }
 }
 
-void si_message_scheduler::activate_si_message(sib_type_set            si_msg,
-                                               slot_point_extended     activation_slot,
-                                               std::optional<unsigned> nof_segments,
-                                               units::bytes            msg_len)
+std::optional<slot_point_extended> si_message_scheduler::activate_si_message(sib_type_set            si_msg,
+                                                                             slot_point_extended     activation_slot,
+                                                                             std::optional<unsigned> nof_segments,
+                                                                             units::bytes            msg_len)
 {
   auto it = std::find_if(si_sched_cfg.si_messages.begin(),
                          si_sched_cfg.si_messages.end(),
                          [si_msg](const si_message_scheduling_config& cfg) { return cfg.sibs == si_msg; });
   if (it == si_sched_cfg.si_messages.end()) {
     // The SI-message is no longer part of the SI scheduling configuration.
-    return;
+    return std::nullopt;
   }
   const unsigned si_msg_idx = std::distance(si_sched_cfg.si_messages.begin(), it);
 
@@ -112,7 +120,7 @@ void si_message_scheduler::activate_si_message(sib_type_set            si_msg,
   if (not nof_segments.has_value()) {
     // Broadcast indefinitely (test_mode-configured content); never auto-deactivates.
     ctxt.active_until.reset();
-    return;
+    return std::nullopt;
   }
 
   // Ensure single-round PWS delivery reaches every UE, not just the ones whose paging occasion happens to land
@@ -128,6 +136,64 @@ void si_message_scheduler::activate_si_message(sib_type_set            si_msg,
   const unsigned active_duration_rfs = default_paging_cycle_rfs + one_segment_cycle_rfs;
 
   ctxt.active_until = activation_slot + active_duration_rfs * activation_slot.nof_slots_per_frame();
+  return ctxt.active_until;
+}
+
+void si_message_scheduler::apply_etws_epoch(unsigned                    new_version,
+                                            const si_scheduling_config& etws_si_sched_cfg,
+                                            span<const sib_type_set>    broadcasting)
+{
+  if (not baseline.has_value()) {
+    baseline.emplace(baseline_epoch{version, si_sched_cfg});
+  }
+
+  version      = new_version;
+  si_sched_cfg = etws_si_sched_cfg;
+  pending_messages.resize(si_sched_cfg.si_messages.size());
+
+  // The epoch declares which SI messages carry a warning, so that the SI messages being broadcast and the ones its
+  // SIB1 lists as broadcasting are one and the same.
+  for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
+    const si_message_scheduling_config& si_msg = si_sched_cfg.si_messages[i];
+    if (not si_msg.requires_activation()) {
+      pending_messages[i].active  = true;
+      pending_messages[i].msg_len = si_msg.msg_len;
+      continue;
+    }
+
+    const bool is_broadcasting = std::any_of(
+        broadcasting.begin(), broadcasting.end(), [&si_msg](sib_type_set entry) { return entry == si_msg.sibs; });
+    if (not is_broadcasting) {
+      pending_messages[i] = {};
+      continue;
+    }
+    if (not pending_messages[i].active) {
+      // Newly activated. Its content length is set by the PWS broadcast indication.
+      pending_messages[i].active = true;
+    }
+  }
+}
+
+void si_message_scheduler::revert_etws_epoch()
+{
+  if (not baseline.has_value()) {
+    return;
+  }
+
+  version      = baseline->version;
+  si_sched_cfg = baseline->si_sched_cfg;
+  baseline.reset();
+
+  pending_messages.resize(si_sched_cfg.si_messages.size());
+  for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
+    if (si_sched_cfg.si_messages[i].requires_activation()) {
+      // Every warning goes back to dormant.
+      pending_messages[i] = {};
+      continue;
+    }
+    pending_messages[i].active  = true;
+    pending_messages[i].msg_len = si_sched_cfg.si_messages[i].msg_len;
+  }
 }
 
 void si_message_scheduler::update_msg_lens(const si_scheduling_config& new_si_sched_cfg)

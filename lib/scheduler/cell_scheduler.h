@@ -51,6 +51,8 @@ public:
 
   void handle_si_update_request(const si_scheduling_update_request& msg);
 
+  void handle_etws_si_update_request(const etws_si_scheduling_update_request& msg);
+
   void handle_pws_broadcast_indication(const pws_broadcast_request& req);
 
   void handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& slice_reconf_req);

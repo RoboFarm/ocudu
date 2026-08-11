@@ -30,6 +30,8 @@ public:
 
   void handle_si_update_request(const si_scheduling_update_request& req);
 
+  void handle_etws_si_update_request(const etws_si_scheduling_update_request& req);
+
   void handle_pws_broadcast_indication(const pws_broadcast_request& req);
 
   void stop();
@@ -93,7 +95,28 @@ private:
   /// value.
   slot_point_extended si_change_start_slot;
 
+  /// \brief Applies a pending ETWS/CMAS SI epoch, and reverts to the normal operation one once no warning is being
+  /// broadcast anymore.
+  void handle_etws_epoch(slot_point_extended slot_sched);
+
   si_version_type next_pws_version = 1;
+
+  /// Pending ETWS/CMAS SI epoch, tagged with a locally-generated version for newness detection.
+  struct etws_pending_epoch {
+    si_version_type                   version = 0;
+    etws_si_scheduling_update_request req;
+  };
+  lockfree_triple_buffer<etws_pending_epoch> pending_etws_epoch;
+  si_version_type                            last_seen_etws_epoch = 0;
+  si_version_type                            next_etws_epoch      = 1;
+
+  /// \brief Slot until which the ETWS/CMAS SI epoch stays in effect.
+  ///
+  /// The whole epoch shares one deadline, rather than one per SI message: an SI message whose own broadcast completed
+  /// keeps being broadcast until the last one does. That way the set of SI messages listed as broadcasting in SIB1
+  /// only ever grows while the epoch is in effect, and can never claim a warning that is no longer on air.
+  /// \remark If \c std::nullopt while the epoch is in effect, it stays in effect indefinitely.
+  std::optional<slot_point_extended> etws_until;
   /// One pending-request slot per SI-message that requires activation, keyed by SI-message index.
   slotted_vector<pws_pending_entry> pending_pws_reqs;
   /// \brief Slot up to which the PWS (ETWS/CMAS) short-message notification must keep being transmitted at every

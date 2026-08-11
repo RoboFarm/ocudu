@@ -660,3 +660,50 @@ TEST_F(si_msg_scheduler_tdra_test, when_custom_pdsch_td_alloc_list_configured_th
 }
 
 } // namespace
+
+TEST_F(si_msg_scheduler_activation_test, when_etws_epoch_is_applied_then_grants_use_it_until_the_warning_ends)
+{
+  // The ETWS/CMAS epoch is stamped on the grants for as long as a warning is on air, so that the SIB PDU assembler
+  // serves the SIB1 that lists it as broadcasting. Once the warning ends, the grants go back to the normal operation
+  // epoch on their own, without the MAC having to push anything.
+  const unsigned     nof_segments        = 2;
+  const unsigned     period_radio_frames = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].period_radio_frames;
+  const units::bytes msg_len             = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len;
+
+  const si_version_type baseline_version = 0;
+  const si_version_type etws_version     = 1;
+
+  etws_si_scheduling_update_request etws_req{to_du_cell_index(0), etws_version, ACTIVATION_REQUIRED_SI_SCHED_CFG, {}};
+  etws_req.broadcasting.push_back(sib_type_set{sib_type::sib7});
+  si_sched.handle_etws_si_update_request(etws_req);
+  si_sched.handle_pws_broadcast_indication(
+      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, nof_segments, msg_len});
+
+  const unsigned default_paging_cycle_rfs =
+      static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
+  const unsigned active_duration_rfs = default_paging_cycle_rfs + nof_segments * period_radio_frames;
+  const unsigned nof_test_slots      = 2 * active_duration_rfs * next_slot.nof_slots_per_frame();
+
+  unsigned nof_etws_grants     = 0;
+  unsigned nof_baseline_grants = 0;
+  bool     reverted            = false;
+  for (unsigned i = 0; i != nof_test_slots; ++i) {
+    run_slot();
+    for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+      if (sib.version == etws_version) {
+        ++nof_etws_grants;
+        ASSERT_FALSE(reverted) << "The ETWS/CMAS epoch came back after the warning had ended";
+      } else {
+        ASSERT_EQ(sib.version, baseline_version);
+        if (nof_etws_grants > 0) {
+          reverted = true;
+          ++nof_baseline_grants;
+        }
+      }
+    }
+  }
+
+  ASSERT_GT(nof_etws_grants, 0U) << "No grant was stamped with the ETWS/CMAS epoch";
+  ASSERT_TRUE(reverted) << "The grants never went back to the normal operation epoch";
+  ASSERT_GT(nof_baseline_grants, 0U);
+}
