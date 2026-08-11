@@ -98,7 +98,9 @@ void du_manager_controller_impl::handle_du_stop_request(scoped_sync_token tk)
     // DU stop successfully finished.
     // Dispatch main async task loop destruction via defer so that the current coroutine ends successfully before
     // we start destroying the DU manager (in case stop is called from dtor).
-    while (not proc_ctxt.params.services.du_mng_exec.defer([this, tk = std::move(tk)]() {
+    // Note: tk is captured by copy so that a failed defer (which destroys the passed task and its token copy) does
+    // not prematurely signal the sync_event nor leave tk in a moved-from state for the retries.
+    while (not proc_ctxt.params.services.du_mng_exec.defer([this, tk]() {
       // Let main loop go out of scope and be destroyed.
       auto main_loop = main_task_sched.request_stop();
 
