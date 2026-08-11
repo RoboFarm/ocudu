@@ -124,3 +124,30 @@ TEST_F(sib_pdu_assembler_test, when_si_message_is_added_then_encoding_matched_ad
                                           expected,
                                           byte_buffer::create(pdu).value());
 }
+
+TEST_F(sib_pdu_assembler_test, when_two_si_epochs_coexist_then_each_grant_is_encoded_with_its_own)
+{
+  // The ETWS/CMAS epoch coexists with the normal-operation one, and the scheduler picks between them per grant. The
+  // assembler must resolve each grant through the epoch it was scheduled with, in either direction and repeatedly.
+  const byte_buffer baseline_sib1 = bench.sys_info_cfg.sib1.copy();
+
+  mac_cell_sys_info_config etws_cfg;
+  etws_cfg.sib1 = make_random_pdu();
+  ASSERT_NE(etws_cfg.sib1, baseline_sib1);
+  const si_update_command etws_cmd = bench.apply_etws_si(etws_cfg, bench.si_mng.last_command().version + 1);
+
+  auto encode_sib1_of = [this](si_version_type version, const byte_buffer& expected) {
+    units::bytes        tbs{static_cast<unsigned>(expected.length())};
+    sib_information     si_info = make_sib_pdu(std::nullopt, version, tbs);
+    span<const uint8_t> pdu     = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
+    return byte_buffer::create(pdu).value() == expected;
+  };
+
+  for (unsigned i = 0; i != 3; ++i) {
+    bench.current_slot++;
+    ASSERT_TRUE(encode_sib1_of(etws_cmd.version, etws_cfg.sib1)) << "ETWS/CMAS epoch not served, iteration " << i;
+    bench.current_slot++;
+    ASSERT_TRUE(encode_sib1_of(bench.si_mng.last_command().version, baseline_sib1))
+        << "Normal-operation epoch not served after the ETWS/CMAS one, iteration " << i;
+  }
+}

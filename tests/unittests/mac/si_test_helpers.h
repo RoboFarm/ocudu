@@ -73,6 +73,21 @@ public:
     return cmd;
   }
 
+  /// \brief Builds an SI epoch out of a separate SI configuration and applies it as the ETWS/CMAS one.
+  ///
+  /// Stands in for the warning snapshot that the SI message controller will derive from the baseline one, so that
+  /// the assembler can be exercised with two coexisting epochs.
+  si_update_command apply_etws_si(const mac_cell_sys_info_config& etws_cfg, si_version_type version)
+  {
+    etws_si_mng = std::make_unique<si_message_controller>(
+        to_du_cell_index(0), etws_cfg, timer_factory{timers, task_worker}, sched);
+
+    si_update_command cmd = etws_si_mng->last_command();
+    cmd.version           = version;
+    assembler.handle_etws_si_update(cmd);
+    return cmd;
+  }
+
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
   void tick(unsigned nof_ticks)
   {
@@ -89,6 +104,9 @@ public:
   mac_cell_sys_info_config sys_info_cfg;
   si_message_controller    si_mng;
   sib_pdu_assembler        assembler;
+
+  // Stands in for the SI message controller-side production of the ETWS/CMAS epoch.
+  std::unique_ptr<si_message_controller> etws_si_mng;
 
   slot_point_extended current_slot{subcarrier_spacing::kHz30, 0};
 };

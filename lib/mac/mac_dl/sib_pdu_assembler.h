@@ -24,6 +24,12 @@ public:
   /// Applies a new SI epoch, to be used for the SI grants stamped with its version.
   void handle_si_update(const si_update_command& cmd);
 
+  /// \brief Applies a new ETWS/CMAS SI epoch, to be used for the SI grants stamped with its version.
+  ///
+  /// It coexists with the SI epoch of the normal operation, which the scheduler goes back to once the warning stops
+  /// being broadcast.
+  void handle_etws_si_update(const si_update_command& cmd);
+
   /// \brief Retrieve the encoded SI message.
   /// \note Called from RT path, so it must be lock-free and non-blocking.
   span<const uint8_t> encode_si_pdu(slot_point_extended sl_tx, const sib_information& si_info);
@@ -40,12 +46,18 @@ private:
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 
-  // Encoders being transferred from the configuration plane to the assembler RT path.
-  lockfree_triple_buffer<si_encoder_snapshot> pending;
+  /// Selects the encoders that a given SI grant was scheduled with, refreshing them if they are not held yet.
+  const si_encoder_snapshot& select_snapshot(si_version_type version);
 
-  // Encoders that are being currently used to generate the PDUs sent to lower layers.
-  // Note: This member is only accessed from the RT path.
+  // Encoders being transferred from the configuration plane to the assembler RT path, one per SI epoch channel.
+  lockfree_triple_buffer<si_encoder_snapshot> pending;
+  lockfree_triple_buffer<si_encoder_snapshot> pending_etws;
+
+  // Encoders that are being currently used to generate the PDUs sent to lower layers. Both channels are kept, given
+  // that the scheduler alternates between them for as long as a warning is being broadcast.
+  // Note: These members are only accessed from the RT path.
   si_encoder_snapshot current;
+  si_encoder_snapshot current_etws;
 };
 
 } // namespace ocudu

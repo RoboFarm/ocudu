@@ -30,29 +30,50 @@ void sib_pdu_assembler::handle_si_update(const si_update_command& cmd)
   pending.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
 }
 
+void sib_pdu_assembler::handle_etws_si_update(const si_update_command& cmd)
+{
+  pending_etws.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
+}
+
+const sib_pdu_assembler::si_encoder_snapshot& sib_pdu_assembler::select_snapshot(si_version_type version)
+{
+  if (version == current.version) {
+    return current;
+  }
+  if (version == current_etws.version) {
+    return current_etws;
+  }
+
+  // The grant was scheduled with an SI epoch that is not held yet. Fetch it from the shared buffers.
+  current = pending.read();
+  if (version == current.version) {
+    return current;
+  }
+  current_etws = pending_etws.read();
+  if (version == current_etws.version) {
+    return current_etws;
+  }
+
+  logger.error("SI message version mismatch. Expected: {}, got: {}", version, current.version);
+  // We force the version to avoid more than one error log message.
+  current.version = version;
+  return current;
+}
+
 span<const uint8_t> sib_pdu_assembler::encode_si_pdu(slot_point_extended sl_tx, const sib_information& si_info)
 {
   ocudu_assert(si_info.pdsch_cfg.codewords.size() == 1, "SIB grants always carry exactly one codeword");
   const unsigned tbs = si_info.pdsch_cfg.codewords[0].tb_size_bytes.value();
   ocudu_assert(tbs <= MAX_BCCH_DL_SCH_PDU_SIZE, "BCCH-DL-SCH is too long. Revisit constant");
 
-  if (si_info.version != current.version) {
-    // Current SI message version is too old. Fetch new version from shared buffer.
-    current = pending.read();
-    if (current.version != si_info.version) {
-      // Versions do not match.
-      logger.error("SI message version mismatch. Expected: {}, got: {}", si_info.version, current.version);
-      // We force the version to avoid more than one error log message.
-      current.version = si_info.version;
-    }
-  }
+  const si_encoder_snapshot& snapshot = select_snapshot(si_info.version);
 
   if (si_info.si_indicator == sib_information::si_indicator_type::sib1) {
-    if (not current.sib1) {
+    if (not snapshot.sib1) {
       logger.error("Failed to encode SIB1 in PDSCH. Cause: No SIB1 was provided for the cell");
       return span<const uint8_t>{zeros_payload}.first(tbs);
     }
-    auto payload = current.sib1->encode(sl_tx, si_info);
+    auto payload = snapshot.sib1->encode(sl_tx, si_info);
     if (not payload.has_value()) {
       units::bytes sib1_len = payload.error();
       logger.warning(
@@ -64,7 +85,7 @@ span<const uint8_t> sib_pdu_assembler::encode_si_pdu(slot_point_extended sl_tx, 
 
   ocudu_assert(si_info.si_msg_index.has_value(), "Invalid SI message index");
   const unsigned idx = si_info.si_msg_index.value();
-  if (idx >= current.si_msgs.size() or not current.si_msgs[idx]) {
+  if (idx >= snapshot.si_msgs.size() or not snapshot.si_msgs[idx]) {
     logger.error("Failed to encode SI-message in PDSCH. Cause: SI message index {} does not exist", idx);
     return span<const uint8_t>{zeros_payload}.first(tbs);
   }
@@ -76,7 +97,7 @@ span<const uint8_t> sib_pdu_assembler::encode_si_pdu(slot_point_extended sl_tx, 
     }
   }
 
-  auto payload = current.si_msgs[idx]->encode(sl_tx, si_info);
+  auto payload = snapshot.si_msgs[idx]->encode(sl_tx, si_info);
   if (not payload.has_value()) {
     units::bytes min_len = payload.error();
     logger.warning(
