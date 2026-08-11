@@ -50,7 +50,6 @@ mac_cell_processor::mac_cell_processor(const mac_cell_creation_request& cell_cfg
            MAX_K0_DELAY,
            get_nof_slots_per_subframe(cell_cfg.scs_common) * NOF_SFNS * NOF_SUBFRAMES_PER_FRAME),
   ssb_helper(cell_cfg_req_),
-  sib_assembler(cell_cfg_req_.cell_index, cell_cfg_req_.sys_info, timer_factory{timers_, ctrl_exec_}, sched_),
   rar_assembler(pdu_pool, sched_.get_cell_rach_handler(cell_cfg_req_.cell_index)),
   dlsch_assembler(ue_mng, dl_harq_buffers),
   paging_assembler(pdu_pool),
@@ -131,28 +130,28 @@ async_task<void> mac_cell_processor::stop()
   });
 }
 
-async_task<mac_cell_reconfig_response> mac_cell_processor::reconfigure(const mac_cell_reconfig_request& request)
+void mac_cell_processor::set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler)
 {
-  return launch_async([this, request, resp = mac_cell_reconfig_response{}](
-                          coro_context<async_task<mac_cell_reconfig_response>>& ctx) mutable {
+  sib_assembler.set_extension_handler(std::move(handler));
+}
+
+void mac_cell_processor::handle_si_update(const si_update_command& cmd)
+{
+  // Provide the new encoders to the SIB assembler before the scheduler starts stamping its grants with the new
+  // version, otherwise the assembler has no encoders to serve those grants with.
+  sib_assembler.handle_si_update(cmd);
+
+  // Notify scheduler of SIB1/SI message scheduling update.
+  sched.handle_si_change_indication(si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg});
+}
+
+async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_request& request)
+{
+  return launch_async([this, request](coro_context<async_task<void>>& ctx) mutable {
     CORO_BEGIN(ctx);
 
-    if (request.new_sys_info.has_value()) {
-      // SI message update with SI change notifications and/or SIB1 valueTag update.
-      if (request.new_sys_info.has_value()) {
-        // Forward new SIB1/SI message PDUs to SIB assembler and update version.
-        sib_assembler.handle_si_change_request(*request.new_sys_info);
-
-        // Notify scheduler of SIB1/SI message scheduling update.
-        sched.handle_si_change_indication(request.new_sys_info->si_sched_cfg);
-
-        resp.si_updated = true;
-      }
-    }
-
-    if (request.new_si_pdu_info.has_value()) {
-      // SI message update without SIB1 valueTag update.
-      resp.si_pdus_enqueued = sib_assembler.handle_si_message_pdu_updates(*request.new_si_pdu_info);
+    if (request.si_update.has_value()) {
+      handle_si_update(*request.si_update);
     }
 
     if (request.slice_reconf_req.has_value() or request.ntn_ul_ta_update.has_value()) {
@@ -174,7 +173,7 @@ async_task<mac_cell_reconfig_response> mac_cell_processor::reconfigure(const mac
       CORO_AWAIT(execute_on_blocking(ctrl_exec, timers));
     }
 
-    CORO_RETURN(resp);
+    CORO_RETURN();
   });
 }
 

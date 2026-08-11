@@ -52,14 +52,14 @@ public:
 class mac_cell_dummy_controller final : public mac_dl_cell_controller
 {
 public:
-  unsigned nof_starts = 0;
+  unsigned                       nof_starts = 0;
+  std::optional<si_version_type> last_si_version;
 
-  async_task<void>                       start() override;
-  async_task<void>                       stop() override { return start(); }
-  async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override
-  {
-    return launch_no_op_task(mac_cell_reconfig_response{true});
-  }
+  async_task<void> start() override;
+  async_task<void> stop() override { return start(); }
+  void             set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) override {}
+  void             handle_si_update(const si_update_command& cmd) override { last_si_version = cmd.version; }
+  async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return start(); }
 };
 
 class mac_dl_dummy_configurer final : public mac_dl_configurator

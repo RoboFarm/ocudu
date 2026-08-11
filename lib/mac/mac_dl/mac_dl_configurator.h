@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "../bcch_dl_sch_encoder.h"
 #include "ocudu/mac/mac_cell_manager.h"
 #include "ocudu/mac/mac_clock_controller.h"
 #include "ocudu/mac/mac_metrics.h"
@@ -39,6 +40,16 @@ struct mac_cell_config_dependencies {
   mac_cell_metric_notifier* notifier = nullptr;
 };
 
+/// Reconfiguration of a MAC cell in the MAC DL processor.
+struct mac_dl_cell_reconfig_request {
+  /// If not empty, contains the new System Information to broadcast.
+  std::optional<si_update_command> si_update;
+  /// If not empty, contains the updates to be applied to the RRM policies.
+  std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
+  /// If not empty, contains a new reference location uplink timing advance for an NTN cell.
+  std::optional<sched_cell_ntn_ul_ta_update> ntn_ul_ta_update;
+};
+
 /// Interface used to handle the activation/reconfiguration/deactivation of a cell in the MAC DL processor.
 class mac_dl_cell_controller
 {
@@ -51,8 +62,16 @@ public:
   /// Stop the cell.
   virtual async_task<void> stop() = 0;
 
+  /// \brief Sets the handler of the SI PDU updates that bypass the SI modification window.
+  /// \remark Must be called once, before the cell is started.
+  virtual void set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) = 0;
+
+  /// \brief Applies a new SI epoch, to be broadcast by the cell.
+  /// \remark Must be called from the cell control executor.
+  virtual void handle_si_update(const si_update_command& cmd) = 0;
+
   /// Reconfigure operational cell.
-  virtual async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) = 0;
+  virtual async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) = 0;
 };
 
 /// Configurator of MAC cells in the MAC DL processor.

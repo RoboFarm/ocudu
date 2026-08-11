@@ -7,7 +7,17 @@
 
 using namespace ocudu;
 
-mac_cell_controller_impl::mac_cell_controller_impl(mac_dl_cell_controller& dl_cell_) : dl_cell(dl_cell_) {}
+mac_cell_controller_impl::mac_cell_controller_impl(const mac_cell_creation_request& cell_cfg,
+                                                   timer_factory                    timers,
+                                                   mac_scheduler_cell_configurator& sched,
+                                                   mac_dl_cell_controller&          dl_cell_) :
+  si_mng(cell_cfg.cell_index, cell_cfg.sys_info, timers, sched), dl_cell(dl_cell_)
+{
+  dl_cell.set_si_extension_handler(si_mng.extension_handler());
+
+  // Start broadcasting the System Information the cell was created with.
+  dl_cell.handle_si_update(si_mng.initial_command());
+}
 
 async_task<void> mac_cell_controller_impl::start()
 {
@@ -21,5 +31,26 @@ async_task<void> mac_cell_controller_impl::stop()
 
 async_task<mac_cell_reconfig_response> mac_cell_controller_impl::reconfigure(const mac_cell_reconfig_request& request)
 {
-  return dl_cell.reconfigure(request);
+  return launch_async([this, request, resp = mac_cell_reconfig_response{}, dl_req = mac_dl_cell_reconfig_request{}](
+                          coro_context<async_task<mac_cell_reconfig_response>>& ctx) mutable {
+    CORO_BEGIN(ctx);
+
+    if (request.new_sys_info.has_value()) {
+      // SI message update with SI change notifications and/or SIB1 valueTag update.
+      dl_req.si_update = si_mng.handle_si_change_request(*request.new_sys_info);
+      resp.si_updated  = dl_req.si_update.has_value();
+    }
+
+    if (request.new_si_pdu_info.has_value()) {
+      // SI message update without SIB1 valueTag update.
+      resp.si_pdus_enqueued = si_mng.handle_si_message_pdu_updates(*request.new_si_pdu_info);
+    }
+
+    dl_req.slice_reconf_req = request.slice_reconf_req;
+    dl_req.ntn_ul_ta_update = request.ntn_ul_ta_update;
+
+    CORO_AWAIT(dl_cell.reconfigure(dl_req));
+
+    CORO_RETURN(resp);
+  });
 }

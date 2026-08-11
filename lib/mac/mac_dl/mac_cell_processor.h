@@ -43,7 +43,11 @@ public:
   /// Stops configured cell.
   async_task<void> stop() override;
 
-  async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override;
+  void set_si_extension_handler(std::shared_ptr<si_message_extension_handler> handler) override;
+
+  void handle_si_update(const si_update_command& cmd) override;
+
+  async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override;
 
   void handle_slot_indication(const mac_cell_timing_context& context) noexcept override;
   void handle_error_indication(slot_point sl_tx, error_event event) noexcept override;

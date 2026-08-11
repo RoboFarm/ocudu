@@ -34,6 +34,15 @@ struct si_message_scheduling_config {
   /// and the NTN-Config field descriptions are excluded from SI change determination. If so, \c msg_len is resized on
   /// request; otherwise it stays deferred to the modification window.
   bool exempt_from_si_mod_window = false;
+
+  bool operator==(const si_message_scheduling_config& other) const
+  {
+    return msg_len == other.msg_len and period_radio_frames == other.period_radio_frames and
+           si_window_position == other.si_window_position and requires_activation == other.requires_activation and
+           test_mode_auto_broadcast == other.test_mode_auto_broadcast and
+           exempt_from_si_mod_window == other.exempt_from_si_mod_window;
+  }
+  bool operator!=(const si_message_scheduling_config& other) const { return not(*this == other); }
 };
 
 /// \brief Configuration of the SI message scheduling.
@@ -50,6 +59,13 @@ struct si_scheduling_config {
   /// Values: {0, 5, 10, 20, 40, 80, 160, 320, 640, 1280}. The value 0 is reserved for the case no SI messages need to
   /// be scheduled.
   unsigned si_window_len_slots = 0;
+
+  bool operator==(const si_scheduling_config& other) const
+  {
+    return sib1_payload_size == other.sib1_payload_size and si_messages == other.si_messages and
+           si_window_len_slots == other.si_window_len_slots;
+  }
+  bool operator!=(const si_scheduling_config& other) const { return not(*this == other); }
 };
 
 } // namespace ocudu

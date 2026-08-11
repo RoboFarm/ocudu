@@ -4,17 +4,22 @@
 
 #pragma once
 
+#include "si_message_controller.h"
 #include "ocudu/mac/mac_cell_manager.h"
 
 namespace ocudu {
 
 class mac_dl_cell_controller;
+class mac_scheduler_cell_configurator;
 
 /// Handler of the state of a MAC cell.
 class mac_cell_controller_impl final : public mac_cell_controller
 {
 public:
-  explicit mac_cell_controller_impl(mac_dl_cell_controller& dl_cell_);
+  mac_cell_controller_impl(const mac_cell_creation_request& cell_cfg,
+                           timer_factory                    timers,
+                           mac_scheduler_cell_configurator& sched,
+                           mac_dl_cell_controller&          dl_cell_);
 
   async_task<void> start() override;
 
@@ -23,6 +28,9 @@ public:
   async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override;
 
 private:
+  /// Handler of the System Information broadcast by the cell.
+  si_message_controller si_mng;
+
   /// Controller of the respective cell in the MAC DL processor.
   mac_dl_cell_controller& dl_cell;
 };

@@ -29,23 +29,24 @@ protected:
     t_launcher.emplace(t);
   }
 
-  manual_task_worker                       worker{128};
-  dummy_ue_executor_mapper                 ul_exec_mapper{worker};
-  dummy_dl_executor_mapper                 dl_exec_mapper{&worker};
-  dummy_mac_event_indicator                du_mng_notifier;
-  timer_manager                            timers;
-  test_helpers::dummy_mac_clock_controller clock_ctrl{timers};
-  mac_scheduler_dummy_adapter              sched_cfg_adapter;
-  dummy_mac_metrics_notifier               mac_notifier;
-  mac_control_config                       maccfg{du_mng_notifier,
+  manual_task_worker                        worker{128};
+  dummy_ue_executor_mapper                  ul_exec_mapper{worker};
+  dummy_dl_executor_mapper                  dl_exec_mapper{&worker};
+  dummy_mac_event_indicator                 du_mng_notifier;
+  timer_manager                             timers;
+  test_helpers::dummy_mac_clock_controller  clock_ctrl{timers};
+  mac_scheduler_dummy_adapter               sched_cfg_adapter;
+  test_helpers::dummy_mac_scheduler_adapter sched_cell_cfg_adapter;
+  dummy_mac_metrics_notifier                mac_notifier;
+  mac_control_config                        maccfg{du_mng_notifier,
                             worker,
                             clock_ctrl,
                             mac_control_config::metrics_config{std::chrono::milliseconds{1000}, mac_notifier}};
-  mac_ul_dummy_configurer                  ul_unit;
-  mac_dl_dummy_configurer                  dl_unit;
-  rnti_manager                             rnti_table;
+  mac_ul_dummy_configurer                   ul_unit;
+  mac_dl_dummy_configurer                   dl_unit;
+  rnti_manager                              rnti_table;
 
-  mac_controller mac_ctrl{maccfg, ul_unit, dl_unit, rnti_table, sched_cfg_adapter};
+  mac_controller mac_ctrl{maccfg, ul_unit, dl_unit, rnti_table, sched_cfg_adapter, sched_cell_cfg_adapter};
 
   async_task<mac_ue_create_response>                        t;
   std::optional<lazy_task_launcher<mac_ue_create_response>> t_launcher;
@@ -167,6 +168,17 @@ TEST_F(mac_controller_test, when_cell_is_added_then_returned_controller_matches_
   mac_cell_controller& added = mac_ctrl.add_cell(cell_req);
 
   ASSERT_EQ(&added, &mac_ctrl.get_cell_controller(cell_req.cell_index));
+}
+
+TEST_F(mac_controller_test, when_cell_is_added_then_initial_system_information_is_forwarded_to_the_mac_dl_cell)
+{
+  mac_cell_creation_request cell_req = test_helpers::make_default_mac_cell_config();
+  cell_req.cell_index                = to_du_cell_index(0);
+
+  mac_ctrl.add_cell(cell_req);
+
+  ASSERT_EQ(dl_unit.cell_ctrls.size(), 1);
+  ASSERT_EQ(dl_unit.cell_ctrls[0]->last_si_version, 0);
 }
 
 TEST_F(mac_controller_test, when_cell_is_removed_and_readded_then_controller_points_to_the_new_mac_dl_cell)

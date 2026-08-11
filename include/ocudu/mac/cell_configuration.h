@@ -26,7 +26,7 @@ struct mac_cell_sys_info_config {
   /// SI messages provided by the cell and which are part of the SIB1 SI-SchedConfig.
   static_vector<bcch_dl_sch_payload_type, MAX_SI_MESSAGES> si_messages;
   /// SI scheduling configuration to provide to MAC scheduler.
-  si_scheduling_update_request si_sched_cfg;
+  si_scheduling_config si_sched_cfg;
   /// Whether HyperSFN is stored in SIB1 and needs to be updated periodically.
   bool sib1_contains_hypersfn = false;
 };
