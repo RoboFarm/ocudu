@@ -79,8 +79,9 @@ static void expect_burst(test_bench&                  t_bench,
     } else if (idx + 1 == delays.size()) {
       expected_rep_state = pucch_repetition_tx_slot::ends;
     }
-    EXPECT_EQ(ue_pucchs[0]->slot_repetition, expected_rep_state);
-    EXPECT_EQ(ue_pucchs[0]->repetition_anchor_slot, t_bench.res_grid[delays.front()].slot);
+    ASSERT_TRUE(ue_pucchs[0]->repetition.has_value());
+    EXPECT_EQ(ue_pucchs[0]->repetition->position, expected_rep_state);
+    EXPECT_EQ(ue_pucchs[0]->repetition->anchor_slot, t_bench.res_grid[delays.front()].slot);
   }
 }
 
@@ -150,7 +151,7 @@ TEST_F(pucch_alloc_repetition_test, falls_back_to_legacy_single_slot_allocation_
   const auto  anchor_pucchs = test_helpers::find_ue_pucchs(anchor_grid.result.ul.pucchs.unsorted(), ue.crnti);
   ASSERT_EQ(anchor_pucchs.size(), 1);
   EXPECT_EQ(anchor_pucchs[0]->uci_bits.harq_ack_nof_bits, 1U);
-  EXPECT_EQ(anchor_pucchs[0]->slot_repetition, pucch_repetition_tx_slot::no_multi_slot);
+  EXPECT_FALSE(anchor_pucchs[0]->repetition.has_value());
 }
 
 TEST_F(pucch_alloc_repetition_test, repetition_burst_rejects_sr_and_csi_grants_in_its_slots)
@@ -294,7 +295,7 @@ TEST_F(pucch_alloc_repetition_test, promotion_falls_back_to_a_single_slot_grant_
   ASSERT_EQ(anchor_pucchs.size(), 1);
   EXPECT_EQ(anchor_pucchs[0]->uci_bits.harq_ack_nof_bits, 3U);
   EXPECT_EQ(anchor_pucchs[0]->format(), pucch_format::FORMAT_2);
-  EXPECT_EQ(anchor_pucchs[0]->slot_repetition, pucch_repetition_tx_slot::no_multi_slot);
+  EXPECT_FALSE(anchor_pucchs[0]->repetition.has_value());
 
   // The rest of the original burst's slots must have been released.
   for (unsigned i = 1; i != 4; ++i) {
@@ -341,7 +342,7 @@ TEST_F(pucch_alloc_repetition_no_caps_test, capability_unaware_ue_never_gets_rep
   const auto& anchor_grid   = t_bench.res_grid[t_bench.k0 + default_k1];
   const auto  anchor_pucchs = test_helpers::find_ue_pucchs(anchor_grid.result.ul.pucchs.unsorted(), ue.crnti);
   ASSERT_EQ(anchor_pucchs.size(), 1);
-  EXPECT_EQ(anchor_pucchs[0]->slot_repetition, pucch_repetition_tx_slot::no_multi_slot);
+  EXPECT_FALSE(anchor_pucchs[0]->repetition.has_value());
 
   const auto& next_grid = t_bench.res_grid[t_bench.k0 + default_k1 + 1];
   EXPECT_TRUE(test_helpers::find_ue_pucchs(next_grid.result.ul.pucchs.unsorted(), ue.crnti).empty());
@@ -460,7 +461,8 @@ TEST_F(pucch_alloc_repetition_tdd_test, burst_skips_dl_only_slots_to_reach_the_n
   const auto& anchor_pucchs =
       test_helpers::find_ue_pucchs(t_bench.res_grid[anchor_delay].result.ul.pucchs.unsorted(), ue.crnti);
   ASSERT_EQ(anchor_pucchs.size(), 1);
-  EXPECT_EQ(anchor_pucchs[0]->slot_repetition, pucch_repetition_tx_slot::starts);
+  ASSERT_TRUE(anchor_pucchs[0]->repetition.has_value());
+  EXPECT_EQ(anchor_pucchs[0]->repetition->position, pucch_repetition_tx_slot::starts);
 
   // The 7 DL-only slots in between must be left untouched by the burst.
   for (unsigned delay = anchor_delay + 1; delay != 17; ++delay) {
@@ -471,7 +473,8 @@ TEST_F(pucch_alloc_repetition_tdd_test, burst_skips_dl_only_slots_to_reach_the_n
   // Delay 17, the next UL-enabled slot, must end the burst.
   const auto& end_pucchs = test_helpers::find_ue_pucchs(t_bench.res_grid[17].result.ul.pucchs.unsorted(), ue.crnti);
   ASSERT_EQ(end_pucchs.size(), 1);
-  EXPECT_EQ(end_pucchs[0]->slot_repetition, pucch_repetition_tx_slot::ends);
+  ASSERT_TRUE(end_pucchs[0]->repetition.has_value());
+  EXPECT_EQ(end_pucchs[0]->repetition->position, pucch_repetition_tx_slot::ends);
 
   // No PUCCH grant should leak into the UL slot right after the burst.
   EXPECT_TRUE(test_helpers::find_ue_pucchs(t_bench.res_grid[18].result.ul.pucchs.unsorted(), ue.crnti).empty());

@@ -61,7 +61,9 @@ struct ue_capability_summary {
     ///
     /// It is given by field \e puschTypeA-RepetitionsAvailSlot-r17 in Information Element \e BandNR.
     bool pusch_rep_type_a_avail_slot_supported = false;
-    /// Indicates whether the UE supports transmission of a PUCCH format 0 and 2 over multiple slots.
+    /// \brief Indicates whether the UE supports transmission of a PUCCH format 0 and 2 over multiple slots.
+    ///
+    /// It is given by field \e pucch-Repetition-F0-2-r17 in Information Element \e BandNR.
     bool pucch_repeat_f0_2_r17_supported = false;
 
     /// Equality operator.
@@ -110,9 +112,13 @@ struct ue_capability_summary {
   bool ul_harq_mode_b_supported = false;
   /// Measurement gap patterns supported by the UE, defaults to patterns 0 and 1 supported.
   supported_meas_gap_patterns supported_meas_gaps;
-  /// Indicates whether the UE supports transmission of a PUCCH format 1 or 3 or 4 over multiple slots.
+  /// \brief Indicates whether the UE supports transmission of a PUCCH format 1 or 3 or 4 over multiple slots.
+  ///
+  /// It is given by field \e pucch-Repetition-F1-3-4 in Information Element \e Phy-ParametersCommon.
   bool pucch_repeat_f1_3_4_supported = false;
-  /// Indicates whether the UE supports slot based dynamic PUCCH repetition.
+  /// \brief Indicates whether the UE supports slot-based dynamic PUCCH repetition.
+  ///
+  /// It is given by field \e slotBasedDynamicPUCCH-Rep-r17 in Information Element \e Phy-ParametersCommon.
   bool slot_based_dyn_pucch_rep_r17_supported = false;
 
   /// Equality operator.

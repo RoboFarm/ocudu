@@ -431,7 +431,7 @@ void uci_indication_selector::handle_result(slot_point sl_tx, const sched_result
       continue;
     }
 
-    if (pucch.slot_repetition != pucch_repetition_tx_slot::no_multi_slot) {
+    if (pucch.repetition.has_value()) {
       // The PUCCH is one of the repetitions of a multi-slot PUCCH repetition burst, which is tracked as a whole.
       handle_burst_pucch_grant(sl_tx, pucch);
       continue;
@@ -491,7 +491,7 @@ void uci_indication_selector::handle_burst_pucch_grant(slot_point sl_tx, const p
 {
   auto uci_r = uci_wheel[sl_tx.count()].get_list(uci_pool);
 
-  if (pucch.slot_repetition == pucch_repetition_tx_slot::starts) {
+  if (pucch.repetition->position == pucch_repetition_tx_slot::starts) {
     // First repetition of the burst. Its entry tracks the burst as a whole.
     uci_entry entry;
     entry.crnti          = pucch.crnti;
@@ -505,13 +505,13 @@ void uci_indication_selector::handle_burst_pucch_grant(slot_point sl_tx, const p
     return;
   }
 
-  const stable_id_t anchor_id = find_burst_anchor(pucch.crnti, pucch.repetition_anchor_slot);
+  const stable_id_t anchor_id = find_burst_anchor(pucch.crnti, pucch.repetition->anchor_slot);
   if (anchor_id == invalid_entry_id) {
     logger.warning("rnti={}: Discarding PUCCH repetition scheduled in slot={}. Cause: The UCI grant of its burst "
                    "(first slot={}) was not found",
                    pucch.crnti,
                    sl_tx,
-                   pucch.repetition_anchor_slot);
+                   pucch.repetition->anchor_slot);
     return;
   }
 
@@ -519,12 +519,12 @@ void uci_indication_selector::handle_burst_pucch_grant(slot_point sl_tx, const p
   uci_entry entry;
   entry.crnti    = pucch.crnti;
   entry.uci_slot = sl_tx;
-  entry.burst    = uci_entry::burst_repetition{pucch.repetition_anchor_slot};
+  entry.burst    = uci_entry::burst_repetition{pucch.repetition->anchor_slot};
   uci_r.push_front(uci_pool.insert(entry));
 
   uci_entry& anchor = uci_pool[anchor_id];
   ++anchor.uci_pdus_to_rx;
-  if (pucch.slot_repetition == pucch_repetition_tx_slot::ends) {
+  if (pucch.repetition->position == pucch_repetition_tx_slot::ends) {
     std::get<uci_entry::burst_anchor>(anchor.burst).ended = true;
     // Bound the wait for the feedback of the last repetitions, so that the outcome of the burst does not have to wait
     // for the full UCI timeout in case some of it never reaches the scheduler.

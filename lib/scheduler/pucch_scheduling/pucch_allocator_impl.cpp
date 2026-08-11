@@ -639,8 +639,8 @@ pucch_allocator_impl::find_harq_ack_burst_candidate(cell_resource_allocator&    
   static constexpr std::array<pucch_repetition_factor, 3> descending_factors = {
       pucch_repetition_factor::n8, pucch_repetition_factor::n4, pucch_repetition_factor::n2};
 
-  // The UE's support for dynamic PUCCH repetition is tracked on its scheduler-facing PUCCH config (set by
-  // pucch_resource_manager::apply_rep_factor_capabilities), since the cell-wide resource pool (read via
+  // The UE's support for dynamic PUCCH repetition is tracked on its ue_pucch_config (in ue_bwp_config), set by
+  // pucch_resource_manager::apply_rep_factor_capabilities, since the cell-wide resource pool (read via
   // pucch_helper::get_harq_resource) is shared across all UEs and cannot reflect per-UE capability on its own.
   const ue_pucch_config& ue_pucch_cfg = ue_cell_cfg.init_bwp().ul.ue_cfg()->pucch;
 
@@ -660,7 +660,7 @@ pucch_allocator_impl::find_harq_ack_burst_candidate(cell_resource_allocator&    
         continue;
       }
       const bool is_f0_or_f2 = res.format() == pucch_format::FORMAT_0 or res.format() == pucch_format::FORMAT_2;
-      if (is_f0_or_f2 ? not ue_pucch_cfg.rep_f0_2_supported : not ue_pucch_cfg.rep_f1_3_4_supported) {
+      if (is_f0_or_f2 ? not ue_pucch_cfg.rep_f0_2_enabled : not ue_pucch_cfg.rep_f1_3_4_enabled) {
         continue;
       }
 
@@ -710,8 +710,8 @@ pucch_allocator_impl::find_burst_slots(cell_resource_allocator& res_alloc,
 
     // Slots whose grants are about to be released are, from here on, as good as free for this UE.
     if (std::find(released_slots.begin(), released_slots.end(), sl.slot) == released_slots.end()) {
-      // A PUCCH with repetitions can carry neither other UCI types nor PUSCH-multiplexed UCI, so the slot must not
-      // hold any other grant of this UE.
+      // A PUCCH with repetitions can carry neither SR/CSI nor PUSCH-multiplexed UCI, so the slot must not hold any
+      // other grant of this UE.
       if (slots_ctx[sl.slot.to_uint()].find_ue_grants(rnti) != nullptr) {
         return std::nullopt;
       }
@@ -1189,8 +1189,9 @@ std::optional<unsigned> pucch_allocator_impl::update_harq_ack_bits(cell_slot_res
 
     // Preserve the PUCCH repetition state of the PDU (if this is part of a repetition burst), since fill_ded_pdu
     // otherwise resets it.
-    const pucch_repetition_tx_slot rep_state       = pdu.slot_repetition;
-    const slot_point               rep_anchor_slot = pdu.repetition_anchor_slot;
+    const pucch_repetition_tx_slot rep_state =
+        pdu.repetition.has_value() ? pdu.repetition->position : pucch_repetition_tx_slot::no_multi_slot;
+    const slot_point rep_anchor_slot = pdu.repetition.has_value() ? pdu.repetition->anchor_slot : slot_point{};
     pucch_helper::fill_ded_pdu(pdu,
                                cell_cfg,
                                *pdu.res,

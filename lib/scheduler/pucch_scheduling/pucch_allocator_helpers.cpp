@@ -83,8 +83,7 @@ void pucch_helper::fill_common_pdu(pucch_info&               pucch_pdu,
   pucch_pdu.bwp_cfg = &cell_cfg.params.ul_cfg_common.init_ul_bwp.generic_params;
   pucch_pdu.res     = &common_res;
   // [Implementation-defined] We do not configure slot repetition for common PUCCH resources.
-  pucch_pdu.slot_repetition        = pucch_repetition_tx_slot::no_multi_slot;
-  pucch_pdu.repetition_anchor_slot = {};
+  pucch_pdu.repetition.reset();
 
   const pucch_config_common& pucch_cmn = *cell_cfg.params.ul_cfg_common.init_ul_bwp.pucch_cfg_common;
   const unsigned             n_id_hop =
@@ -142,9 +141,9 @@ void pucch_helper::fill_ded_pdu(pucch_info&                     pucch_pdu,
   if (pucch_pdu.uci_bits.csi_part1_nof_bits != 0U) {
     pucch_pdu.csi_rep_cfg = *csi_cfg;
   }
-  pucch_pdu.slot_repetition = rep_state;
-  pucch_pdu.repetition_anchor_slot =
-      rep_state != pucch_repetition_tx_slot::no_multi_slot ? rep_anchor_slot : slot_point{};
+  pucch_pdu.repetition = rep_state != pucch_repetition_tx_slot::no_multi_slot
+                             ? std::optional<pucch_info::repetition_info>({rep_anchor_slot, rep_state})
+                             : std::nullopt;
 
   // [Implementation-defined] We do not configure group or sequence hopping.
   constexpr auto group_hopping = pucch_group_hopping::NEITHER;

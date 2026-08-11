@@ -20,14 +20,14 @@ struct ue_pucch_config {
   unsigned                     sr_offset;
   unsigned                     max_pucch_payload;
   /// Whether the UE supports dynamic PUCCH repetition (slotBasedDynamicPUCCH-Rep-r17) for Format 1/3/4 resources.
-  bool rep_f1_3_4_supported = false;
+  bool rep_f1_3_4_enabled = false;
   /// Whether the UE supports dynamic PUCCH repetition (slotBasedDynamicPUCCH-Rep-r17) for Format 0/2 resources.
-  bool rep_f0_2_supported = false;
+  bool rep_f0_2_enabled = false;
 
   bool operator==(const ue_pucch_config& other) const
   {
     return res_set_cfg_id == other.res_set_cfg_id and sr_res_id == other.sr_res_id and sr_offset == other.sr_offset and
-           rep_f1_3_4_supported == other.rep_f1_3_4_supported and rep_f0_2_supported == other.rep_f0_2_supported;
+           rep_f1_3_4_enabled == other.rep_f1_3_4_enabled and rep_f0_2_enabled == other.rep_f0_2_enabled;
   }
 };
 

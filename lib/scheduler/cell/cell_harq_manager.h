@@ -193,20 +193,39 @@ struct cell_harq_repository {
   void slot_indication(slot_point sl_tx);
   void stop();
   void handle_harq_ack_timeout(harq_type& h, slot_point sl_tx);
+  /// \brief Allocates a new HARQ process for a UE's new Tx.
+  /// \param[in] ue_idx Index of the UE requesting the allocation.
+  /// \param[in] sl_tx Slot of the PxSCH transmission.
+  /// \param[in] sl_ack Slot at which the respective ACK/CRC is expected to be received in the PHY (see \c
+  /// base_harq_process::slot_ack).
+  /// \param[in] sl_ack_end Slot of the last transmission that can carry the respective ACK/CRC; equal to \c sl_ack
+  /// unless the HARQ-ACK is reported over a multi-slot PUCCH repetition burst (see \c base_harq_process::slot_ack_end).
+  /// \param[in] max_nof_harq_retxs Maximum number of retransmissions allowed for this HARQ process before it is reset.
+  /// \param[in] harq_id If set, forces the allocation of this specific HARQ-id (e.g. for Configured Grants); the
+  /// process must be free and, unless \c select_normal_mode's constraint below applies, not reserved.
+  /// \param[in] select_normal_mode Whether the picked HARQ process must be currently operating in normal mode (as
+  /// opposed to feedback-disabled/mode B). Only relevant for NTN cells.
   /// \param[in] nof_repetitions Number of consecutive slots spanned by this transmission, starting at \c sl_tx (Rel-16
   /// PDSCH repetitions; DL-only, UL always uses the default). Used solely to extend the UE entity's last known Tx
   /// slot (see \c ue_harq_entity_impl::last_slot_tx) to the end of the whole transmission, not just \c sl_tx.
-  harq_type*         alloc_harq(du_ue_index_t            ue_idx,
-                                slot_point               sl_tx,
-                                slot_point               sl_ack,
-                                slot_point               sl_ack_end,
-                                unsigned                 max_nof_harq_retxs,
-                                std::optional<harq_id_t> harq_id            = std::nullopt,
-                                bool                     select_normal_mode = true,
-                                uint8_t                  nof_repetitions    = 1);
-  void               dealloc_harq(harq_type& h);
-  void               handle_ack(harq_type& h, bool ack);
-  void               set_pending_retx(harq_type& h);
+  /// \return Pointer to the allocated HARQ process, or \c nullptr if the UE has no free (and, when applicable, no
+  /// matching reserved or mode-matching) HARQ process available.
+  harq_type* alloc_harq(du_ue_index_t            ue_idx,
+                        slot_point               sl_tx,
+                        slot_point               sl_ack,
+                        slot_point               sl_ack_end,
+                        unsigned                 max_nof_harq_retxs,
+                        std::optional<harq_id_t> harq_id            = std::nullopt,
+                        bool                     select_normal_mode = true,
+                        uint8_t                  nof_repetitions    = 1);
+  void       dealloc_harq(harq_type& h);
+  void       handle_ack(harq_type& h, bool ack);
+  void       set_pending_retx(harq_type& h);
+  /// \brief Reuses a HARQ process with a pending retransmission for a UE's new Tx.
+  /// \param[in] h HARQ process to retransmit, which must currently have a pending retransmission (see \c
+  /// set_pending_retx).
+  /// \param[in] sl_tx, sl_ack, sl_ack_end, nof_repetitions See \c alloc_harq.
+  /// \return Whether the retransmission was accepted. Fails if \c h has no pending retransmission.
   [[nodiscard]] bool handle_new_retx(harq_type& h,
                                      slot_point sl_tx,
                                      slot_point sl_ack,

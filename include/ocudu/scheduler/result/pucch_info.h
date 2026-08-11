@@ -98,14 +98,25 @@ struct pucch_info {
   pucch_uci_bits                                                      uci_bits;
   /// In case the PUCCH will contain CSI bits, this struct contains information how those bits are to be decoded.
   std::optional<csi_report_configuration> csi_rep_cfg;
-  /// Indicates whether this PUCCH transmission is part of a multi-slot PUCCH repetition burst, and its position
-  /// within it. Applicable to all PUCCH formats.
-  pucch_repetition_tx_slot slot_repetition = pucch_repetition_tx_slot::no_multi_slot;
-  /// \brief Slot of the first transmission of the multi-slot PUCCH repetition burst this transmission belongs to.
-  ///
-  /// Only set when \c slot_repetition is not \c no_multi_slot. All the repetitions of a burst carry the same UCI, and
-  /// this slot, the one that the UCI reporting timing points at, identifies the UCI grant they belong to.
-  slot_point repetition_anchor_slot;
+
+  /// \brief Identifies a PUCCH transmission as part of a multi-slot PUCCH repetition burst.
+  struct repetition_info {
+    /// \brief Slot of the first transmission of the burst.
+    ///
+    /// All the repetitions of a burst carry the same UCI, and this slot, the one that the UCI reporting timing
+    /// points at, identifies the UCI grant they belong to.
+    slot_point anchor_slot;
+    /// Position of this transmission within the burst. Never \c pucch_repetition_tx_slot::no_multi_slot.
+    pucch_repetition_tx_slot position;
+
+    bool operator==(const repetition_info& rhs) const
+    {
+      return anchor_slot == rhs.anchor_slot && position == rhs.position;
+    }
+  };
+  /// Set when this PUCCH transmission is part of a multi-slot PUCCH repetition burst. Applicable to all PUCCH
+  /// formats.
+  std::optional<repetition_info> repetition;
 
   /// Returns the format of the PUCCH.
   constexpr pucch_format format() const

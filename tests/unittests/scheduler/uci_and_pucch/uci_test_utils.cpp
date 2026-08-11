@@ -80,7 +80,7 @@ std::vector<const pucch_info*> test_helpers::find_ue_pucchs(span<const pucch_inf
 bool ocudu::pucch_info_match(const pucch_info& expected, const pucch_info& test)
 {
   bool is_equal = expected.crnti == test.crnti && *expected.bwp_cfg == *test.bwp_cfg && *expected.res == *test.res &&
-                  expected.format() == test.format() && expected.slot_repetition == test.slot_repetition;
+                  expected.format() == test.format() && expected.repetition == test.repetition;
   if (not is_equal) {
     return false;
   }

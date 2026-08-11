@@ -98,14 +98,14 @@ public:
   /// \return Returns true if a PUCCH grant using common PUCCH resource exits. False, otherwise.
   [[nodiscard]] virtual bool has_common_pucch_grant(rnti_t rnti, slot_point sl_tx) const = 0;
 
-  /// \brief Returns the slots spanned by the in-flight multi-slot PUCCH repetition burst of a UE that a given slot
-  /// belongs to, in ascending order; an empty span if the UE has no repeated PUCCH grant in that slot.
+  /// \brief Returns the slots of a UE's PUCCH repetition burst containing the given slot, in ascending order; an
+  /// empty span if the UE has no repeated PUCCH grant in that slot.
   ///
-  /// A non-empty result means that the slot cannot be used for any other transmission of this UE. In particular, as
-  /// per TS 38.213, Section 9.2.6, a UE whose PUCCH with repetitions overlaps a PUSCH transmits the PUCCH and drops
-  /// the PUSCH in the overlapping slots; the UCI is not multiplexed on the PUSCH (Section 9.2.5 explicitly scopes that
-  /// procedure to PUCCHs "over a single slot without repetitions"). The caller must therefore not schedule a PUSCH for
-  /// this UE in such a slot.
+  /// A non-empty result means that the slot cannot be used for any other PUCCH or PUSCH grant of this UE. In
+  /// particular, as per TS 38.213, Section 9.2.6, a UE whose PUCCH with repetitions overlaps a PUSCH transmits the
+  /// PUCCH and drops the PUSCH in the overlapping slots; the UCI is not multiplexed on the PUSCH (Section 9.2.5
+  /// explicitly scopes that procedure to PUCCHs "over a single slot without repetitions"). The caller must therefore
+  /// not schedule a PUSCH for this UE in such a slot.
   ///
   /// \param[in] rnti RNTI of the UE.
   /// \param[in] sl_tx Slot to search PUCCH grants.

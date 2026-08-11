@@ -64,8 +64,9 @@ protected:
     pucch.uci_bits.harq_ack_nof_bits  = nof_harq_bits;
     pucch.uci_bits.sr_bits            = sr ? sr_nof_bits::one : sr_nof_bits::no_sr;
     pucch.uci_bits.csi_part1_nof_bits = nof_csi_bits;
-    pucch.slot_repetition             = rep_state;
-    pucch.repetition_anchor_slot      = rep_anchor_slot;
+    pucch.repetition                  = rep_state != pucch_repetition_tx_slot::no_multi_slot
+                                            ? std::optional<pucch_info::repetition_info>({rep_anchor_slot, rep_state})
+                                            : std::nullopt;
     pucch.set_format(format);
     return pucch;
   }
