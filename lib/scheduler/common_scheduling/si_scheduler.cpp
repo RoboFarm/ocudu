@@ -26,7 +26,7 @@ si_scheduler::si_scheduler(const cell_configuration&                       cfg_,
   // One slot per SI-message that requires activation (i.e. may carry PWS content).
   const unsigned nof_si_messages = msg.si_scheduling.si_messages.size();
   for (unsigned i = 0; i != nof_si_messages; ++i) {
-    if (msg.si_scheduling.si_messages[i].requires_activation) {
+    if (msg.si_scheduling.si_messages[i].requires_activation()) {
       pending_pws_reqs.emplace(i, i);
     }
   }

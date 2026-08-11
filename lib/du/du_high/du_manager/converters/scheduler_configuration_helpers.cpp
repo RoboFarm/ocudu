@@ -33,15 +33,13 @@ si_scheduling_config ocudu::odu::make_si_scheduling_info_config(const du_cell_co
     for (unsigned i = 0, sz = du_cfg.si.si_config->si_sched_info.size(); i != sz; ++i) {
       const auto& si_sched = du_cfg.si.si_config->si_sched_info[i];
 
+      for (sib_type sib : si_sched.sib_mapping_info) {
+        sched_req.si_messages[i].sibs.add(sib);
+      }
       sched_req.si_messages[i].period_radio_frames      = si_sched.si_period_radio_frames;
       sched_req.si_messages[i].msg_len                  = si_message_lens[i];
       sched_req.si_messages[i].si_window_position       = si_sched.si_window_position;
-      sched_req.si_messages[i].requires_activation      = si_sched.requires_activation;
       sched_req.si_messages[i].test_mode_auto_broadcast = si_sched.auto_broadcast;
-      // SIB19 (NTN) content is pushed immediately, bypassing the SI change modification window.
-      sched_req.si_messages[i].exempt_from_si_mod_window =
-          std::find(si_sched.sib_mapping_info.begin(), si_sched.sib_mapping_info.end(), sib_type::sib19) !=
-          si_sched.sib_mapping_info.end();
     }
   }
 

@@ -20,7 +20,7 @@ mac_cell_pcap_writer::mac_cell_pcap_writer(mac_pcap&                            
 {
   ocudu_assert(si_messages.size() <= MAX_SI_MESSAGES, "Invalid number of SI messages");
   for (unsigned i = 0, e = si_messages.size(); i != e; ++i) {
-    pws_si_messages.set(i, si_messages[i].requires_activation);
+    pws_si_messages.set(i, si_messages[i].requires_activation());
   }
   si_dumped_version.fill(std::numeric_limits<unsigned>::max());
 }

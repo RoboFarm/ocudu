@@ -302,7 +302,7 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
   const auto& si_sched_messages = sys_info.si_sched_cfg.si_messages;
   pws_encoders.resize(sys_info.si_messages.size());
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
-    if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation) {
+    if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation()) {
       pws_encoders[i] = std::make_shared<pws_si_msg_encoder>(i, timers, sched, cell_index);
       if (si_sched_messages[i].test_mode_auto_broadcast) {
         // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right

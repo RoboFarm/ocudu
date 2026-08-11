@@ -408,9 +408,7 @@ static asn1::rrc_nr::sib1_s make_asn1_rrc_cell_sib1(const du_cell_config& du_cfg
               du_cfg.si.si_config->sibs.begin(),
               du_cfg.si.si_config->sibs.end(),
               [mapping_info](const sib_type_info& sib) { return get_sib_info_type(sib.content) == mapping_info; });
-          const bool is_pws_sib =
-              mapping_info == sib_type::sib6 or mapping_info == sib_type::sib7 or mapping_info == sib_type::sib8;
-          if (matching_sib == du_cfg.si.si_config->sibs.end() and not is_pws_sib) {
+          if (matching_sib == du_cfg.si.si_config->sibs.end() and not is_pws_sib(mapping_info)) {
             // No content configured for this SIB and is not a dormant SIB (e.g. PWS).
             continue;
           }
@@ -1063,7 +1061,7 @@ asn1_packer::pack_all_bcch_dl_sch_msgs(const du_cell_config& du_cfg, std::vector
         if (it == sibs.end()) {
           // Dormant SIB6/7/8 SI-message with no explicitly configured (testing-only) content.
           // Use a trivial placeholder instead of ASN.1/CBS-encoding anything.
-          ocudu_assert(si_sched.requires_activation and not si_sched.auto_broadcast,
+          ocudu_assert(is_pws_sib(sib_id) and not si_sched.auto_broadcast,
                        "SIB{} in SIB mapping info has no defined config",
                        static_cast<unsigned>(sib_id));
 

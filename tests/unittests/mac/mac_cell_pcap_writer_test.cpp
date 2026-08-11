@@ -258,7 +258,7 @@ TEST_F(mac_cell_pcap_writer_test, when_sib1_version_changes_then_pdu_is_written_
 
 TEST_F(mac_cell_pcap_writer_test, when_si_message_does_not_require_activation_then_repeated_version_is_deduped)
 {
-  si_messages[si_msg_index].requires_activation = false;
+  si_messages[si_msg_index].sibs = sib_type_set{sib_type::sib2};
   create_writer();
   for (unsigned i = 0; i != 3; ++i) {
     clear_grants();
@@ -271,7 +271,7 @@ TEST_F(mac_cell_pcap_writer_test, when_si_message_does_not_require_activation_th
 
 TEST_F(mac_cell_pcap_writer_test, when_si_message_requires_activation_then_repeated_version_is_written)
 {
-  si_messages[si_msg_index].requires_activation = true;
+  si_messages[si_msg_index].sibs = sib_type_set{sib_type::sib7};
   create_writer();
   for (unsigned i = 0; i != 3; ++i) {
     clear_grants();

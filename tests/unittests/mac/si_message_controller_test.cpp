@@ -101,7 +101,7 @@ public:
     // Mark SI-message index 0 as requiring activation, mirroring a cell configured with a reserved SIB6/7/8
     // occasion -- si_message_controller only allocates PWS broadcast state for such indices.
     si_message_scheduling_config& si_msg_cfg = cfg.si_sched_cfg.si_messages.emplace_back();
-    si_msg_cfg.requires_activation           = true;
+    si_msg_cfg.sibs                          = sib_type_set{sib_type::sib7};
     return cfg;
   }
 
@@ -266,7 +266,7 @@ public:
     cfg.sib1 = make_random_pdu();
     cfg.si_messages.push_back(make_random_segmented_pdu(50, 2));
     si_message_scheduling_config& si_msg_cfg = cfg.si_sched_cfg.si_messages.emplace_back();
-    si_msg_cfg.requires_activation           = true;
+    si_msg_cfg.sibs                          = sib_type_set{sib_type::sib7};
     si_msg_cfg.test_mode_auto_broadcast      = true;
     return cfg;
   }

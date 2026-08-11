@@ -27,7 +27,7 @@ si_message_scheduler::si_message_scheduler(const cell_configuration&   cfg_,
 {
   pending_messages.resize(si_sched_cfg.si_messages.size());
   for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
-    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation;
+    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation();
     pending_messages[i].msg_len = si_sched_cfg.si_messages[i].msg_len;
   }
 }
@@ -50,7 +50,7 @@ void si_message_scheduler::stop()
   // Clear all windows.
   for (unsigned i = 0; i != pending_messages.size(); ++i) {
     pending_messages[i]         = {};
-    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation;
+    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation();
     pending_messages[i].msg_len = si_sched_cfg.si_messages[i].msg_len;
   }
 }
@@ -66,7 +66,7 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   // Reset window and transmission counters.
   std::fill(pending_messages.begin(), pending_messages.end(), message_window_context{});
   for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
-    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation;
+    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation();
     pending_messages[i].msg_len = si_sched_cfg.si_messages[i].msg_len;
   }
 }
@@ -108,7 +108,7 @@ void si_message_scheduler::update_msg_lens(const si_scheduling_config& new_si_sc
   for (unsigned i = 0, e = std::min(pending_messages.size(), new_si_sched_cfg.si_messages.size()); i != e; ++i) {
     // Only resize immediately for messages with immediate content (e.g. NTN SIB19). Version-gated messages keep
     // broadcasting their old content until the modification window, so resizing early would truncate it.
-    if (new_si_sched_cfg.si_messages[i].exempt_from_si_mod_window) {
+    if (new_si_sched_cfg.si_messages[i].exempt_from_si_mod_window()) {
       pending_messages[i].msg_len = new_si_sched_cfg.si_messages[i].msg_len;
     }
   }

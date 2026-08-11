@@ -473,8 +473,7 @@ static std::optional<si_scheduling_info_config> make_si_sched_info_config(const 
     // occasion in schedulingInfoList, but has no real content until an F1AP Write-Replace Warning activates it.
     // Unless its (testing-only) content is explicitly configured, in which case it is broadcast right away,
     // indefinitely.
-    out_si.requires_activation = std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), is_pws_sib);
-    if (out_si.requires_activation) {
+    if (std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), is_pws_sib)) {
       out_si.auto_broadcast = std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), [&sib_cfg](uint8_t t) {
         return t == 8 ? sib_cfg.cmas_cfg.has_value() : sib_cfg.etws_cfg.has_value();
       });

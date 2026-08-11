@@ -6,6 +6,7 @@
 #include "ocudu/adt/format.h"
 #include "ocudu/asn1/rrc_nr/sys_info.h"
 #include "ocudu/du/du_cell_config_helpers.h"
+#include "ocudu/du/du_cell_config_validation.h"
 #include "ocudu/pcap/mac_pcap.h"
 #include "ocudu/ran/sib/system_info_config.h"
 #include <gtest/gtest.h>
@@ -29,10 +30,9 @@ static du_cell_config make_cell_config_with_dormant_pws_si_message()
   si_message_sched_info si_msg;
   si_msg.sib_mapping_info       = {sib_type::sib6};
   si_msg.si_period_radio_frames = 32;
-  si_msg.requires_activation    = true;
   cfg.si.si_config->si_sched_info.push_back(si_msg);
-  // Note: si_config->sibs is left empty -- no content configured for the dormant SIB6 (see
-  // du_high_config_translators.cpp requires_activation handling).
+  // Note: si_config->sibs is left empty -- no content configured for the dormant SIB6, which is what makes this SI
+  // message require activation.
 
   return cfg;
 }
@@ -47,9 +47,9 @@ TEST(asn1_sib1_sched_info_test, dormant_pws_si_message_is_still_advertised_in_sc
   asn1::rrc_nr::sib1_s sib1;
   ASSERT_EQ(sib1.unpack(bref), asn1::OCUDUASN_SUCCESS);
 
-  // Regression test: a dormant, unconfigured PWS SI-message (SIB6/7/8 with requires_activation=true and no
-  // matching si_config->sibs entry) must still get a schedulingInfoList entry -- the UE has no way to discover
-  // SIB6/7/8 exist otherwise, even once the P-RNTI short-message notification correctly wakes it up.
+  // Regression test: a dormant, unconfigured PWS SI-message (SIB6/7/8 with no matching si_config->sibs entry) must
+  // still get a schedulingInfoList entry -- the UE has no way to discover SIB6/7/8 exist otherwise, even once the
+  // P-RNTI short-message notification correctly wakes it up.
   ASSERT_TRUE(sib1.si_sched_info_present) << "schedulingInfoList must not be dropped for a dormant PWS SI-message";
   ASSERT_EQ(sib1.si_sched_info.sched_info_list.size(), 1);
 
@@ -57,6 +57,21 @@ TEST(asn1_sib1_sched_info_test, dormant_pws_si_message_is_still_advertised_in_sc
   ASSERT_EQ(sched_info.sib_map_info.size(), 1);
   EXPECT_EQ(sched_info.sib_map_info[0].type.value, asn1::rrc_nr::sib_type_info_s::type_opts::sib_type6);
   EXPECT_FALSE(sched_info.sib_map_info[0].value_tag_present) << "Dormant SIB has no content, hence no value tag";
+}
+
+TEST(asn1_sib1_sched_info_test, pws_sib_mixed_with_other_sibs_in_one_si_message_is_rejected)
+{
+  // si-BroadcastStatus applies to a whole SI message, so appending a non-PWS SIB to a PWS SI-message would take that
+  // SIB off the air while no warning is on-going.
+  du_cell_config cell_cfg = make_cell_config_with_dormant_pws_si_message();
+  cell_cfg.si.si_config->si_sched_info[0].sib_mapping_info.push_back(sib_type::sib2);
+
+  ASSERT_FALSE(is_du_cell_config_valid(cell_cfg).has_value());
+}
+
+TEST(asn1_sib1_sched_info_test, dormant_pws_si_message_alone_in_its_si_message_is_accepted)
+{
+  ASSERT_TRUE(is_du_cell_config_valid(make_cell_config_with_dormant_pws_si_message()).has_value());
 }
 
 int main(int argc, char** argv)

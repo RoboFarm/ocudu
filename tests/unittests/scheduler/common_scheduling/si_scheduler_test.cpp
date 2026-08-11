@@ -54,9 +54,10 @@ TEST(no_si_scheduler_test, when_no_si_is_provided_then_nothing_is_scheduled)
 }
 
 constexpr units::bytes     DEFAULT_SIB1_PAYLOAD_SIZE{128};
-const si_scheduling_config DEFAULT_SI_SCHED_CFG{DEFAULT_SIB1_PAYLOAD_SIZE,
-                                                {{si_message_scheduling_config{units::bytes{64}, 16}}},
-                                                10};
+const si_scheduling_config DEFAULT_SI_SCHED_CFG{
+    DEFAULT_SIB1_PAYLOAD_SIZE,
+    {{si_message_scheduling_config{sib_type_set{sib_type::sib2}, units::bytes{64}, 16}}},
+    10};
 
 class si_scheduler_test : public si_scheduler_test_environment, public testing::Test
 {
@@ -157,7 +158,7 @@ TEST_F(si_scheduler_test, when_si_is_updated_then_new_msg_len_is_applied_right_a
   si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
   new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
   // Immediate content (e.g. NTN SIB19): grant sizing is expected to update right after the request.
-  new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window = true;
+  new_si_sched_cfg.si_messages[0].sibs = sib_type_set{sib_type::sib19};
 
   {
     bool           found_before = false;
@@ -223,7 +224,7 @@ TEST_F(si_scheduler_test, when_non_exempt_si_message_is_updated_then_new_msg_len
 {
   si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
   new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
-  ASSERT_FALSE(new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window) << "This SI-message must be non-exempt";
+  ASSERT_FALSE(new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window()) << "This SI-message must be non-exempt";
 
   const unsigned si_ch_wind_len_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.bcch_cfg.mod_period_coeff) *
@@ -337,7 +338,7 @@ TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_ex
 
 const si_scheduling_config ACTIVATION_REQUIRED_SI_SCHED_CFG{
     DEFAULT_SIB1_PAYLOAD_SIZE,
-    {{si_message_scheduling_config{units::bytes{64}, 16, std::nullopt, true}}},
+    {{si_message_scheduling_config{sib_type_set{sib_type::sib7}, units::bytes{64}, 16}}},
     10};
 
 class si_msg_scheduler_activation_test : public si_scheduler_test_environment, public testing::Test
@@ -522,8 +523,8 @@ TEST_F(si_msg_scheduler_activation_test, when_activation_msg_len_exceeds_static_
 // SI-message 0's occasion parity.
 const si_scheduling_config MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG{
     DEFAULT_SIB1_PAYLOAD_SIZE,
-    {si_message_scheduling_config{units::bytes{64}, 16, std::nullopt, true},
-     si_message_scheduling_config{units::bytes{64}, 16, 3, true}},
+    {si_message_scheduling_config{sib_type_set{sib_type::sib7}, units::bytes{64}, 16},
+     si_message_scheduling_config{sib_type_set{sib_type::sib8}, units::bytes{64}, 16, 3}},
     10};
 
 class si_msg_scheduler_multi_activation_test : public si_scheduler_test_environment, public testing::Test
