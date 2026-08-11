@@ -33,6 +33,10 @@ mac_controller::mac_controller(const mac_control_config&   cfg_,
 
 mac_cell_controller& mac_controller::add_cell(const mac_cell_creation_request& cell_add_req)
 {
+  ocudu_assert(not cells.contains(cell_add_req.cell_index),
+               "cell={}: Overwriting an existing cell is invalid",
+               fmt::underlying(cell_add_req.cell_index));
+
   // Add new cell to track timing.
   auto cell_time_source = time_ctrl.add_cell(cell_add_req.cell_index);
 
@@ -49,14 +53,18 @@ mac_cell_controller& mac_controller::add_cell(const mac_cell_creation_request& c
       mac_scheduler_cell_creation_request{cell_add_req, cell_metrics_cfg.sched_notifier, cfg.metrics.sched_ue_enabled});
 
   // > Create MAC Cell DL Handler.
-  return dl_unit.add_cell(cell_add_req,
-                          mac_cell_config_dependencies{std::move(cell_time_source),
-                                                       cell_metrics_cfg.report_period,
-                                                       cell_metrics_cfg.mac_notifier});
+  mac_dl_cell_controller& dl_cell =
+      dl_unit.add_cell(cell_add_req,
+                       mac_cell_config_dependencies{
+                           std::move(cell_time_source), cell_metrics_cfg.report_period, cell_metrics_cfg.mac_notifier});
+
+  return cells.emplace(cell_add_req.cell_index, dl_cell);
 }
 
 void mac_controller::remove_cell(du_cell_index_t cell_index)
 {
+  ocudu_assert(cells.contains(cell_index), "cell={}: Accessing non-existent cell", fmt::underlying(cell_index));
+
   // > Remove cell from MAC Cell Handler.
   dl_unit.remove_cell(cell_index);
 
@@ -65,6 +73,14 @@ void mac_controller::remove_cell(du_cell_index_t cell_index)
 
   // > Remove cell from metrics reports.
   metrics.rem_cell(cell_index);
+
+  cells.erase(cell_index);
+}
+
+mac_cell_controller& mac_controller::get_cell_controller(du_cell_index_t cell_index)
+{
+  ocudu_assert(cells.contains(cell_index), "cell={}: Accessing non-existent cell", fmt::underlying(cell_index));
+  return cells[cell_index];
 }
 
 mac_subframe_time_mapper& mac_controller::get_subframe_time_mapper()

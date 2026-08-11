@@ -22,7 +22,7 @@ namespace ocudu {
 
 class timer_manager;
 
-class mac_cell_processor final : public mac_cell_slot_handler, public mac_cell_controller
+class mac_cell_processor final : public mac_cell_slot_handler, public mac_dl_cell_controller
 {
 public:
   mac_cell_processor(const mac_cell_creation_request& cell_cfg_req,

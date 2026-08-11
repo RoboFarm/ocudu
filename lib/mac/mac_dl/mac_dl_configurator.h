@@ -39,6 +39,22 @@ struct mac_cell_config_dependencies {
   mac_cell_metric_notifier* notifier = nullptr;
 };
 
+/// Interface used to handle the activation/reconfiguration/deactivation of a cell in the MAC DL processor.
+class mac_dl_cell_controller
+{
+public:
+  virtual ~mac_dl_cell_controller() = default;
+
+  /// Start the cell.
+  virtual async_task<void> start() = 0;
+
+  /// Stop the cell.
+  virtual async_task<void> stop() = 0;
+
+  /// Reconfigure operational cell.
+  virtual async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) = 0;
+};
+
 /// Configurator of MAC cells in the MAC DL processor.
 class mac_dl_cell_manager
 {
@@ -46,14 +62,11 @@ public:
   virtual ~mac_dl_cell_manager() = default;
 
   /// Add new cell and set its configuration.
-  virtual mac_cell_controller& add_cell(const mac_cell_creation_request& cell_cfg,
-                                        mac_cell_config_dependencies     deps) = 0;
+  virtual mac_dl_cell_controller& add_cell(const mac_cell_creation_request& cell_cfg,
+                                           mac_cell_config_dependencies     deps) = 0;
 
   /// Remove an existing cell configuration.
   virtual void remove_cell(du_cell_index_t cell_index) = 0;
-
-  /// Fetch MAC cell state controller.
-  virtual mac_cell_controller& get_cell_controller(du_cell_index_t cell_index) = 0;
 };
 
 } // namespace ocudu

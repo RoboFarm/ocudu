@@ -8,6 +8,7 @@ target_link_libraries(mac_configuration_helpers ocudu_support ocudu_ran)
 set(SOURCES mac_factory.cpp
         mac_impl.cpp
         mac_ctrl/mac_controller.cpp
+        mac_ctrl/mac_cell_controller_impl.cpp
         mac_ctrl/ue_creation_procedure.cpp
         mac_ctrl/ue_reconfiguration_procedure.cpp
         mac_ctrl/mac_ue_removal_procedure.cpp

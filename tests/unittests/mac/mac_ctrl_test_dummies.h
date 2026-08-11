@@ -49,9 +49,11 @@ public:
   void handle_ue_config_applied(du_ue_index_t ue_index) override {}
 };
 
-class mac_cell_dummy_controller final : public mac_cell_controller
+class mac_cell_dummy_controller final : public mac_dl_cell_controller
 {
 public:
+  unsigned nof_starts = 0;
+
   async_task<void>                       start() override;
   async_task<void>                       stop() override { return start(); }
   async_task<mac_cell_reconfig_response> reconfigure(const mac_cell_reconfig_request& request) override
@@ -69,7 +71,7 @@ public:
   std::optional<mac_ue_delete_request>                                             last_ue_delete_request;
   std::optional<std::pair<du_ue_index_t, std::vector<mac_logical_channel_config>>> last_ue_bearers_added;
   std::optional<std::pair<du_ue_index_t, std::vector<lcid_t>>>                     last_ue_bearers_rem;
-  mac_cell_dummy_controller                                                        cell_ctrl;
+  std::vector<std::unique_ptr<mac_cell_dummy_controller>>                          cell_ctrls;
   test_helpers::dummy_mac_sfn_time_mapper                                          sfn_time_mapper;
 
   async_task<bool> add_ue(const mac_ue_create_request& msg) override;
@@ -80,12 +82,13 @@ public:
   async_task<bool>
   remove_bearers(du_ue_index_t ue_index, du_cell_index_t pcell_index, span<const lcid_t> lcids_to_rem) override;
 
-  mac_cell_controller& add_cell(const mac_cell_creation_request& cell_cfg, mac_cell_config_dependencies deps) override
+  mac_dl_cell_controller& add_cell(const mac_cell_creation_request& cell_cfg,
+                                   mac_cell_config_dependencies     deps) override
   {
-    return cell_ctrl;
+    cell_ctrls.push_back(std::make_unique<mac_cell_dummy_controller>());
+    return *cell_ctrls.back();
   }
   void                      remove_cell(du_cell_index_t cell_index) override {}
-  mac_cell_controller&      get_cell_controller(du_cell_index_t cell_index) override { return cell_ctrl; }
   mac_subframe_time_mapper& get_subframe_time_mapper() override { return sfn_time_mapper; }
 };
 
