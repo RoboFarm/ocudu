@@ -15,11 +15,10 @@ using namespace ocudu;
 namespace {
 
 /// Simple single-type pool backed by pre-allocated typed storage.
-/// Takes the segment size at runtime (replaces the former compile-time L).
 template <typename K, typename V>
 class simple_pool : public map_segment_pool_interface<K, V>
 {
-  using opt_t = std::optional<kv_obj<K, V>>;
+  using opt_t = std::optional<detail::kv_obj<K, V>>;
 
 public:
   simple_pool(size_t capacity, size_t seg_len) : seg_size_val(seg_len), backing(capacity * seg_len)

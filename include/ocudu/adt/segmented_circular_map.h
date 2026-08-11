@@ -16,6 +16,8 @@
 
 namespace ocudu {
 
+namespace detail {
+
 /// \brief Hand-rolled pair-like type used as the stored value in segmented_circular_map.
 ///
 /// Intentionally not std::pair to avoid issues with non-trivial copy in some STL implementations.
@@ -45,9 +47,11 @@ struct kv_obj {
 /// indicates that no segment has been acquired from the pool yet.
 template <typename K, typename V>
 struct segment_entry {
-  ocudu::span<std::optional<kv_obj<K, V>>> segment; ///< Non-owning view; null iff not yet acquired.
-  size_t                                   count = 0;
+  span<std::optional<kv_obj<K, V>>> segment; ///< Non-owning view; null iff not yet acquired.
+  size_t                            count = 0;
 };
+
+} // namespace detail
 
 /// \brief Abstract interface for a shared pool of segment storage.
 ///
@@ -61,10 +65,10 @@ public:
   virtual ~map_segment_pool_interface() = default;
 
   /// Acquire a segment from the pool. Returns an empty span if the pool is exhausted.
-  virtual ocudu::span<std::optional<kv_obj<K, V>>> get_segment() = 0;
+  virtual span<std::optional<detail::kv_obj<K, V>>> get_segment() = 0;
 
   /// Return a previously acquired segment to the pool.
-  virtual void return_segment(ocudu::span<std::optional<kv_obj<K, V>>> seg) = 0;
+  virtual void return_segment(span<std::optional<detail::kv_obj<K, V>>> seg) = 0;
 
   /// Returns the number of slots per segment.
   virtual size_t segment_size() const = 0;
@@ -98,8 +102,8 @@ class shared_map_segment_pool
   static_assert(sizeof...(Vs) > 0, "shared_map_segment_pool requires at least one value type");
 
   // Compile-time geometry for optional element storage (varies by V).
-  static constexpr size_t elem_size  = std::max({sizeof(std::optional<kv_obj<K, Vs>>)...});
-  static constexpr size_t elem_align = std::max({alignof(std::optional<kv_obj<K, Vs>>)...});
+  static constexpr size_t elem_size  = std::max({sizeof(std::optional<detail::kv_obj<K, Vs>>)...});
+  static constexpr size_t elem_align = std::max({alignof(std::optional<detail::kv_obj<K, Vs>>)...});
 
   struct alignas(elem_align) elem_slot {
     std::byte data[elem_size];
@@ -109,14 +113,14 @@ class shared_map_segment_pool
   template <typename V>
   class typed_adapter : public map_segment_pool_interface<K, V>
   {
-    using opt_t = std::optional<kv_obj<K, V>>;
+    using opt_t = std::optional<detail::kv_obj<K, V>>;
 
   public:
     explicit typed_adapter(shared_map_segment_pool& p) noexcept : parent(p) {}
 
     size_t segment_size() const override { return parent.seg_size; }
 
-    ocudu::span<opt_t> get_segment() override
+    span<opt_t> get_segment() override
     {
       if (parent.free_list.empty()) {
         return {};
@@ -131,7 +135,7 @@ class shared_map_segment_pool
       return {elem_ptr, parent.seg_size};
     }
 
-    void return_segment(ocudu::span<opt_t> seg) override
+    void return_segment(span<opt_t> seg) override
     {
       for (size_t i = 0; i < seg.size(); ++i) {
         std::destroy_at(&seg[i]);
@@ -185,7 +189,7 @@ public:
 /// that are obtained on-demand from a shared pool and returned when they become empty.
 /// This lets many map instances share a common memory pool without per-map pre-allocation.
 ///
-/// Each segment is an ocudu::span<std::optional<kv_obj<K,V>>> over pool-owned memory.
+/// Each segment is an span<std::optional<kv_obj<K,V>>> over pool-owned memory.
 /// A null data pointer (default-constructed span) means the segment slot has not been acquired.
 ///
 /// Key mapping: flat = K % map_size, primary_idx = flat / seg_size, slot_idx = flat % seg_size.
@@ -212,7 +216,7 @@ public:
   using mapped_type     = V;
   using value_type      = std::pair<K, V>;
   using difference_type = std::ptrdiff_t;
-  using obj_t           = kv_obj<K, V>;
+  using obj_t           = detail::kv_obj<K, V>;
 
   /// Forward iterator that automatically skips absent slots, accelerating over null segments.
   class iterator
@@ -651,12 +655,12 @@ private:
     return 0;
   }
 
-  size_t                            seg_size;
-  size_t                            seg_shift;
-  size_t                            map_size;
-  std::vector<segment_entry<K, V>>  entries;
-  map_segment_pool_interface<K, V>& pool;
-  size_t                            elem_count = 0;
+  size_t                                   seg_size;
+  size_t                                   seg_shift;
+  size_t                                   map_size;
+  std::vector<detail::segment_entry<K, V>> entries;
+  map_segment_pool_interface<K, V>&        pool;
+  size_t                                   elem_count = 0;
 };
 
 } // namespace ocudu

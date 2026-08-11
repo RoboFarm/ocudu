@@ -393,8 +393,8 @@ private:
   class rlc_tx_am_window_seg_pool_dummy : public rlc_drb_am_tx_window_seg_pool
   {
   public:
-    ocudu::span<std::optional<kv_obj<uint32_t, rlc_tx_am_sdu_info>>> get_segment() override { return {}; }
-    void   return_segment(ocudu::span<std::optional<kv_obj<uint32_t, rlc_tx_am_sdu_info>>>) override {}
+    ocudu::span<std::optional<detail::kv_obj<uint32_t, rlc_tx_am_sdu_info>>> get_segment() override { return {}; }
+    void   return_segment(ocudu::span<std::optional<detail::kv_obj<uint32_t, rlc_tx_am_sdu_info>>>) override {}
     size_t segment_size() const override { return rlc_drb_tx_window_seg_size; }
   };
 
