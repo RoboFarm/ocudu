@@ -119,7 +119,7 @@ TEST_F(si_message_controller_pws_test,
 
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 0);
+  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
   ASSERT_EQ(bench.sched.last_pws_nof_segments, 2);
   // Regression test: the scheduler must be signalled with the real (activation-time) content length, not whatever
   // was configured/encoded for this SI-message at cell startup.
@@ -261,7 +261,7 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   pws_req.si_messages   = span<byte_buffer>(segments);
   pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 3};
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 0);
+  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
 
   // An SI reconfiguration prepends a normal SI-message, pushing the SIB7 one from index 0 to index 1.
   mac_cell_sys_info_config reconf;
@@ -275,13 +275,13 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   // The on-going warning must follow its SIBs to the new position, rather than staying bound to index 0.
   bench.tick(1000);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
-  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 1)
+  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7})
       << "The repeat must target the SI-message carrying SIB7, not whatever now sits at its old index";
 
   // A further Write-Replace Warning must reach the same encoder through the new position.
   pws_req.si_msg_idx = 1;
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 1);
+  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
 }
 
 /// Fixture with a single SI-message pre-provisioned at index 0, marked both requires_activation and
@@ -311,7 +311,7 @@ TEST_F(si_message_controller_auto_broadcast_test,
        when_controller_is_constructed_then_scheduler_is_signalled_for_indefinite_broadcast)
 {
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_EQ(bench.sched.last_pws_si_msg_idx, 0);
+  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
   ASSERT_FALSE(bench.sched.last_pws_nof_segments.has_value()) << "test_mode auto-broadcast must never auto-deactivate";
   ASSERT_EQ(bench.sched.last_pws_msg_len, units::bytes{50});
 }

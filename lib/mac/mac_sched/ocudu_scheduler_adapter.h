@@ -92,7 +92,7 @@ public:
   void handle_si_change_indication(const si_scheduling_update_request& request) override;
 
   void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                       unsigned                si_msg_idx,
+                                       sib_type_set            si_msg,
                                        std::optional<unsigned> nof_segments,
                                        units::bytes            msg_len) override;
 

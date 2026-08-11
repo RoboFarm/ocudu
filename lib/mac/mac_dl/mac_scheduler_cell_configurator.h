@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ocudu/ran/du_types.h"
+#include "ocudu/ran/sib/sib_type.h"
 #include "ocudu/support/units.h"
 #include <optional>
 
@@ -28,13 +29,13 @@ public:
   /// \brief Request the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification and activate the target
   /// SI-message.
   /// \param[in] cell_idx DU-specific index of the cell for which the indication is directed.
-  /// \param[in] si_msg_idx Index of the SI-message carrying the SIB6/7/8 to activate.
+  /// \param[in] si_msg SIBs carried by the SI-message to activate.
   /// \param[in] nof_segments Number of segments composing the warning message, or \c std::nullopt for indefinite.
   /// \param[in] msg_len Length, in bytes, of the largest segment of the warning message being activated. Used to
   /// size the PDSCH grant for this SI-message while active.
   /// \remark Must be called from the cell control executor.
   virtual void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                               unsigned                si_msg_idx,
+                                               sib_type_set            si_msg,
                                                std::optional<unsigned> nof_segments,
                                                units::bytes            msg_len) = 0;
 

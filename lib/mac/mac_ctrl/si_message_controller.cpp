@@ -133,19 +133,13 @@ private:
 class si_message_controller::pws_si_msg_encoder final : public bcch_dl_sch_msg_encoder
 {
 public:
-  pws_si_msg_encoder(unsigned                         si_msg_idx_,
+  pws_si_msg_encoder(sib_type_set                     si_msg_,
                      timer_factory                    timers_,
                      mac_scheduler_cell_configurator& sched_,
                      du_cell_index_t                  cell_index_) :
-    si_msg_idx(si_msg_idx_), timers(timers_), sched(sched_), cell_index(cell_index_)
+    si_msg(si_msg_), timers(timers_), sched(sched_), cell_index(cell_index_)
   {
   }
-
-  /// \brief Updates the position this SI message occupies in the current SI scheduling configuration.
-  ///
-  /// The scheduler addresses SI messages by position, and an on-going broadcast outlives the SI scheduling
-  /// configuration it started in.
-  void set_si_msg_idx(unsigned si_msg_idx_) { si_msg_idx = si_msg_idx_; }
 
   /// Handles a new Write-Replace Warning content push, called from the control executor. A new warning for this
   /// index replaces any in-flight one outright.
@@ -194,7 +188,7 @@ public:
     }
     pending.write_and_commit(snap);
 
-    sched.handle_pws_broadcast_indication(cell_index, si_msg_idx, std::nullopt, max_len);
+    sched.handle_pws_broadcast_indication(cell_index, si_msg, std::nullopt, max_len);
   }
 
   expected<span<const uint8_t>, units::bytes> encode(slot_point_extended /*sl_tx*/,
@@ -270,8 +264,7 @@ private:
     }
     --ctrl.nof_broadcasts_remaining;
 
-    sched.handle_pws_broadcast_indication(
-        cell_index, si_msg_idx, std::optional<unsigned>{ctrl.nof_segments}, ctrl.msg_len);
+    sched.handle_pws_broadcast_indication(cell_index, si_msg, std::optional<unsigned>{ctrl.nof_segments}, ctrl.msg_len);
 
     if (ctrl.nof_broadcasts_remaining == 0) {
       return;
@@ -284,7 +277,7 @@ private:
     ctrl.timer.run();
   }
 
-  unsigned                         si_msg_idx;
+  sib_type_set                     si_msg;
   timer_factory                    timers;
   mac_scheduler_cell_configurator& sched;
   du_cell_index_t                  cell_index;
@@ -308,7 +301,7 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
   const auto& si_sched_messages = sys_info.si_sched_cfg.si_messages;
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation()) {
-      auto encoder = std::make_shared<pws_si_msg_encoder>(i, timers, sched, cell_index);
+      auto encoder = std::make_shared<pws_si_msg_encoder>(si_sched_messages[i].sibs, timers, sched, cell_index);
       pws_encoders.emplace_back(si_sched_messages[i].sibs, encoder);
       if (si_sched_messages[i].test_mode_auto_broadcast) {
         // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right
@@ -383,9 +376,7 @@ void si_message_controller::build_command(const mac_cell_sys_info_config& req)
   for (unsigned i = 0, e = req.si_messages.size(); i != e; ++i) {
     if (auto pws_encoder = find_pws_encoder(req.si_sched_cfg, i)) {
       // This SI message is exclusively managed by its PWS encoder. Its content flows through handle_pws_broadcast,
-      // not through this (possibly unrelated) SI reconfiguration. Leave it untouched, and only refresh the position
-      // it now occupies, which is what the scheduler is addressed by.
-      pws_encoder->set_si_msg_idx(i);
+      // not through this (possibly unrelated) SI reconfiguration. Leave it untouched.
       last_cmd.si_msgs[i] = std::move(pws_encoder);
       continue;
     }

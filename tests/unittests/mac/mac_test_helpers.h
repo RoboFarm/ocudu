@@ -187,17 +187,17 @@ public:
   void handle_si_change_indication(const si_scheduling_update_request& request) override {}
 
   unsigned                nof_pws_broadcast_indications = 0;
-  unsigned                last_pws_si_msg_idx           = 0;
+  sib_type_set            last_pws_si_msg;
   std::optional<unsigned> last_pws_nof_segments;
   units::bytes            last_pws_msg_len{0};
 
   void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                       unsigned                si_msg_idx,
+                                       sib_type_set            si_msg,
                                        std::optional<unsigned> nof_segments,
                                        units::bytes            msg_len) override
   {
     ++nof_pws_broadcast_indications;
-    last_pws_si_msg_idx   = si_msg_idx;
+    last_pws_si_msg       = si_msg;
     last_pws_nof_segments = nof_segments;
     last_pws_msg_len      = msg_len;
   }

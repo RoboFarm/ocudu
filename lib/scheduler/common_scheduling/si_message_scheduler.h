@@ -29,12 +29,13 @@ public:
   void handle_si_message_update_indication(unsigned version, const si_scheduling_config& new_si_sched_cfg);
 
   /// \brief Activates an SI-message that requires explicit activation.
+  /// \param si_msg SIBs carried by the SI-message to activate.
   /// \param activation_slot Slot at which this activation is being processed, used as the origin for the
   /// aforementioned deadline.
   /// \param nof_segments Number of segments that should reach the UE for this SI-message activation. If equal to
   /// \c std::nullopt, the SI-message should remain active indefinitely.
   /// \param msg_len Length, in bytes, of the largest segment of the content being activated.
-  void activate_si_message(unsigned                si_msg_idx,
+  void activate_si_message(sib_type_set            si_msg,
                            slot_point_extended     activation_slot,
                            std::optional<unsigned> nof_segments,
                            units::bytes            msg_len);

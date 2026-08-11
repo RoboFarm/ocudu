@@ -58,6 +58,16 @@ void si_message_scheduler::stop()
 void si_message_scheduler::handle_si_message_update_indication(unsigned                    new_version,
                                                                const si_scheduling_config& new_si_sched_cfg)
 {
+  // An on-going PWS broadcast is not part of this SI change: its content is exempt from the SI modification window,
+  // and it must keep being transmitted for the duration it was activated for. Save it, matched by the SIBs it
+  // broadcasts, so that it survives an SI change that reorders the SI messages.
+  static_vector<std::pair<sib_type_set, message_window_context>, MAX_SI_MESSAGES> ongoing_pws;
+  for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
+    if (si_sched_cfg.si_messages[i].requires_activation() and pending_messages[i].active) {
+      ongoing_pws.emplace_back(si_sched_cfg.si_messages[i].sibs, pending_messages[i]);
+    }
+  }
+
   // Update SI messages.
   version      = new_version;
   si_sched_cfg = new_si_sched_cfg;
@@ -66,17 +76,34 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   // Reset window and transmission counters.
   std::fill(pending_messages.begin(), pending_messages.end(), message_window_context{});
   for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
-    pending_messages[i].active  = not si_sched_cfg.si_messages[i].requires_activation();
-    pending_messages[i].msg_len = si_sched_cfg.si_messages[i].msg_len;
+    const si_message_scheduling_config& si_msg = si_sched_cfg.si_messages[i];
+
+    auto ongoing = std::find_if(
+        ongoing_pws.begin(), ongoing_pws.end(), [&si_msg](const auto& entry) { return entry.first == si_msg.sibs; });
+    if (ongoing != ongoing_pws.end()) {
+      // Resume the on-going broadcast, keeping its transmission counters so that its segment cycle is not restarted.
+      pending_messages[i] = ongoing->second;
+      continue;
+    }
+
+    pending_messages[i].active  = not si_msg.requires_activation();
+    pending_messages[i].msg_len = si_msg.msg_len;
   }
 }
 
-void si_message_scheduler::activate_si_message(unsigned                si_msg_idx,
+void si_message_scheduler::activate_si_message(sib_type_set            si_msg,
                                                slot_point_extended     activation_slot,
                                                std::optional<unsigned> nof_segments,
                                                units::bytes            msg_len)
 {
-  ocudu_assert(si_msg_idx < pending_messages.size(), "Invalid SI-message index");
+  auto it = std::find_if(si_sched_cfg.si_messages.begin(),
+                         si_sched_cfg.si_messages.end(),
+                         [si_msg](const si_message_scheduling_config& cfg) { return cfg.sibs == si_msg; });
+  if (it == si_sched_cfg.si_messages.end()) {
+    // The SI-message is no longer part of the SI scheduling configuration.
+    return;
+  }
+  const unsigned si_msg_idx = std::distance(si_sched_cfg.si_messages.begin(), it);
 
   message_window_context& ctxt = pending_messages[si_msg_idx];
   ctxt.active                  = true;

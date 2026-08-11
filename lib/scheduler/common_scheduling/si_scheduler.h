@@ -42,16 +42,16 @@ private:
     units::bytes            msg_len{0};
   };
 
-  /// \brief Per-SI-message pending-request slot, keyed by SI-message index.
+  /// \brief Per-SI-message pending-request slot, keyed by the SIBs the SI-message carries.
   /// \remark \c buffer is stored as \c unique_ptr because \c lockfree_triple_buffer is non-movable, and slot values
   /// must be movable to live inside a \c slotted_vector.
   struct pws_pending_entry {
-    unsigned                                                     si_msg_idx        = 0;
+    sib_type_set                                                 si_msg;
     si_version_type                                              last_seen_version = 0;
     std::unique_ptr<lockfree_triple_buffer<pws_pending_request>> buffer =
         std::make_unique<lockfree_triple_buffer<pws_pending_request>>();
 
-    explicit pws_pending_entry(unsigned si_msg_idx_) : si_msg_idx(si_msg_idx_) {}
+    explicit pws_pending_entry(sib_type_set si_msg_) : si_msg(si_msg_) {}
   };
 
   void try_handle_pending_request(cell_resource_allocator& res_alloc, slot_point_extended sl_tx_ext);

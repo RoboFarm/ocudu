@@ -34,8 +34,8 @@ struct si_scheduling_update_request {
 struct pws_broadcast_request {
   /// Cell index specific to this PWS broadcast indication.
   du_cell_index_t cell_index;
-  /// Index of the SI-message carrying the SIB6/7/8 to activate.
-  unsigned si_msg_idx;
+  /// SIBs carried by the SI-message to activate.
+  sib_type_set si_msg;
   /// Number of segments composing the warning message, i.e. the number of consecutive SI-message window
   /// transmissions needed to complete one broadcast. \c std::nullopt means broadcast indefinitely.
   std::optional<unsigned> nof_segments;

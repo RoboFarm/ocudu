@@ -27,7 +27,7 @@ si_scheduler::si_scheduler(const cell_configuration&                       cfg_,
   const unsigned nof_si_messages = msg.si_scheduling.si_messages.size();
   for (unsigned i = 0; i != nof_si_messages; ++i) {
     if (msg.si_scheduling.si_messages[i].requires_activation()) {
-      pending_pws_reqs.emplace(i, i);
+      pending_pws_reqs.emplace(i, msg.si_scheduling.si_messages[i].sibs);
     }
   }
 }
@@ -153,9 +153,11 @@ void si_scheduler::handle_si_update_request(const si_scheduling_update_request& 
 
 void si_scheduler::handle_pws_broadcast_indication(const pws_broadcast_request& req)
 {
-  ocudu_assert(pending_pws_reqs.contains(req.si_msg_idx), "SI-message {} does not require activation", req.si_msg_idx);
-  pending_pws_reqs[req.si_msg_idx].buffer->write_and_commit(
-      pws_pending_request{next_pws_version++, req.nof_segments, req.msg_len});
+  auto it = std::find_if(pending_pws_reqs.begin(), pending_pws_reqs.end(), [&req](const pws_pending_entry& entry) {
+    return entry.si_msg == req.si_msg;
+  });
+  ocudu_assert(it != pending_pws_reqs.end(), "SI-message does not require activation");
+  it->buffer->write_and_commit(pws_pending_request{next_pws_version++, req.nof_segments, req.msg_len});
 }
 
 bool si_scheduler::try_handle_pending_pws_request(slot_point_extended slot_sched)
@@ -170,7 +172,7 @@ bool si_scheduler::try_handle_pending_pws_request(slot_point_extended slot_sched
     }
     // New request. Activate the target SI-message for one broadcast.
     pws_entry.last_seen_version = next.version;
-    si_msg_sched.activate_si_message(pws_entry.si_msg_idx, slot_sched, next.nof_segments, next.msg_len);
+    si_msg_sched.activate_si_message(pws_entry.si_msg, slot_sched, next.nof_segments, next.msg_len);
 
     // As per TS 38.304, ETWS/CMAS-capable UEs monitor for this notification only in their own paging occasion, once
     // per DRX cycle. Since we don't know a given UE's UE_ID (hence its exact paging occasion), extend the
