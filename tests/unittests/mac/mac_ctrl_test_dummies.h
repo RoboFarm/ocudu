@@ -54,6 +54,7 @@ class mac_cell_dummy_controller final : public mac_dl_cell_controller
 public:
   unsigned                       nof_starts = 0;
   std::optional<si_version_type> last_si_version;
+  std::optional<si_version_type> last_etws_si_version;
 
   async_task<void> start() override;
   async_task<void> stop() override { return start(); }
@@ -62,6 +63,7 @@ public:
     handle_si_update(cmd);
   }
   void             handle_si_update(const si_update_command& cmd) override { last_si_version = cmd.version; }
+  void             handle_etws_si_update(const si_update_command& cmd) override { last_etws_si_version = cmd.version; }
   async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return start(); }
 };
 

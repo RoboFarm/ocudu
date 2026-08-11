@@ -80,6 +80,10 @@ public:
   /// \remark Must be called from the cell control executor.
   virtual void handle_si_update(const si_update_command& cmd) = 0;
 
+  /// \brief Applies a new SI epoch, to be broadcast while a warning is on air.
+  /// \remark Must be called from the cell control executor.
+  virtual void handle_etws_si_update(const si_update_command& cmd) = 0;
+
   /// Reconfigure operational cell.
   virtual async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) = 0;
 };

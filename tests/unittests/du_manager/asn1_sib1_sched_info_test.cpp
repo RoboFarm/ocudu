@@ -57,6 +57,37 @@ TEST(asn1_sib1_sched_info_test, dormant_pws_si_message_is_still_advertised_in_sc
   ASSERT_EQ(sched_info.sib_map_info.size(), 1);
   EXPECT_EQ(sched_info.sib_map_info[0].type.value, asn1::rrc_nr::sib_type_info_s::type_opts::sib_type6);
   EXPECT_FALSE(sched_info.sib_map_info[0].value_tag_present) << "Dormant SIB has no content, hence no value tag";
+
+  // A PWS SI-message is only broadcast while a warning is on air. Advertising it as broadcasting while dormant makes
+  // UEs try to acquire an SI-message that is not being transmitted.
+  EXPECT_EQ(sched_info.si_broadcast_status.value,
+            asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting);
+}
+
+TEST(asn1_sib1_sched_info_test, non_pws_si_message_is_advertised_as_broadcasting)
+{
+  du_cell_config cell_cfg                                       = make_cell_config_with_dormant_pws_si_message();
+  cell_cfg.si.si_config->si_sched_info.front().sib_mapping_info = {sib_type::sib2};
+
+  sib2_info sib2;
+  sib2.q_hyst                    = q_hyst_t::db4;
+  sib2.thresh_serving_low_p      = reselection_threshold_t{14};
+  sib2.cell_reselection_priority = cell_reselection_priority_t{4};
+  sib2.q_rx_lev_min              = q_rx_lev_min_t{-70};
+  sib2.s_intra_search_p          = reselection_threshold_t{31};
+  sib2.t_reselection_nr          = t_reselection_t{1};
+  cell_cfg.si.si_config->sibs.push_back(sib_type_info{sib2, value_tag_t{0}});
+
+  byte_buffer buf = asn1_packer::pack_sib1(cell_cfg);
+
+  asn1::cbit_ref       bref{buf};
+  asn1::rrc_nr::sib1_s sib1;
+  ASSERT_EQ(sib1.unpack(bref), asn1::OCUDUASN_SUCCESS);
+
+  ASSERT_TRUE(sib1.si_sched_info_present);
+  ASSERT_EQ(sib1.si_sched_info.sched_info_list.size(), 1);
+  EXPECT_EQ(sib1.si_sched_info.sched_info_list[0].si_broadcast_status.value,
+            asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::broadcasting);
 }
 
 TEST(asn1_sib1_sched_info_test, pws_sib_mixed_with_other_sibs_in_one_si_message_is_rejected)

@@ -15,6 +15,11 @@ mac_cell_controller_impl::mac_cell_controller_impl(const mac_cell_creation_reque
 {
   // Start broadcasting the System Information the cell was created with.
   dl_cell.start_broadcast(si_mng.extension_handler(), si_mng.last_command());
+
+  // A cell configured with test_mode ETWS/CMAS content starts broadcasting it right away.
+  if (std::optional<si_update_command> etws_cmd = si_mng.take_etws_command(); etws_cmd.has_value()) {
+    dl_cell.handle_etws_si_update(*etws_cmd);
+  }
 }
 
 async_task<void> mac_cell_controller_impl::start()

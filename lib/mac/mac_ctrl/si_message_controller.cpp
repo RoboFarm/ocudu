@@ -371,19 +371,28 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
   const auto& si_sched_messages = sys_info.si_sched_cfg.si_messages;
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation()) {
-      auto encoder = std::make_shared<pws_si_msg_encoder>(si_sched_messages[i].sibs, timers, sched, cell_index);
-      pws_encoders.emplace_back(si_sched_messages[i].sibs, encoder);
-      if (si_sched_messages[i].test_mode_auto_broadcast) {
-        // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right
-        // away, indefinitely, instead of waiting for a real Write-Replace Warning.
-        encoder->activate_forever(sys_info.si_messages[i]);
-      }
+      pws_encoders.emplace_back(
+          si_sched_messages[i].sibs,
+          std::make_shared<pws_si_msg_encoder>(si_sched_messages[i].sibs, timers, sched, cell_index));
     }
   }
 
   // Version starts at 0.
   last_cmd.version = 0;
   build_command(sys_info);
+
+  for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
+    if (i >= si_sched_messages.size() or not si_sched_messages[i].test_mode_auto_broadcast) {
+      continue;
+    }
+    // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right away,
+    // indefinitely, instead of waiting for a real Write-Replace Warning.
+    find_pws_encoder(sys_info.si_sched_cfg, i)->activate_forever(sys_info.si_messages[i]);
+    broadcasting_warnings.push_back(si_sched_messages[i].sibs);
+  }
+  if (not broadcasting_warnings.empty()) {
+    build_etws_command(broadcasting_warnings);
+  }
 }
 
 si_message_controller::~si_message_controller() = default;
