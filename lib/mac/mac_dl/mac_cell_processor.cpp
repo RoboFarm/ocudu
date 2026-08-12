@@ -177,6 +177,22 @@ async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_requ
       CORO_AWAIT(execute_on_blocking(ctrl_exec, timers));
     }
 
+    if (request.cell_barred_mod.has_value() or request.intra_freq_reselection_mod.has_value()) {
+      // Hop to the cell executor to apply MIB-flag mutations adjacent to SSB assembly. These are plain bool
+      // stores read on the same executor in assemble_ssb(), so no RTSAN scope is required.
+      CORO_AWAIT(execute_on_blocking(cell_exec, timers));
+
+      if (request.cell_barred_mod.has_value()) {
+        ssb_helper.set_cell_barred(*request.cell_barred_mod);
+      }
+      if (request.intra_freq_reselection_mod.has_value()) {
+        ssb_helper.set_intra_freq_reselection(*request.intra_freq_reselection_mod);
+      }
+
+      // Change back to CTRL executor context.
+      CORO_AWAIT(execute_on_blocking(ctrl_exec, timers));
+    }
+
     CORO_RETURN();
   });
 }
