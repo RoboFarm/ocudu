@@ -20,7 +20,8 @@ namespace detail {
 
 /// \brief Hand-rolled pair-like type used as the stored value in segmented_circular_map.
 ///
-/// Intentionally not std::pair to avoid issues with non-trivial copy in some STL implementations.
+/// Intentionally not std::pair which is not trivially copyable even for trivially copyable members,
+/// as it supports reference members via an explicit assignment operator. References are not needed here.
 ///
 /// \tparam K Key type.
 /// \tparam V Mapped value type.
