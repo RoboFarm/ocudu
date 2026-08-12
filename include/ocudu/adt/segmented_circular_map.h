@@ -43,11 +43,12 @@ struct kv_obj {
 /// \brief Entry in the primary table of segmented_circular_map.
 ///
 /// Holds a span over a segment's optional slots (non-owning view into pool backing storage)
-/// and tracks the number of occupied slots. A null data pointer (default-constructed span)
+/// and tracks the number of occupied slots. An empty (default-constructed) span
 /// indicates that no segment has been acquired from the pool yet.
 template <typename K, typename V>
 struct segment_entry {
-  span<std::optional<kv_obj<K, V>>> segment; ///< Non-owning view; null iff not yet acquired.
+  /// Non-owning view of the segment; empty iff not yet acquired.
+  span<std::optional<kv_obj<K, V>>> segment;
   size_t                            count = 0;
 };
 
@@ -56,7 +57,7 @@ struct segment_entry {
 /// \brief Abstract interface for a shared pool of segment storage.
 ///
 /// get_segment() returns a span over an initialised optional slot array, or an empty span
-/// (data() == nullptr) when the pool is exhausted. return_segment() must only be called
+/// when the pool is exhausted. return_segment() must only be called
 /// with a span previously returned by get_segment() on the same pool.
 template <typename K, typename V>
 class map_segment_pool_interface
@@ -107,7 +108,10 @@ class shared_map_segment_pool
 
   struct alignas(elem_align) elem_slot {
     std::byte data[elem_size];
-    elem_slot() noexcept {}
+    elem_slot() noexcept
+    {
+      // user-provided (not =default) suppresses zero-initialization of data on value-init.
+    }
   };
 
   template <typename V>
@@ -129,7 +133,7 @@ class shared_map_segment_pool
       parent.free_list.pop_back();
 
       auto* elem_ptr = static_cast<opt_t*>(raw);
-      for (size_t i = 0; i < parent.seg_size; ++i) {
+      for (size_t i = 0; i != parent.seg_size; ++i) {
         ::new (&elem_ptr[i]) opt_t();
       }
       return {elem_ptr, parent.seg_size};
@@ -137,7 +141,7 @@ class shared_map_segment_pool
 
     void return_segment(span<opt_t> seg) override
     {
-      for (size_t i = 0; i < seg.size(); ++i) {
+      for (size_t i = 0, e = seg.size(); i != e; ++i) {
         std::destroy_at(&seg[i]);
       }
       parent.free_list.push_back(seg.data());
@@ -162,7 +166,7 @@ public:
                                 segment_size);
     }
     free_list.reserve(num_slots);
-    for (size_t i = 0; i < num_slots; ++i) {
+    for (size_t i = 0; i != num_slots; ++i) {
       free_list.push_back(&elem_slots[i * segment_size]);
     }
   }
@@ -190,7 +194,7 @@ public:
 /// This lets many map instances share a common memory pool without per-map pre-allocation.
 ///
 /// Each segment is an span<std::optional<kv_obj<K,V>>> over pool-owned memory.
-/// A null data pointer (default-constructed span) means the segment slot has not been acquired.
+/// An empty (default-constructed) span means the segment slot has not been acquired.
 ///
 /// Key mapping: flat = K % map_size, primary_idx = flat / seg_size, slot_idx = flat % seg_size.
 /// When ForcePower2MapSize is true, the map_size modulo is replaced by a bit-wise AND.
@@ -242,7 +246,7 @@ public:
       ++flat_idx;
       while (flat_idx < ptr->total_capacity()) {
         size_t p = ptr->get_primary_idx(flat_idx);
-        if (ptr->entries[p].segment.data() == nullptr) {
+        if (ptr->entries[p].segment.empty()) {
           flat_idx = ptr->get_segment_start(p + 1);
         } else if (not ptr->entries[p].segment[ptr->get_slot_idx(flat_idx)]) {
           ++flat_idx;
@@ -309,7 +313,7 @@ public:
       ++flat_idx;
       while (flat_idx < ptr->total_capacity()) {
         size_t p = ptr->get_primary_idx(flat_idx);
-        if (ptr->entries[p].segment.data() == nullptr) {
+        if (ptr->entries[p].segment.empty()) {
           flat_idx = ptr->get_segment_start(p + 1);
         } else if (not ptr->entries[p].segment[ptr->get_slot_idx(flat_idx)]) {
           ++flat_idx;
@@ -384,7 +388,7 @@ public:
     size_t      p    = get_primary_idx(flat);
     size_t      s    = get_slot_idx(flat);
     const auto& seg  = entries[p].segment;
-    return seg.data() != nullptr and seg[s] and seg[s]->first == key;
+    return not seg.empty() and seg[s] and seg[s]->first == key;
   }
 
   /// Inserts a new element constructed in-place with the given key if no collision is detected.
@@ -396,9 +400,9 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    if (entries[p].segment.data() == nullptr) {
+    if (entries[p].segment.empty()) {
       entries[p].segment = pool.get_segment();
-      if (entries[p].segment.data() == nullptr) {
+      if (entries[p].segment.empty()) {
         return false;
       }
     } else if (entries[p].segment[s]) {
@@ -417,9 +421,9 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    if (entries[p].segment.data() == nullptr) {
+    if (entries[p].segment.empty()) {
       entries[p].segment = pool.get_segment();
-      if (entries[p].segment.data() == nullptr) {
+      if (entries[p].segment.empty()) {
         return false;
       }
     } else if (entries[p].segment[s]) {
@@ -438,9 +442,9 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    if (entries[p].segment.data() == nullptr) {
+    if (entries[p].segment.empty()) {
       entries[p].segment = pool.get_segment();
-      if (entries[p].segment.data() == nullptr) {
+      if (entries[p].segment.empty()) {
         return make_unexpected(std::move(obj));
       }
     } else if (entries[p].segment[s]) {
@@ -459,7 +463,7 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    if (entries[p].segment.data() != nullptr and entries[p].segment[s]) {
+    if (not entries[p].segment.empty() and entries[p].segment[s]) {
       erase(get_obj(p, s).first);
     }
     return insert(key, obj);
@@ -472,7 +476,7 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    if (entries[p].segment.data() != nullptr and entries[p].segment[s]) {
+    if (not entries[p].segment.empty() and entries[p].segment[s]) {
       erase(get_obj(p, s).first);
     }
     return insert(key, std::move(obj));
@@ -516,7 +520,7 @@ public:
   constexpr void clear() noexcept
   {
     for (auto& entry : entries) {
-      if (entry.segment.data() != nullptr) {
+      if (not entry.segment.empty()) {
         pool.return_segment(entry.segment);
         entry.segment = {};
         entry.count   = 0;
@@ -559,7 +563,7 @@ public:
     size_t flat = get_flat_idx(key);
     size_t p    = get_primary_idx(flat);
     size_t s    = get_slot_idx(flat);
-    return entries[p].segment.data() == nullptr or not entries[p].segment[s];
+    return entries[p].segment.empty() or not entries[p].segment[s];
   }
 
   constexpr iterator       begin() { return iterator(this, 0); }
@@ -635,7 +639,7 @@ private:
   {
     size_t p = get_primary_idx(flat);
     size_t s = get_slot_idx(flat);
-    return entries[p].segment.data() != nullptr and entries[p].segment[s].has_value();
+    return not entries[p].segment.empty() and entries[p].segment[s].has_value();
   }
 
   void maybe_return_segment(size_t primary) noexcept
