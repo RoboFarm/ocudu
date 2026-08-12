@@ -8,6 +8,7 @@
 #include "ocudu/ran/ntn.h"
 #include "ocudu/ran/plmn_identity.h"
 #include "ocudu/ran/sib/cell_reselection.h"
+#include "ocudu/ran/sib/sib_constants.h"
 #include <variant>
 #include <vector>
 
@@ -68,16 +69,18 @@ struct sib2_info {
 /// Intra-frequency cell reselection information SIB contents (see TS38.331 Section 6.3.2, Information Element \e
 /// SIB3).
 struct sib3_info {
-  /// List of intra-frequency neighbouring cells with specific cell reselection parameters.
+  /// List of intra-frequency neighbouring cells with specific cell reselection parameters. Max size
+  /// \c MAX_NOF_SIB3_INTRA_FREQ_CELLS.
   std::vector<intra_freq_neigh_cell_info> intra_freq_neigh_cell_list;
-  /// List of excluded intra-frequency neighbouring cells.
+  /// List of excluded intra-frequency neighbouring cells. Max size \c MAX_NOF_SIB3_INTRA_FREQ_CELLS.
   std::vector<pci_range_t> intra_freq_excluded_cell_list;
 };
 
 /// Inter-frequency cell reselection information SIB contents (see TS38.331 Section 6.3.2, Information Element \e
 /// SIB4).
 struct sib4_info {
-  /// List of neighbouring carrier frequencies and frequency specific cell reselection information.
+  /// List of neighbouring carrier frequencies and frequency specific cell reselection information. Max size
+  /// \c MAX_NOF_SIB4_INTER_FREQ_CARRIERS.
   std::vector<inter_freq_carrier_freq_info> inter_freq_carrier_freq_list;
 };
 

@@ -467,6 +467,12 @@ static expected<sib3_info, std::string> parse_sib3(const nlohmann::json& content
     if (!neigh_list_it->is_array()) {
       return make_unexpected("'intra_freq_neigh_cell_list' value type should be an array");
     }
+    if (neigh_list_it->size() > MAX_NOF_SIB3_INTRA_FREQ_CELLS) {
+      return make_unexpected(
+          fmt::format("'intra_freq_neigh_cell_list' contains {} entries, exceeding the maximum of {}",
+                      neigh_list_it->size(),
+                      MAX_NOF_SIB3_INTRA_FREQ_CELLS));
+    }
     for (const auto& entry : neigh_list_it->items()) {
       const auto& neigh_obj = entry.value();
       if (!neigh_obj.is_object()) {
@@ -495,6 +501,12 @@ static expected<sib3_info, std::string> parse_sib3(const nlohmann::json& content
   if (excluded_list_it != content.end()) {
     if (!excluded_list_it->is_array()) {
       return make_unexpected("'intra_freq_excluded_cell_list' value type should be an array");
+    }
+    if (excluded_list_it->size() > MAX_NOF_SIB3_INTRA_FREQ_CELLS) {
+      return make_unexpected(
+          fmt::format("'intra_freq_excluded_cell_list' contains {} entries, exceeding the maximum of {}",
+                      excluded_list_it->size(),
+                      MAX_NOF_SIB3_INTRA_FREQ_CELLS));
     }
     for (const auto& entry : excluded_list_it->items()) {
       const auto& excl_obj = entry.value();
@@ -561,6 +573,12 @@ static expected<sib4_info, std::string> parse_sib4(const nlohmann::json& content
   }
   if (carrier_list_it->empty()) {
     return make_unexpected("'inter_freq_carrier_freq_list' must contain at least one entry");
+  }
+  if (carrier_list_it->size() > MAX_NOF_SIB4_INTER_FREQ_CARRIERS) {
+    return make_unexpected(
+        fmt::format("'inter_freq_carrier_freq_list' contains {} entries, exceeding the maximum of {}",
+                    carrier_list_it->size(),
+                    MAX_NOF_SIB4_INTER_FREQ_CARRIERS));
   }
 
   for (const auto& entry : carrier_list_it->items()) {

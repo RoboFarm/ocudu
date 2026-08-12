@@ -75,6 +75,41 @@ nlohmann::json sib2_content_with(int q_rx_lev_min, int thresh_low_p, int reselec
           {"t_reselection_nr", 1}};
 }
 
+/// Build a SIB3 'intra_freq_neigh_cell_list' array with `count` distinct entries (PCI max is 1007).
+nlohmann::json make_neigh_cell_list(unsigned count)
+{
+  nlohmann::json arr = nlohmann::json::array();
+  for (unsigned i = 0; i != count; ++i) {
+    arr.push_back({{"pci", i}, {"q_offset_cell", 0}});
+  }
+  return arr;
+}
+
+/// Build a SIB3 'intra_freq_excluded_cell_list' array with `count` distinct entries.
+nlohmann::json make_excluded_cell_list(unsigned count)
+{
+  nlohmann::json arr = nlohmann::json::array();
+  for (unsigned i = 0; i != count; ++i) {
+    arr.push_back({{"pci_start", i}, {"range", 4}});
+  }
+  return arr;
+}
+
+/// Build a SIB4 'inter_freq_carrier_freq_list' array with `count` distinct entries.
+nlohmann::json make_carrier_list(unsigned count)
+{
+  nlohmann::json arr = nlohmann::json::array();
+  for (unsigned i = 0; i != count; ++i) {
+    arr.push_back({{"arfcn", 620000 + i},
+                   {"ssb_scs", 30},
+                   {"derive_ssb_index_from_cell", true},
+                   {"q_rx_lev_min", -70},
+                   {"thresh_x_high_p", 16},
+                   {"thresh_x_low_p", 4}});
+  }
+  return arr;
+}
+
 } // namespace
 
 // Happy path — valid SIB2/SIB3/SIB4 payloads produce the right variant.
@@ -704,6 +739,108 @@ TEST(sib_update_remote_command, sib3_with_empty_content_is_valid)
   const auto& sib3 = std::get<sib3_info>(*mock.last_req->cells[0].new_sys_info);
   EXPECT_TRUE(sib3.intra_freq_neigh_cell_list.empty());
   EXPECT_TRUE(sib3.intra_freq_excluded_cell_list.empty());
+}
+
+// SIB3/SIB4 list cardinality boundary tests. The RRC ASN.1 encoder caps intra_freq_neigh_cell_list and
+// intra_freq_excluded_cell_list at MAX_NOF_SIB3_INTRA_FREQ_CELLS entries each, and inter_freq_carrier_freq_list at
+// MAX_NOF_SIB4_INTER_FREQ_CARRIERS entries; an oversized list must be rejected here, at the parser boundary, rather
+// than reaching the encoder.
+
+TEST(sib_update_remote_command, sib3_neigh_cell_list_at_max_boundary_accepted)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {{"type", "sib3"},
+                 {"content", {{"intra_freq_neigh_cell_list", make_neigh_cell_list(MAX_NOF_SIB3_INTRA_FREQ_CELLS)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_TRUE(res.has_value()) << res.error();
+
+  const auto& sib3 = std::get<sib3_info>(*mock.last_req->cells[0].new_sys_info);
+  EXPECT_EQ(sib3.intra_freq_neigh_cell_list.size(), MAX_NOF_SIB3_INTRA_FREQ_CELLS);
+}
+
+TEST(sib_update_remote_command, sib3_neigh_cell_list_exceeding_max_rejected)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {
+      {"type", "sib3"},
+      {"content", {{"intra_freq_neigh_cell_list", make_neigh_cell_list(MAX_NOF_SIB3_INTRA_FREQ_CELLS + 1)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_FALSE(res.has_value());
+  EXPECT_NE(res.error().find("intra_freq_neigh_cell_list"), std::string::npos) << "actual: " << res.error();
+  EXPECT_FALSE(mock.last_req.has_value());
+}
+
+TEST(sib_update_remote_command, sib3_excluded_cell_list_at_max_boundary_accepted)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {
+      {"type", "sib3"},
+      {"content", {{"intra_freq_excluded_cell_list", make_excluded_cell_list(MAX_NOF_SIB3_INTRA_FREQ_CELLS)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_TRUE(res.has_value()) << res.error();
+
+  const auto& sib3 = std::get<sib3_info>(*mock.last_req->cells[0].new_sys_info);
+  EXPECT_EQ(sib3.intra_freq_excluded_cell_list.size(), MAX_NOF_SIB3_INTRA_FREQ_CELLS);
+}
+
+TEST(sib_update_remote_command, sib3_excluded_cell_list_exceeding_max_rejected)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {
+      {"type", "sib3"},
+      {"content", {{"intra_freq_excluded_cell_list", make_excluded_cell_list(MAX_NOF_SIB3_INTRA_FREQ_CELLS + 1)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_FALSE(res.has_value());
+  EXPECT_NE(res.error().find("intra_freq_excluded_cell_list"), std::string::npos) << "actual: " << res.error();
+  EXPECT_FALSE(mock.last_req.has_value());
+}
+
+TEST(sib_update_remote_command, sib4_carrier_freq_list_at_max_boundary_accepted)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {{"type", "sib4"},
+                 {"content", {{"inter_freq_carrier_freq_list", make_carrier_list(MAX_NOF_SIB4_INTER_FREQ_CARRIERS)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_TRUE(res.has_value()) << res.error();
+
+  const auto& sib4 = std::get<sib4_info>(*mock.last_req->cells[0].new_sys_info);
+  EXPECT_EQ(sib4.inter_freq_carrier_freq_list.size(), MAX_NOF_SIB4_INTER_FREQ_CARRIERS);
+}
+
+TEST(sib_update_remote_command, sib4_carrier_freq_list_exceeding_max_rejected)
+{
+  capturing_du_configurator mock;
+  sib_update_remote_command cmd{mock};
+
+  auto cell   = make_cell_skeleton();
+  cell["sib"] = {
+      {"type", "sib4"},
+      {"content", {{"inter_freq_carrier_freq_list", make_carrier_list(MAX_NOF_SIB4_INTER_FREQ_CARRIERS + 1)}}}};
+
+  auto res = cmd.execute(wrap(cell));
+  ASSERT_FALSE(res.has_value());
+  EXPECT_NE(res.error().find("inter_freq_carrier_freq_list"), std::string::npos) << "actual: " << res.error();
+  EXPECT_FALSE(mock.last_req.has_value());
 }
 
 // Multi-cell.
