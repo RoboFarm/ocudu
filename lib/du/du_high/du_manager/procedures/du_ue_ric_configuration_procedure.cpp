@@ -50,7 +50,7 @@ manual_event<du_mac_sched_control_config_response>& du_ue_ric_configuration_proc
     return ue_config_completed;
   }
 
-  // Reject the request if the S-NSSAI(s) it indicates do not match a slice actually in use by the UE.
+  // Reject the request if the RRM Policy Member(s) it indicates do not match a slice actually in use by the UE.
   if (!ue_uses_requested_slice(request.rrm_policy_ratio_list[0])) {
     du_mac_sched_control_config_response fail{false, false, false};
     ue_config_completed.set(fail);
@@ -81,12 +81,16 @@ manual_event<du_mac_sched_control_config_response>& du_ue_ric_configuration_proc
 bool du_ue_ric_configuration_procedure::ue_uses_requested_slice(const rrm_policy_ratio_group& policy) const
 {
   if (policy.policy_members_list.empty()) {
-    // No S-NSSAI indicated in the request; nothing to validate against.
+    // No RRM Policy Member indicated in the request; nothing to validate against.
     return true;
   }
 
-  for (const auto& drb : ue->bearers.drbs()) {
-    for (const auto& member : policy.policy_members_list) {
+  for (const auto& member : policy.policy_members_list) {
+    // A RRM Policy Member identifies a slice by PLMN and S-NSSAI, so both must match.
+    if (member.plmn_id != ue->nr_cgi.plmn_id) {
+      continue;
+    }
+    for (const auto& drb : ue->bearers.drbs()) {
       if (drb.second->s_nssai == member.s_nssai) {
         return true;
       }
