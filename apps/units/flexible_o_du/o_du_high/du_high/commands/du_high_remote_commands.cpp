@@ -38,8 +38,11 @@ constexpr bool value_fits_type(int64_t v)
 /// Reads a JSON integer and range-checks it against [Lo, Hi] before narrowing to T. nlohmann stores integers in an
 /// int64 or uint64 slot, so get<int64_t>() alone can wrap (UINT64_MAX -> -1); reject a uint64 above INT64_MAX first,
 /// then read as int64. Lo/Hi are template params so "bounds fit T" is a static_assert, not a runtime check.
+/// \param[out] out   Receives the parsed value, narrowed to T, on success.
+/// \param[in]  value JSON value to read.
+/// \param[in]  field Field name, used in error messages.
 template <int64_t Lo, int64_t Hi, typename T>
-error_type<std::string> parse_int_in_range(const nlohmann::json& value, std::string_view field, T& out)
+error_type<std::string> parse_int_in_range(T& out, const nlohmann::json& value, std::string_view field)
 {
   static_assert(std::is_integral_v<T> && !std::is_same_v<std::remove_cv_t<T>, bool>,
                 "parse_int_in_range output must be a non-bool integral type");
@@ -114,7 +117,7 @@ error_type<std::string> ssb_modify_remote_command::execute(const nlohmann::json&
     }
     int ssb_block_power_value = 0;
     if (auto res = parse_int_in_range<MIN_SS_PBCH_BLOCK_POWER, MAX_SS_PBCH_BLOCK_POWER>(
-            *ssb_block_power_key, "ssb_block_power_dbm", ssb_block_power_value);
+            ssb_block_power_value, *ssb_block_power_key, "ssb_block_power_dbm");
         !res) {
       return res;
     }
@@ -183,7 +186,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
     }
     uint8_t sst = 0;
     // SST is an 8-bit field (TS 23.003); the full uint8 domain is valid.
-    if (auto res = parse_int_in_range<0, std::numeric_limits<uint8_t>::max()>(*sst_key, "sst", sst); !res) {
+    if (auto res = parse_int_in_range<0, std::numeric_limits<uint8_t>::max()>(sst, *sst_key, "sst"); !res) {
       return res;
     }
 
@@ -195,7 +198,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
       // create() validates the 24-bit SD domain below; parse_int_in_range first keeps a crafted value from truncating
       // into uint32 (e.g. 2^32 -> 0), which create() would otherwise accept.
       uint32_t sd_int = 0;
-      if (auto res = parse_int_in_range<0, std::numeric_limits<uint32_t>::max()>(*sd_key, "sd", sd_int); !res) {
+      if (auto res = parse_int_in_range<0, std::numeric_limits<uint32_t>::max()>(sd_int, *sd_key, "sd"); !res) {
         return res;
       }
       sd = slice_differentiator::create(sd_int);
@@ -218,7 +221,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   if (min_prb_policy_ratio != policies_key.value().end()) {
     unsigned min_prb = 0;
     if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
-            *min_prb_policy_ratio, "min_prb_policy_ratio", min_prb);
+            min_prb, *min_prb_policy_ratio, "min_prb_policy_ratio");
         !res) {
       return res;
     }
@@ -231,7 +234,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   if (max_prb_policy_ratio != policies_key.value().end()) {
     unsigned max_prb = 0;
     if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
-            *max_prb_policy_ratio, "max_prb_policy_ratio", max_prb);
+            max_prb, *max_prb_policy_ratio, "max_prb_policy_ratio");
         !res) {
       return res;
     }
@@ -244,7 +247,7 @@ error_type<std::string> rrm_policy_ratio_remote_command::execute(const nlohmann:
   if (dedicated_ratio != policies_key.value().end()) {
     unsigned dedicated = 0;
     if (auto res = parse_int_in_range<prb_policy_ratio_min_percent, prb_policy_ratio_max_percent>(
-            *dedicated_ratio, "dedicated_ratio", dedicated);
+            dedicated, *dedicated_ratio, "dedicated_ratio");
         !res) {
       return res;
     }
@@ -350,7 +353,7 @@ static expected<q_offset_range_t, std::string> parse_q_offset_range(const nlohma
   static constexpr int64_t q_offset_range_min_db = static_cast<int64_t>(q_offset_range_t::db_24);
   static constexpr int64_t q_offset_range_max_db = static_cast<int64_t>(q_offset_range_t::db24);
   int64_t                  v                     = 0;
-  if (auto res = parse_int_in_range<q_offset_range_min_db, q_offset_range_max_db>(val, field_name, v); !res) {
+  if (auto res = parse_int_in_range<q_offset_range_min_db, q_offset_range_max_db>(v, val, field_name); !res) {
     return make_unexpected(res.error());
   }
   switch (v) {
