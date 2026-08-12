@@ -213,7 +213,7 @@ public:
 template <typename K, typename V, bool ForcePower2MapSize = true, bool ForcePower2SegSize = true>
 class segmented_circular_map
 {
-  static_assert(std::is_integral_v<K> and std::is_unsigned_v<K>, "Container key must be an unsigned integer");
+  static_assert(std::is_unsigned_v<K>, "Container key must be an unsigned integer");
 
 public:
   using key_type        = K;
