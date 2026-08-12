@@ -154,8 +154,8 @@ void mac_cell_processor::handle_pws_si_update(const si_update_command& cmd)
   // Provide the encoders before the scheduler starts stamping its grants with this epoch, as above.
   sib_assembler.handle_pws_si_update(cmd);
 
-  sched.handle_pws_si_change_indication(pws_si_scheduling_update_request{
-      cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg, cmd.broadcasting, cmd.new_broadcast});
+  sched.handle_pws_si_change_indication(
+      pws_si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg, cmd.broadcasting});
 }
 
 async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_request& request)

@@ -338,15 +338,16 @@ TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_ex
 
 /// \brief Puts an ETWS/CMAS SI epoch in effect and signals one broadcast of it.
 ///
-/// What is broadcast, and for how long each broadcast lasts, is stated by the epoch, which is flagged as a new
-/// broadcast so that the warning notification window is (re)started.
+/// What is broadcast, and for how long each broadcast lasts, is stated by the epoch. Every warning is stamped with the
+/// version of the epoch, so all of them start one more broadcast.
 static void broadcast_warning(si_scheduler&                                      si_sched,
                               const si_scheduling_config&                        cfg,
                               si_version_type                                    version,
                               std::initializer_list<pws_broadcasting_si_message> broadcasting)
 {
-  pws_si_scheduling_update_request req{to_du_cell_index(0), version, cfg, {}, true};
-  for (const pws_broadcasting_si_message& entry : broadcasting) {
+  pws_si_scheduling_update_request req{to_du_cell_index(0), version, cfg, {}};
+  for (pws_broadcasting_si_message entry : broadcasting) {
+    entry.version = version;
     req.broadcasting.push_back(entry);
   }
   si_sched.handle_pws_si_update_request(req);
@@ -720,4 +721,99 @@ TEST_F(si_msg_scheduler_activation_test, when_pws_epoch_is_applied_then_grants_u
   ASSERT_GT(nof_etws_grants, 0U) << "No grant was stamped with the ETWS/CMAS epoch";
   ASSERT_TRUE(reverted) << "The grants never went back to the normal operation epoch";
   ASSERT_GT(nof_baseline_grants, 0U);
+}
+
+/// Whether the slot carries the etwsAndCmasIndication short message, as per TS 38.331 Table 6.5-1.
+static bool has_pws_short_message(const dl_sched_result& result)
+{
+  return std::any_of(result.dl_pdcchs.begin(), result.dl_pdcchs.end(), [](const pdcch_dl_information& pdcch) {
+    if (pdcch.dci.type() != dci_dl_rnti_config_type::p_rnti_f1_0) {
+      return false;
+    }
+    const auto& dci = pdcch.dci.as_p_rnti_f1_0();
+    return dci.short_messages_indicator == dci_1_0_p_rnti_configuration::payload_info::short_messages and
+           (dci.short_messages & 0x40U) != 0;
+  });
+}
+
+TEST_F(si_msg_scheduler_activation_test, when_two_epochs_coalesce_then_the_warning_is_still_notified)
+{
+  // Regression test: an unrelated System Information change pushes a second epoch before the scheduler read the one
+  // that started the warning, so only the latter survives in the pending epoch slot. Since each warning carries the
+  // version that started its broadcast, the scheduler must still notify it, rather than wait for a trigger that is
+  // never pushed again.
+  const units::bytes    msg_len           = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len;
+  const si_version_type warning_version   = 1;
+  const si_version_type si_change_version = 2;
+
+  broadcast_warning(
+      si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, warning_version, {{sib_type_set{sib_type::sib7}, 1, msg_len}});
+
+  // The System Information change lists the warning it found on air, still stamped with the epoch that started it.
+  pws_si_scheduling_update_request si_change{
+      to_du_cell_index(0), si_change_version, ACTIVATION_REQUIRED_SI_SCHED_CFG, {}};
+  si_change.broadcasting.push_back(
+      pws_broadcasting_si_message{sib_type_set{sib_type::sib7}, 1, msg_len, warning_version});
+  si_sched.handle_pws_si_update_request(si_change);
+
+  const unsigned drx_cycle_rfs  = static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
+  const unsigned nof_test_slots = drx_cycle_rfs * next_slot.nof_slots_per_frame();
+
+  bool notified = false;
+  for (unsigned i = 0; i != nof_test_slots and not notified; ++i) {
+    run_slot();
+    notified = has_pws_short_message(res_grid[0].result.dl);
+  }
+
+  ASSERT_TRUE(notified) << "The warning was never notified after both epochs coalesced";
+}
+
+TEST_F(si_msg_scheduler_multi_activation_test, when_a_second_warning_starts_then_it_does_not_extend_the_first_one)
+{
+  // Each warning is timed from its own broadcast, so a warning starting late must not keep the ones already on air --
+  // hence the SIB1 that lists them as broadcasting -- in effect for its own duration counted from the newcomer.
+  const units::bytes msg_len      = MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len;
+  const unsigned     period_rfs   = MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].period_radio_frames;
+  const unsigned paging_cycle_rfs = static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
+  const unsigned slots_per_frame  = next_slot.nof_slots_per_frame();
+
+  static constexpr unsigned long_nof_segments  = 4;
+  static constexpr unsigned short_nof_segments = 1;
+
+  // A long warning starts on the SIB7 SI message. Run until shortly before its broadcast completes.
+  broadcast_warning(si_sched,
+                    MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG,
+                    1,
+                    {{sib_type_set{sib_type::sib7}, long_nof_segments, msg_len}});
+  const unsigned first_duration_rfs = paging_cycle_rfs + long_nof_segments * period_rfs;
+  for (unsigned i = 0, e = (first_duration_rfs - period_rfs / 2) * slots_per_frame; i != e; ++i) {
+    run_slot();
+  }
+
+  // A short warning starts on the SIB8 SI message. Only it is stamped with the new epoch.
+  pws_si_scheduling_update_request req{to_du_cell_index(0), 2, MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG, {}};
+  req.broadcasting.push_back(pws_broadcasting_si_message{sib_type_set{sib_type::sib7}, long_nof_segments, msg_len, 1});
+  req.broadcasting.push_back(pws_broadcasting_si_message{sib_type_set{sib_type::sib8}, short_nof_segments, msg_len, 2});
+  si_sched.handle_pws_si_update_request(req);
+
+  // Run past both broadcasts and note when the grants went back to the epoch of the normal operation. The epoch is
+  // reverted once its last warning ends, which is the newcomer, so it stays in effect for the newcomer's own duration
+  // counted from here, plus however long it takes for the next SIB1 to be scheduled.
+  const unsigned        second_duration_rfs = paging_cycle_rfs + short_nof_segments * period_rfs;
+  const si_version_type baseline_version    = 0;
+
+  std::optional<unsigned> revert_rfs;
+  for (unsigned i = 0, e = 2 * (first_duration_rfs + second_duration_rfs) * slots_per_frame; i != e; ++i) {
+    run_slot();
+    for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
+      if (sib.version == baseline_version and not revert_rfs.has_value()) {
+        revert_rfs = i / slots_per_frame;
+      }
+    }
+  }
+  ASSERT_TRUE(revert_rfs.has_value()) << "The ETWS/CMAS SI epoch was never reverted";
+
+  // Timing the first warning from the newcomer's broadcast, rather than from its own, would hold the epoch in effect
+  // for the whole duration of the first warning counted from here.
+  ASSERT_LT(revert_rfs.value(), first_duration_rfs) << "The first warning was kept on air by the second one starting";
 }

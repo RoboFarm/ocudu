@@ -71,14 +71,13 @@ void si_scheduler::try_handle_pending_request(cell_resource_allocator& res_alloc
   // The SI is scheduled ahead of time.
   slot_point_extended slot_sched = sl_tx_ext + res_alloc.max_dl_slot_alloc_delay;
 
-  // Handle the SI epoch broadcast while a warning is on air.
-  handle_pws_epoch(slot_sched);
+  // Handle any pending ETWS/CMAS SI broadcast requests.
+  // Note: Called before the try_handle_si_mod_request, as the latter knows if a PWS is on air and doesn't send
+  // commands to the SI schedulers that just get overwritten.
+  const bool pws_notif_due = try_handle_pending_pws_request(slot_sched);
 
   // Handle any request to change the SI sched info.
   const bool si_modification_due = try_handle_si_mod_request(slot_sched);
-
-  // Determine whether a PWS (ETWS/CMAS) short-message notification is due this slot.
-  const bool pws_notif_due = try_handle_pending_pws_request(slot_sched);
 
   if (si_modification_due or pws_notif_due) {
     try_schedule_short_message(res_alloc[slot_sched.without_hyper_sfn()], si_modification_due, pws_notif_due);
@@ -160,45 +159,123 @@ void si_scheduler::handle_pws_si_update_request(const pws_si_scheduling_update_r
 
 void si_scheduler::handle_pws_epoch(slot_point_extended slot_sched)
 {
-  const unsigned slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
-
   // Apply a newly pushed ETWS/CMAS epoch, if any.
   const pws_pending_epoch& next = pending_pws_epoch.read();
   if (next.version != last_seen_pws_epoch) {
+    // New SI epoch.
     last_seen_pws_epoch = next.version;
 
+    // Notify SI-message and SIB1 schedulers.
     si_msg_sched.apply_pws_epoch(next.req.version, next.req.si_sched_cfg, next.req.broadcasting);
     sib1_sched.handle_sib1_update_indication(next.req.version, next.req.si_sched_cfg.sib1_payload_size);
     logger.debug("ETWS/CMAS SI epoch {} applied", next.req.version);
 
-    if (next.req.new_broadcast) {
-      // Keep the epoch in effect for one more broadcast.
-      pws_until = si_msg_sched.refresh_pws_deadline(slot_sched);
-
+    if (refresh_pws_deadlines(next.req, slot_sched)) {
+      // At least one warning message demands short message broadcasting.
       // As per TS 38.304, ETWS/CMAS-capable UEs monitor for this notification only in their own paging occasion, once
       // per DRX cycle. Since we don't know a given UE's UE_ID (hence its exact paging occasion), extend the
       // notification window to cover at least one full default paging cycle from now.
-      const slot_point_extended new_until = slot_sched + default_paging_cycle * slots_per_frame;
+      const unsigned            slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
+      const slot_point_extended new_until       = slot_sched + default_paging_cycle * slots_per_frame;
       if (not pws_notif_until_slot.has_value() or pws_notif_until_slot.value() < new_until) {
         pws_notif_until_slot = new_until;
       }
     }
   }
 
-  if (not si_msg_sched.pws_epoch_in_effect() or not pws_until.has_value() or slot_sched < pws_until.value()) {
+  if (not si_msg_sched.pws_epoch_in_effect() or not all_pws_broadcasts_ended(slot_sched)) {
     return;
   }
 
   // Every warning finished being broadcast. Go back to the System Information of the normal operation, whose SIB1
   // lists them all as dormant again.
-  pws_until.reset();
-  si_msg_sched.revert_pws_epoch();
-  sib1_sched.handle_sib1_update_indication(si_msg_sched.get_version(), si_msg_sched.get_sib1_payload_size());
-  logger.debug("ETWS/CMAS SI epoch ended. Going back to SI epoch {}", si_msg_sched.get_version());
+  pws_deadlines.clear();
+  const si_epoch_info reverted_epoch = si_msg_sched.revert_pws_epoch();
+  sib1_sched.handle_sib1_update_indication(reverted_epoch.version, reverted_epoch.sib1_payload_size);
+  logger.debug("ETWS/CMAS SI epoch ended. Going back to SI epoch {}", reverted_epoch.version);
+}
+
+bool si_scheduler::refresh_pws_deadlines(const pws_si_scheduling_update_request& epoch, slot_point_extended slot_sched)
+{
+  span<const pws_broadcasting_si_message> pws_to_broadcast{epoch.broadcasting};
+
+  // Forget the warnings that are no longer being broadcast.
+  for (auto it = pws_deadlines.begin(); it != pws_deadlines.end();) {
+    const bool found = std::any_of(pws_to_broadcast.begin(), pws_to_broadcast.end(), [it](const auto& warning) {
+      return warning.sib_set == it->sib_set;
+    });
+    it               = found ? it + 1 : pws_deadlines.erase(it);
+  }
+
+  // Handle the warnings that are being broadcast. If a warning is already being broadcast, its deadline is extended.
+  bool           new_broadcast   = false;
+  const unsigned slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
+  for (const pws_broadcasting_si_message& pws_to_bc : pws_to_broadcast) {
+    auto* it = std::find_if(pws_deadlines.begin(), pws_deadlines.end(), [&pws_to_bc](const auto& deadline) {
+      return deadline.sib_set == pws_to_bc.sib_set;
+    });
+    if (it == pws_deadlines.end()) {
+      // It is a new PWS SIB.
+      pws_deadlines.push_back(pws_broadcast_deadline{pws_to_bc.sib_set});
+      it = pws_deadlines.end() - 1;
+    } else if (pws_to_bc.version <= it->version) {
+      // The version of the PWS SIB in the request is not newer than the one already acted upon. This means that the
+      // SI update request was triggered by an unrelated SI-message (normal or PWS) and we don't need to update the
+      // deadline of this already acted upon PWS SIB.
+      continue;
+    }
+
+    it->version           = pws_to_bc.version;
+    const auto nof_frames = compute_pws_broadcast_duration(pws_to_bc, epoch.si_sched_cfg);
+    it->until             = nof_frames.has_value()
+                                ? std::optional<slot_point_extended>{slot_sched + nof_frames.value() * slots_per_frame}
+                                : std::nullopt;
+    new_broadcast         = true;
+  }
+
+  return new_broadcast;
+}
+
+std::optional<unsigned> si_scheduler::compute_pws_broadcast_duration(const pws_broadcasting_si_message& warning,
+                                                                     const si_scheduling_config& si_sched_cfg) const
+{
+  if (not warning.nof_segments.has_value()) {
+    // Broadcast indefinitely (test_mode-configured content); never goes back to dormant.
+    return std::nullopt;
+  }
+
+  auto it = std::find_if(si_sched_cfg.si_messages.begin(),
+                         si_sched_cfg.si_messages.end(),
+                         [&warning](const si_message_scheduling_config& cfg) { return cfg.sibs == warning.sib_set; });
+  if (it == si_sched_cfg.si_messages.end()) {
+    // The warning is not mapped to any SI message of the epoch, so it is not being broadcast at all.
+    return 0;
+  }
+
+  // Ensure single-round PWS delivery reaches every UE, not just the ones whose paging occasion happens to land early
+  // within the notification window. As per TS 38.304, idle/inactive UEs only monitor their own paging occasion once per
+  // DRX cycle, so the etwsAndCmasIndication short message is repeated across a full default paging cycle. A UE notified
+  // near the end of that window must still get a full cycle of segments afterwards, so keep broadcasting for the
+  // notification window's duration plus one extra full segment cycle.
+  return default_paging_cycle + warning.nof_segments.value() * it->period_radio_frames;
+}
+
+bool si_scheduler::all_pws_broadcasts_ended(slot_point_extended slot_sched) const
+{
+  if (pws_deadlines.empty()) {
+    return true;
+  }
+  return std::all_of(pws_deadlines.begin(), pws_deadlines.end(), [slot_sched](const pws_broadcast_deadline& deadline) {
+    return deadline.until.has_value() and slot_sched >= deadline.until.value();
+  });
 }
 
 bool si_scheduler::try_handle_pending_pws_request(slot_point_extended slot_sched)
 {
+  // Applying a PWS epoch changes, which will arm the notification window.
+  handle_pws_epoch(slot_sched);
+
+  // Determine whether a PWS (ETWS/CMAS) short-message notification is due.
   if (not pws_notif_until_slot.has_value()) {
     return false;
   }

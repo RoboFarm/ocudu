@@ -37,6 +37,11 @@ struct pws_broadcasting_si_message {
   /// Real Write-Replace Warning content (and its segmentation) is only known once it is pushed, so it does not come
   /// from the static SI scheduling configuration.
   units::bytes msg_len;
+  /// \brief SI epoch version at which the broadcast of this warning was (re)started.
+  ///
+  /// It matches the version of the epoch carrying it when that epoch was triggered by this warning, and is lower when
+  /// the epoch was triggered by something else, in which case this broadcast must not be extended.
+  si_version_type version = 0;
 };
 
 struct pws_si_scheduling_update_request {
@@ -46,15 +51,13 @@ struct pws_si_scheduling_update_request {
   si_version_type version;
   /// Configuration of SI scheduling, including SIB1 payload length and SI messages.
   si_scheduling_config si_sched_cfg;
-  /// SI messages that are broadcasting a warning.
-  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> broadcasting;
-  /// \brief Whether a new broadcast of the warnings is starting.
+  /// \brief SI messages that are broadcasting a warning.
   ///
-  /// It reissues the etwsAndCmasIndication short message and keeps the epoch in effect for one more broadcast.
-  /// Repetition (TS 38.473, Section 8.5.1 "Repetition Period"/"Number of Broadcasts Requested") is entirely handled by
-  /// the MAC layer, which sets this once per broadcast occurrence. It is false when only the System Information
-  /// changed (e.g. an unrelated SIB2 update), which must not prolong the warning.
-  bool new_broadcast = false;
+  /// A warning whose version matches \c version starts one more broadcast, which reissues the etwsAndCmasIndication
+  /// short message. Repetition (TS 38.473, Section 8.5.1 "Repetition Period"/"Number of Broadcasts Requested") is
+  /// entirely handled by the MAC layer, which stamps a warning with the version of the epoch it triggers, once per
+  /// broadcast occurrence.
+  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> broadcasting;
 };
 
 /// Interface used to notify new SIB1 or SI message updates to the scheduler.

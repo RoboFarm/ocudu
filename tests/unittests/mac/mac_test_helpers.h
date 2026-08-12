@@ -192,7 +192,12 @@ public:
   void handle_pws_si_change_indication(const pws_si_scheduling_update_request& request) override
   {
     last_pws_si_change = request;
-    if (request.new_broadcast) {
+    // A warning stamped with the version of the epoch carrying it is starting one more broadcast.
+    const bool new_broadcast =
+        std::any_of(request.broadcasting.begin(), request.broadcasting.end(), [&request](const auto& warning) {
+          return warning.version == request.version;
+        });
+    if (new_broadcast) {
       ++nof_pws_broadcast_indications;
     }
   }

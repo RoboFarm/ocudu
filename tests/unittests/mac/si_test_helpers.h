@@ -229,8 +229,8 @@ private:
   void handle_pws_si_update(const si_update_command& cmd) override
   {
     assembler.handle_pws_si_update(cmd);
-    sched.handle_pws_si_change_indication(pws_si_scheduling_update_request{
-        to_du_cell_index(0), cmd.version, cmd.si_sched_cfg, cmd.broadcasting, cmd.new_broadcast});
+    sched.handle_pws_si_change_indication(
+        pws_si_scheduling_update_request{to_du_cell_index(0), cmd.version, cmd.si_sched_cfg, cmd.broadcasting});
     last_pws_cmd = cmd;
     ++nof_pws_epochs;
   }

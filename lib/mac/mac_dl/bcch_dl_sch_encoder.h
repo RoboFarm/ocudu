@@ -86,8 +86,6 @@ struct si_update_command {
   si_scheduling_config si_sched_cfg;
   /// SI messages that are broadcasting a warning. Only filled for an ETWS/CMAS epoch.
   static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> broadcasting;
-  /// Whether a new broadcast of the warnings is starting. Only meaningful for an ETWS/CMAS epoch.
-  bool new_broadcast = false;
 };
 
 } // namespace ocudu

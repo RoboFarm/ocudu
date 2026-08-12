@@ -13,6 +13,12 @@
 
 namespace ocudu {
 
+/// Version and SIB1 payload size of an SI epoch.
+struct si_epoch_info {
+  unsigned     version = 0;
+  units::bytes sib1_payload_size{0};
+};
+
 class si_message_scheduler
 {
 public:
@@ -36,22 +42,14 @@ public:
                        const si_scheduling_config&             pws_si_sched_cfg,
                        span<const pws_broadcasting_si_message> broadcasting);
 
-  /// \brief Recomputes for how long the ETWS/CMAS SI epoch in effect must stay on air, as of a new broadcast.
-  /// \return Slot until which the epoch must stay in effect, or \c std::nullopt if indefinitely.
-  std::optional<slot_point_extended> refresh_pws_deadline(slot_point_extended broadcast_slot) const;
-
-  /// Makes the SI epoch of the normal operation the one in effect again, with every warning back to dormant.
-  void revert_pws_epoch();
+  /// \brief Makes the SI epoch of the normal operation the one in effect again, with every warning back to dormant.
+  /// \return The epoch that is in effect afterwards.
+  si_epoch_info revert_pws_epoch();
 
   /// Whether the ETWS/CMAS SI epoch is the one in effect.
   bool pws_epoch_in_effect() const { return baseline.has_value(); }
 
   /// SI epoch currently in effect.
-  unsigned get_version() const { return version; }
-
-  /// SIB1 payload size of the SI epoch currently in effect.
-  units::bytes get_sib1_payload_size() const { return si_sched_cfg.sib1_payload_size; }
-
   /// \brief Applies the PDSCH grant sizing (msg_len) from a new SI scheduling config, immediately and without touching
   /// window/active state or bumping version, but only for the NTN SI-message.
   /// \remark si_scheduling_update_request/handle_si_message_update_indication defer taking effect until a future SI
@@ -85,7 +83,6 @@ private:
   };
 
   /// Slot until which a broadcast starting at the given slot must keep being transmitted.
-  std::optional<slot_point_extended> compute_pws_deadline(slot_point_extended broadcast_slot) const;
 
   void update_si_message_windows(slot_point_extended sl_tx_ext);
 
@@ -117,9 +114,6 @@ private:
   std::vector<message_window_context> pending_messages;
   unsigned                            version = 0;
   std::optional<baseline_epoch>       baseline;
-
-  /// SI messages of the ETWS/CMAS SI epoch in effect that are broadcasting a warning.
-  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> pws_broadcasting;
 };
 
 } // namespace ocudu

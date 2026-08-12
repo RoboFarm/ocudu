@@ -422,7 +422,8 @@ TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_pws
 
   const std::optional<si_update_command>& pws_cmd = bench.last_pws_cmd;
   ASSERT_TRUE(pws_cmd.has_value()) << "Starting a warning must generate an ETWS/CMAS epoch";
-  ASSERT_TRUE(pws_cmd->new_broadcast) << "Starting a warning is a new broadcast";
+  ASSERT_EQ(pws_cmd->broadcasting[0].version, pws_cmd->version)
+      << "A warning starting a broadcast must be stamped with the version of the epoch it triggers";
   ASSERT_EQ(broadcast_status_of(*pws_cmd), std::vector<bool>{true});
 
   // The normal-operation epoch keeps listing it as dormant, so that it resumes on its own once the warning stops.
@@ -461,7 +462,9 @@ TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_
   ASSERT_TRUE(second_pws.has_value()) << "The warning epoch must be derived again from the new System Information";
   ASSERT_NE(second_pws->version, first_pws.version);
   ASSERT_NE(second_pws->version, baseline->version) << "Both epochs must stay distinguishable by version alone";
-  ASSERT_FALSE(second_pws->new_broadcast) << "An SI change must not prolong the on-going warning broadcast";
+  ASSERT_LT(second_pws->broadcasting[0].version, second_pws->version)
+      << "An SI change did not trigger the warning, so it must not prolong its broadcast";
+  ASSERT_EQ(second_pws->broadcasting[0].version, first_pws.broadcasting[0].version);
 
   // It still lists the warning as broadcasting, while the normal operation epoch lists it as dormant. The SIB2
   // SI-message that came with the SI change is broadcasting in both.
