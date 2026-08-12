@@ -75,7 +75,7 @@ private:
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req);
 
   /// Derives the ETWS/CMAS SI epoch from the current one, listing the given SI messages as broadcasting.
-  void build_etws_command(span<const sib_type_set> broadcasting);
+  void build_etws_command(span<const etws_broadcasting_si_message> broadcasting);
 
   /// \brief Fetches the PWS broadcast sequence of the SI message at a given position of an SI scheduling config.
   /// \return The sequence, or nullptr if the position does not exist or its SI message carries no PWS SIB.
@@ -101,7 +101,7 @@ private:
   si_update_command last_cmd;
 
   // SI messages that are currently carrying a warning.
-  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting_warnings;
+  static_vector<etws_broadcasting_si_message, MAX_SI_MESSAGES> broadcasting_warnings;
 
   // ETWS/CMAS SI epoch waiting to be applied in the MAC cell.
   std::optional<si_update_command> pending_etws_cmd;

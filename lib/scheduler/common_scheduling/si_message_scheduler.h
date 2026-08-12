@@ -7,6 +7,7 @@
 #include "../pdcch_scheduling/pdcch_resource_allocator.h"
 #include "ocudu/ocudulog/logger.h"
 #include "ocudu/ran/slot_point_extended.h"
+#include "ocudu/scheduler/scheduler_sys_info_handler.h"
 #include "ocudu/support/units.h"
 #include <optional>
 
@@ -31,9 +32,16 @@ public:
   /// \brief Makes the ETWS/CMAS SI epoch the one in effect, activating only the SI messages it lists as broadcasting.
   ///
   /// The SI epoch of the normal operation is kept aside, and keeps being updated, so that it can be reverted to.
-  void apply_etws_epoch(unsigned                    version,
-                        const si_scheduling_config& etws_si_sched_cfg,
-                        span<const sib_type_set>    broadcasting);
+  /// \param activation_slot Slot at which the epoch is applied, used as the origin of its deadline.
+  /// \return Slot until which the epoch must stay in effect, or \c std::nullopt if indefinitely.
+  std::optional<slot_point_extended> apply_etws_epoch(unsigned                                 version,
+                                                      const si_scheduling_config&              etws_si_sched_cfg,
+                                                      span<const etws_broadcasting_si_message> broadcasting,
+                                                      slot_point_extended                      activation_slot);
+
+  /// \brief Recomputes for how long the ETWS/CMAS SI epoch in effect must stay on air, as of a new broadcast.
+  /// \return Slot until which the epoch must stay in effect, or \c std::nullopt if indefinitely.
+  std::optional<slot_point_extended> refresh_etws_deadline(slot_point_extended broadcast_slot) const;
 
   /// Makes the SI epoch of the normal operation the one in effect again, with every warning back to dormant.
   void revert_etws_epoch();
@@ -47,22 +55,8 @@ public:
   /// SIB1 payload size of the SI epoch currently in effect.
   units::bytes get_sib1_payload_size() const { return si_sched_cfg.sib1_payload_size; }
 
-  /// \brief Activates an SI-message that requires explicit activation.
-  /// \param si_msg SIBs carried by the SI-message to activate.
-  /// \param activation_slot Slot at which this activation is being processed, used as the origin for the
-  /// aforementioned deadline.
-  /// \param nof_segments Number of segments that should reach the UE for this SI-message activation. If equal to
-  /// \c std::nullopt, the SI-message should remain active indefinitely.
-  /// \param msg_len Length, in bytes, of the largest segment of the content being activated.
-  /// \return Slot until which this activation must keep being broadcast, or \c std::nullopt if indefinitely.
-  std::optional<slot_point_extended> activate_si_message(sib_type_set            si_msg,
-                                                         slot_point_extended     activation_slot,
-                                                         std::optional<unsigned> nof_segments,
-                                                         units::bytes            msg_len);
-
   /// \brief Applies the PDSCH grant sizing (msg_len) from a new SI scheduling config, immediately and without touching
-  /// window/active state or bumping version, but only for SI-messages whose content is exempt from the SI change
-  /// modification window (see si_message_scheduling_config::exempt_from_si_mod_window).
+  /// window/active state or bumping version, but only for the NTN SI-message.
   /// \remark si_scheduling_update_request/handle_si_message_update_indication defer taking effect until a future SI
   /// change modification window (at least one full default paging cycle away, per TS 38.331, so idle UEs get advance
   /// notice via the short-message before SIB1's valueTag actually changes). For exempt SI-messages (e.g. NTN SIB19)
@@ -88,10 +82,13 @@ private:
     /// used for SI-messages that do not require explicit activation.
     std::optional<slot_point_extended> active_until;
     /// \brief Length, in bytes, used to size the PDSCH grant for this SI-message.
-    /// \remark Initialized from \c si_message_scheduling_config::msg_len, and overridden by \c activate_si_message
-    /// while a PWS activation is on-going, since real content length is only known at activation time.
+    /// \remark Initialized from \c si_message_scheduling_config::msg_len, and overridden by the ETWS/CMAS SI epoch
+    /// while a warning is on air, since real content length is only known once the warning is pushed.
     units::bytes msg_len{0};
   };
+
+  /// Slot until which a broadcast starting at the given slot must keep being transmitted.
+  std::optional<slot_point_extended> compute_etws_deadline(slot_point_extended broadcast_slot) const;
 
   void update_si_message_windows(slot_point_extended sl_tx_ext);
 
@@ -123,6 +120,9 @@ private:
   std::vector<message_window_context> pending_messages;
   unsigned                            version = 0;
   std::optional<baseline_epoch>       baseline;
+
+  /// SI messages of the ETWS/CMAS SI epoch in effect that are broadcasting a warning.
+  static_vector<etws_broadcasting_si_message, MAX_SI_MESSAGES> etws_broadcasting;
 };
 
 } // namespace ocudu

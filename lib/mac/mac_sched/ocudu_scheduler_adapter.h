@@ -92,10 +92,7 @@ public:
   void handle_si_change_indication(const si_scheduling_update_request& request) override;
   void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) override;
 
-  void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                       sib_type_set            si_msg,
-                                       std::optional<unsigned> nof_segments,
-                                       units::bytes            msg_len) override;
+  void handle_pws_broadcast_indication(du_cell_index_t cell_idx) override;
 
   mac_positioning_measurement_handler& get_positioning_handler() override { return *pos_handler; }
 

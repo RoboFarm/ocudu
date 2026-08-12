@@ -99,30 +99,8 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   }
 }
 
-std::optional<slot_point_extended> si_message_scheduler::activate_si_message(sib_type_set            si_msg,
-                                                                             slot_point_extended     activation_slot,
-                                                                             std::optional<unsigned> nof_segments,
-                                                                             units::bytes            msg_len)
+std::optional<slot_point_extended> si_message_scheduler::compute_etws_deadline(slot_point_extended broadcast_slot) const
 {
-  auto it = std::find_if(si_sched_cfg.si_messages.begin(),
-                         si_sched_cfg.si_messages.end(),
-                         [si_msg](const si_message_scheduling_config& cfg) { return cfg.sibs == si_msg; });
-  if (it == si_sched_cfg.si_messages.end()) {
-    // The SI-message is no longer part of the SI scheduling configuration.
-    return std::nullopt;
-  }
-  const unsigned si_msg_idx = std::distance(si_sched_cfg.si_messages.begin(), it);
-
-  message_window_context& ctxt = pending_messages[si_msg_idx];
-  ctxt.active                  = true;
-  ctxt.msg_len                 = msg_len;
-
-  if (not nof_segments.has_value()) {
-    // Broadcast indefinitely (test_mode-configured content); never auto-deactivates.
-    ctxt.active_until.reset();
-    return std::nullopt;
-  }
-
   // Ensure single-round PWS delivery reaches every UE, not just the ones whose paging occasion happens to land
   // early within the notification window. As per TS 38.304, idle/inactive UEs only monitor their own paging
   // occasion once per DRX cycle, so the etwsAndCmasIndication short message is repeated across a full default
@@ -131,17 +109,37 @@ std::optional<slot_point_extended> si_message_scheduler::activate_si_message(sib
   // duration plus one extra full segment cycle.
   const unsigned default_paging_cycle_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
-  const unsigned one_segment_cycle_rfs =
-      nof_segments.value() * si_sched_cfg.si_messages[si_msg_idx].period_radio_frames;
-  const unsigned active_duration_rfs = default_paging_cycle_rfs + one_segment_cycle_rfs;
 
-  ctxt.active_until = activation_slot + active_duration_rfs * activation_slot.nof_slots_per_frame();
-  return ctxt.active_until;
+  unsigned longest_duration_rfs = 0;
+  for (const etws_broadcasting_si_message& si_msg : etws_broadcasting) {
+    if (not si_msg.nof_segments.has_value()) {
+      // Broadcast indefinitely (test_mode-configured content); never goes back to dormant.
+      return std::nullopt;
+    }
+
+    auto it = std::find_if(si_sched_cfg.si_messages.begin(),
+                           si_sched_cfg.si_messages.end(),
+                           [&si_msg](const si_message_scheduling_config& cfg) { return cfg.sibs == si_msg.sib_set; });
+    if (it == si_sched_cfg.si_messages.end()) {
+      continue;
+    }
+    const unsigned one_segment_cycle_rfs = si_msg.nof_segments.value() * it->period_radio_frames;
+    longest_duration_rfs = std::max(longest_duration_rfs, default_paging_cycle_rfs + one_segment_cycle_rfs);
+  }
+
+  return broadcast_slot + longest_duration_rfs * broadcast_slot.nof_slots_per_frame();
 }
 
-void si_message_scheduler::apply_etws_epoch(unsigned                    new_version,
-                                            const si_scheduling_config& etws_si_sched_cfg,
-                                            span<const sib_type_set>    broadcasting)
+std::optional<slot_point_extended> si_message_scheduler::refresh_etws_deadline(slot_point_extended broadcast_slot) const
+{
+  return compute_etws_deadline(broadcast_slot);
+}
+
+std::optional<slot_point_extended>
+si_message_scheduler::apply_etws_epoch(unsigned                                 new_version,
+                                       const si_scheduling_config&              etws_si_sched_cfg,
+                                       span<const etws_broadcasting_si_message> broadcasting,
+                                       slot_point_extended                      activation_slot)
 {
   if (not baseline.has_value()) {
     baseline.emplace(baseline_epoch{version, si_sched_cfg});
@@ -149,6 +147,7 @@ void si_message_scheduler::apply_etws_epoch(unsigned                    new_vers
 
   version      = new_version;
   si_sched_cfg = etws_si_sched_cfg;
+  etws_broadcasting.assign(broadcasting.begin(), broadcasting.end());
   pending_messages.resize(si_sched_cfg.si_messages.size());
 
   // The epoch declares which SI messages carry a warning, so that the SI messages being broadcast and the ones its
@@ -161,17 +160,21 @@ void si_message_scheduler::apply_etws_epoch(unsigned                    new_vers
       continue;
     }
 
-    const bool is_broadcasting = std::any_of(
-        broadcasting.begin(), broadcasting.end(), [&si_msg](sib_type_set entry) { return entry == si_msg.sibs; });
-    if (not is_broadcasting) {
+    auto it = std::find_if(broadcasting.begin(), broadcasting.end(), [&si_msg](const auto& entry) {
+      return entry.sib_set == si_msg.sibs;
+    });
+    if (it == broadcasting.end()) {
       pending_messages[i] = {};
       continue;
     }
-    if (not pending_messages[i].active) {
-      // Newly activated. Its content length is set by the PWS broadcast indication.
-      pending_messages[i].active = true;
-    }
+
+    // The warning content length is only known once the warning is pushed, so it comes from the epoch rather than
+    // from the static SI scheduling configuration.
+    pending_messages[i].active  = true;
+    pending_messages[i].msg_len = it->msg_len;
   }
+
+  return compute_etws_deadline(activation_slot);
 }
 
 void si_message_scheduler::revert_etws_epoch()
@@ -179,6 +182,7 @@ void si_message_scheduler::revert_etws_epoch()
   if (not baseline.has_value()) {
     return;
   }
+  etws_broadcasting.clear();
 
   version      = baseline->version;
   si_sched_cfg = baseline->si_sched_cfg;
@@ -199,9 +203,11 @@ void si_message_scheduler::revert_etws_epoch()
 void si_message_scheduler::update_msg_lens(const si_scheduling_config& new_si_sched_cfg)
 {
   for (unsigned i = 0, e = std::min(pending_messages.size(), new_si_sched_cfg.si_messages.size()); i != e; ++i) {
-    // Only resize immediately for messages with immediate content (e.g. NTN SIB19). Version-gated messages keep
-    // broadcasting their old content until the modification window, so resizing early would truncate it.
-    if (new_si_sched_cfg.si_messages[i].exempt_from_si_mod_window()) {
+    // Only resize immediately for the NTN SI-message, whose content is pushed immediately. Version-gated messages
+    // keep broadcasting their old content until the modification window, so resizing early would truncate it.
+    // Note: a PWS SI message is equally exempt from the modification window, but its length comes from the warning
+    // being broadcast rather than from this configuration, which only holds a placeholder.
+    if (new_si_sched_cfg.si_messages[i].is_ntn()) {
       pending_messages[i].msg_len = new_si_sched_cfg.si_messages[i].msg_len;
     }
   }

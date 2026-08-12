@@ -318,12 +318,9 @@ void ocudu_scheduler_adapter::handle_etws_si_change_indication(const etws_si_sch
   sched_impl->handle_etws_si_update_request(request);
 }
 
-void ocudu_scheduler_adapter::handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                                              sib_type_set            si_msg,
-                                                              std::optional<unsigned> nof_segments,
-                                                              units::bytes            msg_len)
+void ocudu_scheduler_adapter::handle_pws_broadcast_indication(du_cell_index_t cell_idx)
 {
-  sched_impl->handle_pws_broadcast_indication({cell_idx, si_msg, nof_segments, msg_len});
+  sched_impl->handle_pws_broadcast_indication({cell_idx});
 }
 
 void ocudu_scheduler_adapter::handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& req)

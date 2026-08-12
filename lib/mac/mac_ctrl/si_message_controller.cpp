@@ -57,19 +57,19 @@ static byte_buffer repack_sib1_broadcast_status(const byte_buffer& sib1, span<co
   // Note: PWS SIBs are release 15 SIBs, and an SI message cannot mix release 17 and non-release 17 SIBs. Hence, a PWS
   // SI message is always listed in schedulingInfoList, and never in schedulingInfoList2.
   for (asn1::rrc_nr::sched_info_s& sched_info : msg.msg.c1().sib_type1().si_sched_info.sched_info_list) {
-    sib_type_set si_msg;
+    sib_type_set sib_set;
     for (const asn1::rrc_nr::sib_type_info_s& sib_info : sched_info.sib_map_info) {
       const sib_type sib = to_sib_type(sib_info);
       if (sib != sib_type::sib_invalid) {
-        si_msg.add(sib);
+        sib_set.add(sib);
       }
     }
-    if (not si_msg.is_etws_cmas()) {
+    if (not sib_set.is_etws_cmas()) {
       continue;
     }
 
-    const bool is_broadcasting =
-        std::any_of(broadcasting.begin(), broadcasting.end(), [si_msg](sib_type_set entry) { return entry == si_msg; });
+    const bool is_broadcasting = std::any_of(
+        broadcasting.begin(), broadcasting.end(), [sib_set](sib_type_set entry) { return entry == sib_set; });
     sched_info.si_broadcast_status.value = is_broadcasting
                                                ? asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::broadcasting
                                                : asn1::rrc_nr::sched_info_s::si_broadcast_status_opts::not_broadcasting;
@@ -250,16 +250,23 @@ private:
 class si_message_controller::pws_broadcast_sequence
 {
 public:
-  pws_broadcast_sequence(sib_type_set                     si_msg_,
+  pws_broadcast_sequence(sib_type_set                     sib_set_,
                          timer_factory                    timers_,
                          mac_scheduler_cell_configurator& sched_,
                          du_cell_index_t                  cell_index_) :
-    si_msg(si_msg_), timers(timers_), sched(sched_), cell_index(cell_index_)
+    sib_set(sib_set_), timers(timers_), sched(sched_), cell_index(cell_index_)
   {
   }
 
   /// Encoder of the warning content currently being broadcast, or nullptr if no warning was ever pushed.
   std::shared_ptr<pws_si_msg_encoder> encoder() const { return current_encoder; }
+
+  /// \brief Properties of the warning currently being broadcast, as the SI epoch states them.
+  /// \remark Only valid once a warning was pushed.
+  etws_broadcasting_si_message broadcasting_si_message() const
+  {
+    return etws_broadcasting_si_message{sib_set, nof_segments_per_broadcast, current_encoder->largest_segment_len()};
+  }
 
   /// \brief Handles a new Write-Replace Warning content push, called from the control executor.
   ///
@@ -267,9 +274,10 @@ public:
   void handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req)
   {
     timer.stop();
-    current_encoder          = std::make_shared<pws_si_msg_encoder>(req.si_messages);
-    nof_broadcasts_remaining = req.pws_broadcast->nof_broadcasts_requested;
-    repeat_period            = req.pws_broadcast->repeat_period;
+    current_encoder            = std::make_shared<pws_si_msg_encoder>(req.si_messages);
+    nof_segments_per_broadcast = current_encoder->nof_segments();
+    nof_broadcasts_remaining   = req.pws_broadcast->nof_broadcasts_requested;
+    repeat_period              = req.pws_broadcast->repeat_period;
 
     start_one_broadcast();
   }
@@ -281,9 +289,10 @@ public:
   /// asked to broadcast forever, so there is no need to ever re-signal it.
   void activate_forever(span<const byte_buffer> content)
   {
-    current_encoder = std::make_shared<pws_si_msg_encoder>(content);
+    current_encoder            = std::make_shared<pws_si_msg_encoder>(content);
+    nof_segments_per_broadcast = std::nullopt;
 
-    sched.handle_pws_broadcast_indication(cell_index, si_msg, std::nullopt, current_encoder->largest_segment_len());
+    sched.handle_pws_broadcast_indication(cell_index);
   }
 
 private:
@@ -295,10 +304,7 @@ private:
     }
     --nof_broadcasts_remaining;
 
-    sched.handle_pws_broadcast_indication(cell_index,
-                                          si_msg,
-                                          std::optional<unsigned>{current_encoder->nof_segments()},
-                                          current_encoder->largest_segment_len());
+    sched.handle_pws_broadcast_indication(cell_index);
 
     if (nof_broadcasts_remaining == 0) {
       return;
@@ -311,12 +317,14 @@ private:
     timer.run();
   }
 
-  sib_type_set                     si_msg;
+  sib_type_set                     sib_set;
   timer_factory                    timers;
   mac_scheduler_cell_configurator& sched;
   du_cell_index_t                  cell_index;
 
   std::shared_ptr<pws_si_msg_encoder> current_encoder;
+  /// Number of segments of one broadcast. Empty when the content is broadcast indefinitely.
+  std::optional<unsigned> nof_segments_per_broadcast;
   /// Number of remaining broadcasts (including the on-going/next one) for the current warning.
   unsigned nof_broadcasts_remaining = 0;
   /// Period between successive broadcasts.
@@ -358,7 +366,7 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
     pws_broadcast_sequence* pws_seq = find_pws_sequence(sys_info.si_sched_cfg, i);
     pws_seq->activate_forever(sys_info.si_messages[i]);
     last_cmd.si_msgs[i] = pws_seq->encoder();
-    broadcasting_warnings.push_back(si_sched_messages[i].sibs);
+    broadcasting_warnings.push_back(pws_seq->broadcasting_si_message());
   }
   if (not broadcasting_warnings.empty()) {
     build_etws_command(broadcasting_warnings);
@@ -461,10 +469,10 @@ si_message_controller::find_pws_sequence(const si_scheduling_config& si_sched_cf
   if (si_msg_idx >= si_sched_cfg.si_messages.size()) {
     return nullptr;
   }
-  const sib_type_set si_msg = si_sched_cfg.si_messages[si_msg_idx].sibs;
+  const sib_type_set sib_set = si_sched_cfg.si_messages[si_msg_idx].sibs;
 
   auto it = std::find_if(
-      pws_sequences.begin(), pws_sequences.end(), [si_msg](const auto& entry) { return entry.first == si_msg; });
+      pws_sequences.begin(), pws_sequences.end(), [sib_set](const auto& entry) { return entry.first == sib_set; });
   return it != pws_sequences.end() ? it->second.get() : nullptr;
 }
 
@@ -480,18 +488,29 @@ bool si_message_controller::handle_pws_broadcast(const mac_cell_sys_info_pdu_upd
   // The new content is broadcast from the epochs that carry its encoder.
   last_cmd.si_msgs[req.si_msg_idx] = pws_seq->encoder();
 
-  // The SI message starts being listed as broadcasting in SIB1, for as long as the warning is on air.
-  const sib_type_set si_msg = last_cmd.si_sched_cfg.si_messages[req.si_msg_idx].sibs;
-  if (std::find(broadcasting_warnings.begin(), broadcasting_warnings.end(), si_msg) == broadcasting_warnings.end()) {
-    broadcasting_warnings.push_back(si_msg);
+  // The SI message starts being listed as broadcasting in SIB1, for as long as the warning is on air. A replacement
+  // warning updates the properties of the one it supersedes.
+  const etws_broadcasting_si_message broadcasting_si_msg = pws_seq->broadcasting_si_message();
+  auto entry = std::find_if(broadcasting_warnings.begin(), broadcasting_warnings.end(), [&](const auto& warning) {
+    return warning.sib_set == broadcasting_si_msg.sib_set;
+  });
+  if (entry != broadcasting_warnings.end()) {
+    *entry = broadcasting_si_msg;
+  } else {
+    broadcasting_warnings.push_back(broadcasting_si_msg);
   }
   build_etws_command(broadcasting_warnings);
   return true;
 }
 
-void si_message_controller::build_etws_command(span<const sib_type_set> broadcasting)
+void si_message_controller::build_etws_command(span<const etws_broadcasting_si_message> broadcasting)
 {
-  byte_buffer etws_sib1 = repack_sib1_broadcast_status(last_sib1, broadcasting);
+  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting_sib_sets;
+  for (const etws_broadcasting_si_message& warning : broadcasting) {
+    broadcasting_sib_sets.push_back(warning.sib_set);
+  }
+
+  byte_buffer etws_sib1 = repack_sib1_broadcast_status(last_sib1, broadcasting_sib_sets);
   if (etws_sib1.empty()) {
     logger.error("cell={}: Failed to generate the SIB1 of a warning broadcast", cell_index);
     return;

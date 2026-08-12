@@ -23,26 +23,15 @@ struct si_scheduling_update_request {
   si_scheduling_config si_sched_cfg;
 };
 
-/// \brief Requests the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification and activate the target
-/// SI-message.
+/// \brief Requests the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification, and to keep the SI
+/// messages of the on-going ETWS/CMAS SI epoch on air for one more broadcast.
 ///
-/// If \c nof_segments has a value, the SI-message is activated for one complete broadcast (i.e. \c nof_segments
-/// consecutive SI-message window transmissions), after which it automatically goes back to dormant. Repetition (TS
-/// 38.473, Section 8.5.1 "Repetition Period"/"Number of Broadcasts Requested") is entirely handled by the MAC layer,
-/// which re-issues this request once per broadcast occurrence. If \c nof_segments is \c std::nullopt, the SI-message
-/// is activated indefinitely and broadcasts forever (used for test_mode-configured content).
+/// Repetition (TS 38.473, Section 8.5.1 "Repetition Period"/"Number of Broadcasts Requested") is entirely handled by
+/// the MAC layer, which issues this request once per broadcast occurrence. What is broadcast, and for how long each
+/// broadcast lasts, is stated by the ETWS/CMAS SI epoch instead.
 struct pws_broadcast_request {
   /// Cell index specific to this PWS broadcast indication.
   du_cell_index_t cell_index;
-  /// SIBs carried by the SI-message to activate.
-  sib_type_set si_msg;
-  /// Number of segments composing the warning message, i.e. the number of consecutive SI-message window
-  /// transmissions needed to complete one broadcast. \c std::nullopt means broadcast indefinitely.
-  std::optional<unsigned> nof_segments;
-  /// \brief Length, in bytes, of the largest segment of the warning message being activated.
-  ///
-  /// Real Write-Replace Warning content (and its segmentation) is only known at activation time.
-  units::bytes msg_len;
 };
 
 /// \brief Information relative to the update of the System Information broadcast while a warning is on air.
@@ -50,6 +39,22 @@ struct pws_broadcast_request {
 /// It coexists with the SI epoch of the normal operation, which the scheduler goes back to once no warning is being
 /// broadcast anymore. Applying it replaces the set of SI messages that carry a warning, so that what the scheduler
 /// broadcasts and what its SIB1 lists as broadcasting cannot disagree.
+/// SI message of an ETWS/CMAS SI epoch that is broadcasting a warning.
+struct etws_broadcasting_si_message {
+  /// SIBs carried by the SI message.
+  sib_type_set sib_set;
+  /// \brief Number of segments composing the warning message, i.e. the number of consecutive SI-message window
+  /// transmissions needed to complete one broadcast.
+  ///
+  /// \c std::nullopt means broadcast indefinitely, used for test_mode-configured content.
+  std::optional<unsigned> nof_segments;
+  /// \brief Length, in bytes, of the largest segment of the warning message.
+  ///
+  /// Real Write-Replace Warning content (and its segmentation) is only known once it is pushed, so it does not come
+  /// from the static SI scheduling configuration.
+  units::bytes msg_len;
+};
+
 struct etws_si_scheduling_update_request {
   /// Cell index specific to the update of the SI scheduling.
   du_cell_index_t cell_index;
@@ -58,7 +63,7 @@ struct etws_si_scheduling_update_request {
   /// Configuration of SI scheduling, including SIB1 payload length and SI messages.
   si_scheduling_config si_sched_cfg;
   /// SI messages that are broadcasting a warning.
-  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting;
+  static_vector<etws_broadcasting_si_message, MAX_SI_MESSAGES> broadcasting;
 };
 
 /// Interface used to notify new SIB1 or SI message updates to the scheduler.

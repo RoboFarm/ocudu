@@ -34,9 +34,8 @@ struct si_message_scheduling_config {
   /// Whether this SI-message requires explicit activation before it is actually scheduled.
   bool requires_activation() const { return sibs.is_etws_cmas(); }
 
-  /// \brief Whether this SI-message's content is pushed to the PHY immediately, bypassing the SI change modification
-  /// window, rather than being version-gated.
-  bool exempt_from_si_mod_window() const { return sibs.is_ntn(); }
+  /// Whether this SI-message carries the NTN SIB19, whose content is pushed to the PHY immediately.
+  bool is_ntn() const { return sibs.is_ntn(); }
 
   bool operator==(const si_message_scheduling_config& other) const
   {

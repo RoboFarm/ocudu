@@ -37,25 +37,6 @@ public:
   void stop();
 
 private:
-  /// Request written into a \c pending_pws_reqs slot, tagged with a locally-generated version for newness detection.
-  struct pws_pending_request {
-    si_version_type         version = 0;
-    std::optional<unsigned> nof_segments;
-    units::bytes            msg_len{0};
-  };
-
-  /// \brief Per-SI-message pending-request slot, keyed by the SIBs the SI-message carries.
-  /// \remark \c buffer is stored as \c unique_ptr because \c lockfree_triple_buffer is non-movable, and slot values
-  /// must be movable to live inside a \c slotted_vector.
-  struct pws_pending_entry {
-    sib_type_set                                                 si_msg;
-    si_version_type                                              last_seen_version = 0;
-    std::unique_ptr<lockfree_triple_buffer<pws_pending_request>> buffer =
-        std::make_unique<lockfree_triple_buffer<pws_pending_request>>();
-
-    explicit pws_pending_entry(sib_type_set si_msg_) : si_msg(si_msg_) {}
-  };
-
   void try_handle_pending_request(cell_resource_allocator& res_alloc, slot_point_extended sl_tx_ext);
 
   /// \param slot_sched Slot at which the SI change, if any, would take effect (already offset by
@@ -99,7 +80,12 @@ private:
   /// broadcast anymore.
   void handle_etws_epoch(slot_point_extended slot_sched);
 
-  si_version_type next_pws_version = 1;
+  /// \brief Counter of PWS broadcast occurrences, used for newness detection.
+  ///
+  /// What is broadcast is stated by the ETWS/CMAS SI epoch, so a broadcast occurrence carries nothing else.
+  lockfree_triple_buffer<si_version_type> pending_pws_broadcasts;
+  si_version_type                         last_seen_pws_broadcast = 0;
+  si_version_type                         next_pws_broadcast      = 1;
 
   /// Pending ETWS/CMAS SI epoch, tagged with a locally-generated version for newness detection.
   struct etws_pending_epoch {
@@ -117,8 +103,6 @@ private:
   /// only ever grows while the epoch is in effect, and can never claim a warning that is no longer on air.
   /// \remark If \c std::nullopt while the epoch is in effect, it stays in effect indefinitely.
   std::optional<slot_point_extended> etws_until;
-  /// One pending-request slot per SI-message that requires activation, keyed by SI-message index.
-  slotted_vector<pws_pending_entry> pending_pws_reqs;
   /// \brief Slot up to which the PWS (ETWS/CMAS) short-message notification must keep being transmitted at every
   /// paging occasion. \c std::nullopt if no notification is currently pending.
   std::optional<slot_point_extended> pws_notif_until_slot;

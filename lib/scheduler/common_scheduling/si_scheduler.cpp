@@ -21,15 +21,10 @@ si_scheduler::si_scheduler(const cell_configuration&                       cfg_,
   logger(ocudulog::fetch_basic_logger("SCHED")),
   sib1_sched(cell_cfg, pdcch_sch, msg.si_scheduling.sib1_payload_size),
   si_msg_sched(cell_cfg, pdcch_sch, msg.si_scheduling),
-  pending_req(si_scheduling_update_request{INVALID_DU_CELL_INDEX, last_version, {}})
+  pending_req(si_scheduling_update_request{INVALID_DU_CELL_INDEX, last_version, {}}),
+  pending_pws_broadcasts(0),
+  pending_etws_epoch(etws_pending_epoch{})
 {
-  // One slot per SI-message that requires activation (i.e. may carry PWS content).
-  const unsigned nof_si_messages = msg.si_scheduling.si_messages.size();
-  for (unsigned i = 0; i != nof_si_messages; ++i) {
-    if (msg.si_scheduling.si_messages[i].requires_activation()) {
-      pending_pws_reqs.emplace(i, msg.si_scheduling.si_messages[i].sibs);
-    }
-  }
 }
 
 void si_scheduler::run_slot(cell_resource_allocator& res_alloc, uint32_t hyper_sfn_tx)
@@ -171,7 +166,8 @@ void si_scheduler::handle_etws_epoch(slot_point_extended slot_sched)
   if (next.version != last_seen_etws_epoch) {
     last_seen_etws_epoch = next.version;
 
-    si_msg_sched.apply_etws_epoch(next.req.version, next.req.si_sched_cfg, next.req.broadcasting);
+    etws_until =
+        si_msg_sched.apply_etws_epoch(next.req.version, next.req.si_sched_cfg, next.req.broadcasting, slot_sched);
     sib1_sched.handle_sib1_update_indication(next.req.version, next.req.si_sched_cfg.sib1_payload_size);
     logger.debug("ETWS/CMAS SI epoch {} applied", next.req.version);
   }
@@ -190,34 +186,19 @@ void si_scheduler::handle_etws_epoch(slot_point_extended slot_sched)
 
 void si_scheduler::handle_pws_broadcast_indication(const pws_broadcast_request& req)
 {
-  auto it = std::find_if(pending_pws_reqs.begin(), pending_pws_reqs.end(), [&req](const pws_pending_entry& entry) {
-    return entry.si_msg == req.si_msg;
-  });
-  ocudu_assert(it != pending_pws_reqs.end(), "SI-message does not require activation");
-  it->buffer->write_and_commit(pws_pending_request{next_pws_version++, req.nof_segments, req.msg_len});
+  pending_pws_broadcasts.write_and_commit(next_pws_broadcast++);
 }
 
 bool si_scheduler::try_handle_pending_pws_request(slot_point_extended slot_sched)
 {
   const unsigned slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
 
-  // Check every SI-message slot for a new request.
-  for (auto& pws_entry : pending_pws_reqs) {
-    const auto& next = pws_entry.buffer->read();
-    if (next.version == pws_entry.last_seen_version) {
-      continue;
-    }
-    // New request. Activate the target SI-message for one broadcast.
-    pws_entry.last_seen_version = next.version;
-    const std::optional<slot_point_extended> active_until =
-        si_msg_sched.activate_si_message(pws_entry.si_msg, slot_sched, next.nof_segments, next.msg_len);
+  const si_version_type next = pending_pws_broadcasts.read();
+  if (next != last_seen_pws_broadcast) {
+    last_seen_pws_broadcast = next;
 
-    // The whole ETWS/CMAS epoch stays in effect until the last warning finishes being broadcast.
-    if (not next.nof_segments.has_value()) {
-      etws_until.reset();
-    } else if (active_until.has_value() and (not etws_until.has_value() or etws_until.value() < active_until.value())) {
-      etws_until = active_until;
-    }
+    // A new broadcast of the on-going ETWS/CMAS SI epoch. Keep it in effect for one more broadcast.
+    etws_until = si_msg_sched.refresh_etws_deadline(slot_sched);
 
     // As per TS 38.304, ETWS/CMAS-capable UEs monitor for this notification only in their own paging occasion, once
     // per DRX cycle. Since we don't know a given UE's UE_ID (hence its exact paging occasion), extend the

@@ -167,8 +167,18 @@ public:
     std::optional<si_update_command> cmd = si_mng.take_etws_command();
     if (cmd.has_value()) {
       assembler.handle_etws_si_update(*cmd);
+      last_etws_cmd = cmd;
     }
     return cmd;
+  }
+
+  /// \brief Properties of the SI message the last generated ETWS/CMAS epoch lists as broadcasting.
+  /// \remark The epoch must list exactly one.
+  etws_broadcasting_si_message only_broadcasting_si_message() const
+  {
+    report_fatal_error_if_not(last_etws_cmd.has_value() and last_etws_cmd->broadcasting.size() == 1,
+                              "Expected exactly one SI message broadcasting a warning");
+    return last_etws_cmd->broadcasting[0];
   }
 
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
@@ -190,6 +200,9 @@ public:
 
   // Stands in for the SI message controller-side production of the ETWS/CMAS epoch.
   std::unique_ptr<si_message_controller> etws_si_mng;
+
+  // Last ETWS/CMAS epoch applied through apply_pending_etws_si.
+  std::optional<si_update_command> last_etws_cmd;
 
   slot_point_extended current_slot{subcarrier_spacing::kHz30, 0};
 };

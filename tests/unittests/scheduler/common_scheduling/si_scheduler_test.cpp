@@ -224,7 +224,7 @@ TEST_F(si_scheduler_test, when_non_exempt_si_message_is_updated_then_new_msg_len
 {
   si_scheduling_config new_si_sched_cfg = DEFAULT_SI_SCHED_CFG;
   new_si_sched_cfg.si_messages[0].msg_len += units::bytes{64U};
-  ASSERT_FALSE(new_si_sched_cfg.si_messages[0].exempt_from_si_mod_window()) << "This SI-message must be non-exempt";
+  ASSERT_FALSE(new_si_sched_cfg.si_messages[0].is_ntn()) << "This SI-message must be non-exempt";
 
   const unsigned si_ch_wind_len_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.bcch_cfg.mod_period_coeff) *
@@ -336,6 +336,23 @@ TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_ex
   ASSERT_TRUE(notified_ue_ids.all());
 }
 
+/// \brief Puts an ETWS/CMAS SI epoch in effect and signals one broadcast of it.
+///
+/// What is broadcast, and for how long each broadcast lasts, is stated by the epoch. The broadcast indication only
+/// says that one more broadcast is taking place.
+static void broadcast_warning(si_scheduler&                                       si_sched,
+                              const si_scheduling_config&                         cfg,
+                              si_version_type                                     version,
+                              std::initializer_list<etws_broadcasting_si_message> broadcasting)
+{
+  etws_si_scheduling_update_request req{to_du_cell_index(0), version, cfg, {}};
+  for (const etws_broadcasting_si_message& entry : broadcasting) {
+    req.broadcasting.push_back(entry);
+  }
+  si_sched.handle_etws_si_update_request(req);
+  si_sched.handle_pws_broadcast_indication(pws_broadcast_request{to_du_cell_index(0)});
+}
+
 const si_scheduling_config ACTIVATION_REQUIRED_SI_SCHED_CFG{
     DEFAULT_SIB1_PAYLOAD_SIZE,
     {{si_message_scheduling_config{sib_type_set{sib_type::sib7}, units::bytes{64}, 16}}},
@@ -357,8 +374,10 @@ TEST_F(si_msg_scheduler_activation_test,
   // only in their own paging occasion, once per DRX cycle. Since the network does not know a UE's UE_ID (hence its
   // exact paging occasion), the notification must be repeated across a full default paging cycle -- not sent once.
   const paging_slot_helper slot_helper(cell_cfg);
-  si_sched.handle_pws_broadcast_indication(pws_broadcast_request{
-      to_du_cell_index(0), sib_type_set{sib_type::sib7}, 1, ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len});
+  broadcast_warning(si_sched,
+                    ACTIVATION_REQUIRED_SI_SCHED_CFG,
+                    1,
+                    {{sib_type_set{sib_type::sib7}, 1, ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len}});
 
   const unsigned drx_cycle_rfs  = static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
   const unsigned nof_test_slots = 2 * drx_cycle_rfs * next_slot.nof_slots_per_frame();
@@ -418,10 +437,8 @@ TEST_F(si_msg_scheduler_activation_test, when_new_pws_broadcast_indication_recei
   const unsigned     default_paging_cycle_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
 
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, 10, msg_len});
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, 1, msg_len});
+  broadcast_warning(si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, 1, {{sib_type_set{sib_type::sib7}, 10, msg_len}});
+  broadcast_warning(si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, 2, {{sib_type_set{sib_type::sib7}, 1, msg_len}});
 
   // Run long enough to cover even the FIRST (superseded) request's full active window (default paging cycle plus
   // one full segment cycle), so that if it had incorrectly taken effect instead of the second, its much larger
@@ -473,11 +490,11 @@ TEST_F(si_msg_scheduler_activation_test,
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
   const unsigned active_duration_rfs = default_paging_cycle_rfs + nof_segments * period_radio_frames;
 
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0),
-                            sib_type_set{sib_type::sib7},
-                            nof_segments,
-                            ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len});
+  broadcast_warning(
+      si_sched,
+      ACTIVATION_REQUIRED_SI_SCHED_CFG,
+      1,
+      {{sib_type_set{sib_type::sib7}, nof_segments, ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len}});
 
   // Run long enough to observe the full active window plus a margin, so we can confirm the message eventually
   // goes back to dormant instead of just capturing however many transmissions fit in an arbitrarily-sized window.
@@ -507,8 +524,8 @@ TEST_F(si_msg_scheduler_activation_test, when_si_change_takes_effect_then_ongoin
   const units::bytes activated_msg_len = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len + units::bytes{64U};
   // Activated indefinitely, so that anything that stops it can only be the SI change itself, rather than the
   // activation's own deadline elapsing before the modification window is reached.
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, std::nullopt, activated_msg_len});
+  broadcast_warning(
+      si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, 1, {{sib_type_set{sib_type::sib7}, std::nullopt, activated_msg_len}});
 
   // An unrelated SI change is pushed and left to reach its modification window.
   si_scheduling_config new_si_sched_cfg = ACTIVATION_REQUIRED_SI_SCHED_CFG;
@@ -547,8 +564,8 @@ TEST_F(si_msg_scheduler_activation_test, when_activation_msg_len_exceeds_static_
   // size the PDSCH grant off the activation-time msg_len, not the static si_message_scheduling_config::msg_len.
   const units::bytes static_msg_len    = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len;
   const units::bytes activated_msg_len = static_msg_len + units::bytes{64U};
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, 1, activated_msg_len});
+  broadcast_warning(
+      si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, 1, {{sib_type_set{sib_type::sib7}, 1, activated_msg_len}});
 
   const unsigned nof_test_slots =
       2 * ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].period_radio_frames * next_slot.nof_slots_per_frame();
@@ -595,10 +612,11 @@ TEST_F(si_msg_scheduler_multi_activation_test,
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
   const unsigned active_duration_rfs = default_paging_cycle_rfs + nof_segments * period_radio_frames;
 
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, nof_segments, msg_len});
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib8}, nof_segments, msg_len});
+  broadcast_warning(
+      si_sched,
+      MULTI_ACTIVATION_REQUIRED_SI_SCHED_CFG,
+      1,
+      {{sib_type_set{sib_type::sib7}, nof_segments, msg_len}, {sib_type_set{sib_type::sib8}, nof_segments, msg_len}});
 
   // Run long enough to observe the full active window (default paging cycle plus one segment cycle) for both
   // SI-messages, not just however many transmissions fit in an arbitrarily-sized window.
@@ -673,11 +691,10 @@ TEST_F(si_msg_scheduler_activation_test, when_etws_epoch_is_applied_then_grants_
   const si_version_type baseline_version = 0;
   const si_version_type etws_version     = 1;
 
-  etws_si_scheduling_update_request etws_req{to_du_cell_index(0), etws_version, ACTIVATION_REQUIRED_SI_SCHED_CFG, {}};
-  etws_req.broadcasting.push_back(sib_type_set{sib_type::sib7});
-  si_sched.handle_etws_si_update_request(etws_req);
-  si_sched.handle_pws_broadcast_indication(
-      pws_broadcast_request{to_du_cell_index(0), sib_type_set{sib_type::sib7}, nof_segments, msg_len});
+  broadcast_warning(si_sched,
+                    ACTIVATION_REQUIRED_SI_SCHED_CFG,
+                    etws_version,
+                    {{sib_type_set{sib_type::sib7}, nof_segments, msg_len}});
 
   const unsigned default_paging_cycle_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);

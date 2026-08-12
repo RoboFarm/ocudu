@@ -121,11 +121,14 @@ TEST_F(si_message_controller_pws_test,
 
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
-  ASSERT_EQ(bench.sched.last_pws_nof_segments, 2);
-  // Regression test: the scheduler must be signalled with the real (activation-time) content length, not whatever
-  // was configured/encoded for this SI-message at cell startup.
-  ASSERT_EQ(bench.sched.last_pws_msg_len, units::bytes{50});
+
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_EQ(broadcasting.sib_set, sib_type_set{sib_type::sib7});
+  ASSERT_EQ(broadcasting.nof_segments, 2);
+  // Regression test: the epoch must state the real (activation-time) content length, not whatever was
+  // configured/encoded for this SI-message at cell startup.
+  ASSERT_EQ(broadcasting.msg_len, units::bytes{50});
 }
 
 TEST_F(si_message_controller_pws_test, when_pws_broadcast_content_is_encoded_then_segments_cycle_in_order)
@@ -175,15 +178,15 @@ TEST_F(si_message_controller_pws_test,
 
   bench.si_mng.handle_si_message_pdu_updates(req);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_EQ(bench.sched.last_pws_msg_len, seg_len);
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_EQ(bench.only_broadcasting_si_message().msg_len, seg_len);
 
   const unsigned ticks_per_broadcast = 1000; // repeat_period == 1 second == 1000 ms ticks.
   for (unsigned b = 1; b != nof_broadcasts; ++b) {
     bench.tick(ticks_per_broadcast);
     ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, b + 1) << "Broadcast #" << (b + 1) << " was not signalled";
-    // Regression test: repeats re-triggered by the timer must keep signalling the same content length as the
-    // original activation, not reset it to zero.
-    ASSERT_EQ(bench.sched.last_pws_msg_len, seg_len);
+    // Repeats carry no content of their own: the epoch keeps stating the content length of the on-going warning.
+    ASSERT_EQ(bench.only_broadcasting_si_message().msg_len, seg_len);
   }
 
   // No further broadcasts should be signalled once the requested count has been exhausted.
@@ -270,7 +273,8 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   pws_req.si_messages   = span<byte_buffer>(segments);
   pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 3};
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_EQ(bench.only_broadcasting_si_message().sib_set, sib_type_set{sib_type::sib7});
 
   // An SI reconfiguration prepends a normal SI-message, pushing the SIB7 one from index 0 to index 1.
   mac_cell_sys_info_config reconf;
@@ -284,13 +288,14 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   // The on-going warning must follow its SIBs to the new position, rather than staying bound to index 0.
   bench.tick(1000);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
-  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7})
-      << "The repeat must target the SI-message carrying SIB7, not whatever now sits at its old index";
+  ASSERT_EQ(bench.only_broadcasting_si_message().sib_set, sib_type_set{sib_type::sib7})
+      << "The warning must stay attached to the SI-message carrying SIB7, not to whatever sits at its old index";
 
   // A further Write-Replace Warning must reach the same encoder through the new position.
   pws_req.si_msg_idx = 1;
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_EQ(bench.only_broadcasting_si_message().sib_set, sib_type_set{sib_type::sib7});
 }
 
 /// Fixture with a single SI-message pre-provisioned at index 0, marked both requires_activation and
@@ -304,8 +309,10 @@ public:
 
   static mac_cell_sys_info_config make_sys_info_cfg()
   {
+    static const std::array<sib_type, 1> si_msg_sibs{sib_type::sib7};
+
     mac_cell_sys_info_config cfg;
-    cfg.sib1 = make_random_pdu();
+    cfg.sib1 = make_sib1_with_si_sched_info(si_msg_sibs);
     cfg.si_messages.push_back(make_random_segmented_pdu(50, 2));
     si_message_scheduling_config& si_msg_cfg = cfg.si_sched_cfg.si_messages.emplace_back();
     si_msg_cfg.sibs                          = sib_type_set{sib_type::sib7};
@@ -320,9 +327,11 @@ TEST_F(si_message_controller_auto_broadcast_test,
        when_controller_is_constructed_then_scheduler_is_signalled_for_indefinite_broadcast)
 {
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_EQ(bench.sched.last_pws_si_msg, sib_type_set{sib_type::sib7});
-  ASSERT_FALSE(bench.sched.last_pws_nof_segments.has_value()) << "test_mode auto-broadcast must never auto-deactivate";
-  ASSERT_EQ(bench.sched.last_pws_msg_len, units::bytes{50});
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_EQ(broadcasting.sib_set, sib_type_set{sib_type::sib7});
+  ASSERT_FALSE(broadcasting.nof_segments.has_value()) << "test_mode auto-broadcast must never auto-deactivate";
+  ASSERT_EQ(broadcasting.msg_len, units::bytes{50});
 }
 
 TEST_F(si_message_controller_auto_broadcast_test, when_content_is_encoded_then_it_matches_configured_si_message)
@@ -353,9 +362,11 @@ TEST_F(si_message_controller_auto_broadcast_test,
 
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
-  ASSERT_TRUE(bench.sched.last_pws_nof_segments.has_value());
-  ASSERT_EQ(bench.sched.last_pws_nof_segments, 1);
-  ASSERT_EQ(bench.sched.last_pws_msg_len, units::bytes{50});
+  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_TRUE(broadcasting.nof_segments.has_value());
+  ASSERT_EQ(broadcasting.nof_segments, 1);
+  ASSERT_EQ(broadcasting.msg_len, units::bytes{50});
 }
 
 /// Fixture whose SIB1 is a real ASN.1 payload listing one dormant SIB7 SI message, so that its si-BroadcastStatus can

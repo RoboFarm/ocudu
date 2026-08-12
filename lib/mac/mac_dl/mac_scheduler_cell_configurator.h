@@ -31,18 +31,11 @@ public:
   /// \remark Must be called from the cell control executor.
   virtual void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) = 0;
 
-  /// \brief Request the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification and activate the target
-  /// SI-message.
+  /// \brief Request the scheduler to broadcast a PWS (ETWS/CMAS) short-message notification, and to keep the
+  /// SI-messages of the on-going ETWS/CMAS SI epoch on air for one more broadcast.
   /// \param[in] cell_idx DU-specific index of the cell for which the indication is directed.
-  /// \param[in] si_msg SIBs carried by the SI-message to activate.
-  /// \param[in] nof_segments Number of segments composing the warning message, or \c std::nullopt for indefinite.
-  /// \param[in] msg_len Length, in bytes, of the largest segment of the warning message being activated. Used to
-  /// size the PDSCH grant for this SI-message while active.
   /// \remark Must be called from the cell control executor.
-  virtual void handle_pws_broadcast_indication(du_cell_index_t         cell_idx,
-                                               sib_type_set            si_msg,
-                                               std::optional<unsigned> nof_segments,
-                                               units::bytes            msg_len) = 0;
+  virtual void handle_pws_broadcast_indication(du_cell_index_t cell_idx) = 0;
 
   /// \brief Handle request to update the slice configuration of a cell.
   /// \param[in] req Request to update the RRM policies.

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "ocudu/support/ocudu_assert.h"
+#include "ocudu/adt/bounded_bitset.h"
 #include <cstdint>
 #include <initializer_list>
 
@@ -36,35 +36,57 @@ constexpr bool is_pws_sib(sib_type sib)
 /// the position it occupies in the SI scheduling configuration.
 class sib_type_set
 {
-  /// Largest SIB type that fits in the bitmap.
-  static constexpr unsigned max_sib_type = 31;
-
-  static constexpr uint32_t to_bit(sib_type sib) { return 1U << static_cast<unsigned>(sib); }
+  /// Number of SIB types that fit in the set.
+  static constexpr unsigned nof_sib_types = 32;
 
 public:
-  constexpr sib_type_set() = default;
+  sib_type_set() = default;
   sib_type_set(std::initializer_list<sib_type> sibs)
   {
     for (sib_type sib : sibs) {
       add(sib);
     }
   }
+  template <typename It>
+  sib_type_set(It begin, It end)
+  {
+    for (It it = begin; it != end; ++it) {
+      add(*it);
+    }
+  }
 
   void add(sib_type sib)
   {
-    ocudu_assert(static_cast<unsigned>(sib) <= max_sib_type, "Invalid SIB type {}", static_cast<unsigned>(sib));
-    bitmap |= to_bit(sib);
+    ocudu_assert(static_cast<unsigned>(sib) < nof_sib_types, "Invalid SIB type {}", static_cast<unsigned>(sib));
+    bitmap.set(static_cast<unsigned>(sib));
   }
 
   bool contains(sib_type sib) const
   {
-    return static_cast<unsigned>(sib) <= max_sib_type and (bitmap & to_bit(sib)) != 0;
+    return static_cast<unsigned>(sib) < nof_sib_types and bitmap.test(static_cast<unsigned>(sib));
   }
 
-  bool empty() const { return bitmap == 0; }
+  bool empty() const { return bitmap.none(); }
+
+  /// Number of SIBs in the set.
+  unsigned size() const { return bitmap.count(); }
+
+  /// Lowest SIB in the set. The set must not be empty.
+  sib_type front() const
+  {
+    ocudu_assert(not empty(), "Empty SIB set");
+    return static_cast<sib_type>(bitmap.find_lowest());
+  }
+
+  /// Invokes the given callable once per SIB in the set, in ascending SIB type order.
+  template <typename Callable>
+  void for_each(Callable&& func) const
+  {
+    bitmap.for_each(0, bitmap.size(), [&func](size_t pos) { func(static_cast<sib_type>(pos)); });
+  }
 
   /// Whether this SI message carries a PWS (ETWS/CMAS) SIB, and therefore is only broadcast while a warning is active.
-  bool is_etws_cmas() const { return (bitmap & pws_bitmap) != 0; }
+  bool is_etws_cmas() const { return contains(sib_type::sib6) or contains(sib_type::sib7) or contains(sib_type::sib8); }
 
   /// \brief Whether this SI message carries the NTN SIB19.
   ///
@@ -76,11 +98,7 @@ public:
   bool operator!=(const sib_type_set& other) const { return bitmap != other.bitmap; }
 
 private:
-  static constexpr uint32_t pws_bitmap = (1U << static_cast<unsigned>(sib_type::sib6)) |
-                                         (1U << static_cast<unsigned>(sib_type::sib7)) |
-                                         (1U << static_cast<unsigned>(sib_type::sib8));
-
-  uint32_t bitmap = 0;
+  bounded_bitset<nof_sib_types> bitmap = bounded_bitset<nof_sib_types>(nof_sib_types);
 };
 
 } // namespace ocudu
