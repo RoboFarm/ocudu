@@ -122,8 +122,8 @@ TEST_F(si_message_controller_pws_test,
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
 
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
-  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
+  const pws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
   ASSERT_EQ(broadcasting.sib_set, sib_type_set{sib_type::sib7});
   ASSERT_EQ(broadcasting.nof_segments, 2);
   // Regression test: the epoch must state the real (activation-time) content length, not whatever was
@@ -142,11 +142,11 @@ TEST_F(si_message_controller_pws_test, when_pws_broadcast_content_is_encoded_the
   bench.si_mng.handle_si_message_pdu_updates(req);
 
   // The warning content is broadcast from the ETWS/CMAS epoch.
-  std::optional<si_update_command> etws_cmd = bench.apply_pending_etws_si();
-  ASSERT_TRUE(etws_cmd.has_value());
+  const std::optional<si_update_command>& pws_cmd = bench.last_pws_cmd;
+  ASSERT_TRUE(pws_cmd.has_value());
 
   units::bytes    tbs{static_cast<unsigned>(segments[0].length())};
-  sib_information si_info = make_sib_pdu(0, etws_cmd->version, tbs);
+  sib_information si_info = make_sib_pdu(0, pws_cmd->version, tbs);
 
   si_info.is_repetition    = false;
   span<const uint8_t> pdu0 = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
@@ -178,7 +178,7 @@ TEST_F(si_message_controller_pws_test,
 
   bench.si_mng.handle_si_message_pdu_updates(req);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
   ASSERT_EQ(bench.only_broadcasting_si_message().msg_len, seg_len);
 
   const unsigned ticks_per_broadcast = 1000; // repeat_period == 1 second == 1000 ms ticks.
@@ -216,11 +216,11 @@ TEST_F(si_message_controller_pws_test, when_new_pws_broadcast_replaces_previous_
   bench.si_mng.handle_si_message_pdu_updates(req_b);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
 
-  std::optional<si_update_command> etws_cmd = bench.apply_pending_etws_si();
-  ASSERT_TRUE(etws_cmd.has_value());
+  const std::optional<si_update_command>& pws_cmd = bench.last_pws_cmd;
+  ASSERT_TRUE(pws_cmd.has_value());
 
   units::bytes        tbs{static_cast<unsigned>(segment_b.length())};
-  sib_information     si_info = make_sib_pdu(0, etws_cmd->version, tbs);
+  sib_information     si_info = make_sib_pdu(0, pws_cmd->version, tbs);
   span<const uint8_t> pdu     = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
   ASSERT_EQ(byte_buffer::create(pdu).value(), segment_b)
       << "Replacement content must be served from segment 0, not the superseded warning";
@@ -243,16 +243,20 @@ TEST_F(si_message_controller_pws_test, when_unrelated_si_reconfiguration_occurs_
   bench.si_mng.handle_si_message_pdu_updates(pws_req);
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
 
-  // An unrelated SI reconfiguration arrives (e.g. a SIB2 content update), rebuilding all SI-messages, including a
+  // An unrelated SI reconfiguration arrives (a SIB2 SI-message is added), rebuilding all SI-messages, including a
   // placeholder for index 0 that has nothing to do with the active warning.
+  static const std::array<sib_type, 2> reconf_sibs{sib_type::sib6, sib_type::sib2};
+
   mac_cell_sys_info_config unrelated_req = bench.sys_info_cfg;
-  unrelated_req.sib1                     = make_random_pdu();
+  unrelated_req.sib1                     = make_sib1_with_si_sched_info(reconf_sibs);
   unrelated_req.si_messages[0]           = bcch_dl_sch_payload_type{make_random_pdu()};
+  unrelated_req.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
+  unrelated_req.si_sched_cfg.si_messages.emplace_back().sibs = sib_type_set{sib_type::sib2};
   ASSERT_TRUE(bench.update_si(unrelated_req).has_value());
 
   // The active PWS broadcast's content must still be served, not the unrelated placeholder.
   units::bytes        tbs{static_cast<unsigned>(segment.length())};
-  sib_information     si_info = make_sib_pdu(0, 1, tbs);
+  sib_information     si_info = make_sib_pdu(0, bench.last_pws_cmd->version, tbs);
   span<const uint8_t> pdu     = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
   ASSERT_EQ(byte_buffer::create(pdu).value(), segment)
       << "Unrelated SI reconfiguration must not disrupt the active PWS broadcast";
@@ -273,7 +277,7 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   pws_req.si_messages   = span<byte_buffer>(segments);
   pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 3};
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
   ASSERT_EQ(bench.only_broadcasting_si_message().sib_set, sib_type_set{sib_type::sib7});
 
   // An SI reconfiguration prepends a normal SI-message, pushing the SIB7 one from index 0 to index 1.
@@ -294,7 +298,7 @@ TEST_F(si_message_controller_pws_test, when_si_layout_changes_then_active_warnin
   // A further Write-Replace Warning must reach the same encoder through the new position.
   pws_req.si_msg_idx = 1;
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
   ASSERT_EQ(bench.only_broadcasting_si_message().sib_set, sib_type_set{sib_type::sib7});
 }
 
@@ -327,8 +331,8 @@ TEST_F(si_message_controller_auto_broadcast_test,
        when_controller_is_constructed_then_scheduler_is_signalled_for_indefinite_broadcast)
 {
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 1);
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
-  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
+  const pws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
   ASSERT_EQ(broadcasting.sib_set, sib_type_set{sib_type::sib7});
   ASSERT_FALSE(broadcasting.nof_segments.has_value()) << "test_mode auto-broadcast must never auto-deactivate";
   ASSERT_EQ(broadcasting.msg_len, units::bytes{50});
@@ -339,7 +343,7 @@ TEST_F(si_message_controller_auto_broadcast_test, when_content_is_encoded_then_i
   const auto& segments = bench.sys_info_cfg.si_messages[0];
 
   units::bytes    tbs{static_cast<unsigned>(segments[0].length())};
-  sib_information si_info = make_sib_pdu(0, 0, tbs);
+  sib_information si_info = make_sib_pdu(0, bench.last_pws_cmd->version, tbs);
 
   si_info.is_repetition    = false;
   span<const uint8_t> pdu0 = bench.assembler.encode_si_pdu(bench.current_slot, si_info);
@@ -362,8 +366,8 @@ TEST_F(si_message_controller_auto_broadcast_test,
 
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
   ASSERT_EQ(bench.sched.nof_pws_broadcast_indications, 2);
-  ASSERT_TRUE(bench.apply_pending_etws_si().has_value());
-  const etws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
+  const pws_broadcasting_si_message broadcasting = bench.only_broadcasting_si_message();
   ASSERT_TRUE(broadcasting.nof_segments.has_value());
   ASSERT_EQ(broadcasting.nof_segments, 1);
   ASSERT_EQ(broadcasting.msg_len, units::bytes{50});
@@ -400,13 +404,13 @@ public:
   si_bench bench;
 };
 
-TEST_F(si_message_controller_broadcast_status_test, when_no_warning_is_on_air_then_no_etws_epoch_is_generated)
+TEST_F(si_message_controller_broadcast_status_test, when_no_warning_is_on_air_then_no_pws_epoch_is_generated)
 {
-  ASSERT_FALSE(bench.si_mng.take_etws_command().has_value());
+  ASSERT_FALSE(bench.last_pws_cmd.has_value()) << "No ETWS/CMAS epoch must be generated while no warning is on air";
   ASSERT_EQ(broadcast_status_of(bench.si_mng.last_command()), std::vector<bool>{false});
 }
 
-TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_etws_epoch_lists_it_as_broadcasting)
+TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_pws_epoch_lists_it_as_broadcasting)
 {
   std::vector<byte_buffer>     segments = make_random_segmented_pdu(50, 1);
   mac_cell_sys_info_pdu_update req;
@@ -416,20 +420,18 @@ TEST_F(si_message_controller_broadcast_status_test, when_warning_starts_then_etw
   req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 1};
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(req));
 
-  std::optional<si_update_command> etws_cmd = bench.si_mng.take_etws_command();
-  ASSERT_TRUE(etws_cmd.has_value()) << "Starting a warning must generate an ETWS/CMAS epoch";
-  ASSERT_EQ(broadcast_status_of(*etws_cmd), std::vector<bool>{true});
+  const std::optional<si_update_command>& pws_cmd = bench.last_pws_cmd;
+  ASSERT_TRUE(pws_cmd.has_value()) << "Starting a warning must generate an ETWS/CMAS epoch";
+  ASSERT_TRUE(pws_cmd->new_broadcast) << "Starting a warning is a new broadcast";
+  ASSERT_EQ(broadcast_status_of(*pws_cmd), std::vector<bool>{true});
 
   // The normal-operation epoch keeps listing it as dormant, so that it resumes on its own once the warning stops.
   ASSERT_EQ(broadcast_status_of(bench.si_mng.last_command()), std::vector<bool>{false});
-  ASSERT_NE(etws_cmd->version, bench.si_mng.last_command().version)
+  ASSERT_NE(pws_cmd->version, bench.si_mng.last_command().version)
       << "Both epochs must be distinguishable by version alone";
-
-  // The epoch is only handed out once per change.
-  ASSERT_FALSE(bench.si_mng.take_etws_command().has_value());
 }
 
-TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_then_etws_epoch_is_derived_again)
+TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_then_pws_epoch_is_derived_again)
 {
   // Start a warning, and keep the SI-message encoder it produced.
   std::vector<byte_buffer>     segments = make_random_segmented_pdu(50, 1);
@@ -440,8 +442,8 @@ TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_
   pws_req.pws_broadcast = pws_broadcast_indication{std::chrono::seconds{1}, 1};
   ASSERT_TRUE(bench.si_mng.handle_si_message_pdu_updates(pws_req));
 
-  std::optional<si_update_command> first_etws = bench.si_mng.take_etws_command();
-  ASSERT_TRUE(first_etws.has_value());
+  ASSERT_TRUE(bench.last_pws_cmd.has_value());
+  const si_update_command first_pws = *bench.last_pws_cmd;
 
   // An unrelated SI change arrives while the warning is on air: a SIB2 SI-message is added, so both SIB1 and the SI
   // scheduling configuration differ from the ones the warning epoch was derived from.
@@ -455,16 +457,17 @@ TEST_F(si_message_controller_broadcast_status_test, when_si_changes_mid_warning_
   std::optional<si_update_command> baseline = bench.update_si(reconf);
   ASSERT_TRUE(baseline.has_value());
 
-  std::optional<si_update_command> second_etws = bench.si_mng.take_etws_command();
-  ASSERT_TRUE(second_etws.has_value()) << "The warning epoch must be derived again from the new System Information";
-  ASSERT_NE(second_etws->version, first_etws->version);
-  ASSERT_NE(second_etws->version, baseline->version) << "Both epochs must stay distinguishable by version alone";
+  const std::optional<si_update_command>& second_pws = bench.last_pws_cmd;
+  ASSERT_TRUE(second_pws.has_value()) << "The warning epoch must be derived again from the new System Information";
+  ASSERT_NE(second_pws->version, first_pws.version);
+  ASSERT_NE(second_pws->version, baseline->version) << "Both epochs must stay distinguishable by version alone";
+  ASSERT_FALSE(second_pws->new_broadcast) << "An SI change must not prolong the on-going warning broadcast";
 
   // It still lists the warning as broadcasting, while the normal operation epoch lists it as dormant. The SIB2
   // SI-message that came with the SI change is broadcasting in both.
-  ASSERT_EQ(broadcast_status_of(*second_etws), (std::vector<bool>{true, true}));
+  ASSERT_EQ(broadcast_status_of(*second_pws), (std::vector<bool>{true, true}));
   ASSERT_EQ(broadcast_status_of(*baseline), (std::vector<bool>{false, true}));
 
   // The warning content itself is untouched, so its segment cycle is not restarted.
-  ASSERT_EQ(second_etws->si_msgs[0], first_etws->si_msgs[0]);
+  ASSERT_EQ(second_pws->si_msgs[0], first_pws.si_msgs[0]);
 }

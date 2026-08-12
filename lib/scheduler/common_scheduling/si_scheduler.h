@@ -30,9 +30,7 @@ public:
 
   void handle_si_update_request(const si_scheduling_update_request& req);
 
-  void handle_etws_si_update_request(const etws_si_scheduling_update_request& req);
-
-  void handle_pws_broadcast_indication(const pws_broadcast_request& req);
+  void handle_pws_si_update_request(const pws_si_scheduling_update_request& req);
 
   void stop();
 
@@ -78,23 +76,16 @@ private:
 
   /// \brief Applies a pending ETWS/CMAS SI epoch, and reverts to the normal operation one once no warning is being
   /// broadcast anymore.
-  void handle_etws_epoch(slot_point_extended slot_sched);
-
-  /// \brief Counter of PWS broadcast occurrences, used for newness detection.
-  ///
-  /// What is broadcast is stated by the ETWS/CMAS SI epoch, so a broadcast occurrence carries nothing else.
-  lockfree_triple_buffer<si_version_type> pending_pws_broadcasts;
-  si_version_type                         last_seen_pws_broadcast = 0;
-  si_version_type                         next_pws_broadcast      = 1;
+  void handle_pws_epoch(slot_point_extended slot_sched);
 
   /// Pending ETWS/CMAS SI epoch, tagged with a locally-generated version for newness detection.
-  struct etws_pending_epoch {
-    si_version_type                   version = 0;
-    etws_si_scheduling_update_request req;
+  struct pws_pending_epoch {
+    si_version_type                  version = 0;
+    pws_si_scheduling_update_request req;
   };
-  lockfree_triple_buffer<etws_pending_epoch> pending_etws_epoch;
-  si_version_type                            last_seen_etws_epoch = 0;
-  si_version_type                            next_etws_epoch      = 1;
+  lockfree_triple_buffer<pws_pending_epoch> pending_pws_epoch;
+  si_version_type                           last_seen_pws_epoch = 0;
+  si_version_type                           next_pws_epoch      = 1;
 
   /// \brief Slot until which the ETWS/CMAS SI epoch stays in effect.
   ///
@@ -102,7 +93,7 @@ private:
   /// keeps being broadcast until the last one does. That way the set of SI messages listed as broadcasting in SIB1
   /// only ever grows while the epoch is in effect, and can never claim a warning that is no longer on air.
   /// \remark If \c std::nullopt while the epoch is in effect, it stays in effect indefinitely.
-  std::optional<slot_point_extended> etws_until;
+  std::optional<slot_point_extended> pws_until;
   /// \brief Slot up to which the PWS (ETWS/CMAS) short-message notification must keep being transmitted at every
   /// paging occasion. \c std::nullopt if no notification is currently pending.
   std::optional<slot_point_extended> pws_notif_until_slot;

@@ -28,7 +28,7 @@ public:
   ///
   /// It coexists with the SI epoch of the normal operation, which the scheduler goes back to once the warning stops
   /// being broadcast.
-  void handle_etws_si_update(const si_update_command& cmd);
+  void handle_pws_si_update(const si_update_command& cmd);
 
   /// \brief Retrieve the encoded SI message.
   /// \note Called from RT path, so it must be lock-free and non-blocking.
@@ -51,13 +51,13 @@ private:
 
   // Encoders being transferred from the configuration plane to the assembler RT path, one per SI epoch channel.
   lockfree_triple_buffer<si_encoder_snapshot> pending;
-  lockfree_triple_buffer<si_encoder_snapshot> pending_etws;
+  lockfree_triple_buffer<si_encoder_snapshot> pending_pws;
 
   // Encoders that are being currently used to generate the PDUs sent to lower layers. Both channels are kept, given
   // that the scheduler alternates between them for as long as a warning is being broadcast.
   // Note: These members are only accessed from the RT path.
   si_encoder_snapshot current;
-  si_encoder_snapshot current_etws;
+  si_encoder_snapshot current_pws;
 };
 
 } // namespace ocudu

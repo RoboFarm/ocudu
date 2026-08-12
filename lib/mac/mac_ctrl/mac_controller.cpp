@@ -64,7 +64,6 @@ mac_cell_controller& mac_controller::add_cell(const mac_cell_creation_request& c
   return cells.emplace(cell_add_req.cell_index,
                        cell_add_req,
                        timer_factory{cfg.time_source.get_timer_manager(), cfg.ctrl_exec},
-                       sched_cfg.get_cell_configurator(),
                        dl_cell);
 }
 

@@ -90,9 +90,7 @@ public:
                                mac_cell_slot_handler::error_event event) override;
 
   void handle_si_change_indication(const si_scheduling_update_request& request) override;
-  void handle_etws_si_change_indication(const etws_si_scheduling_update_request& request) override;
-
-  void handle_pws_broadcast_indication(du_cell_index_t cell_idx) override;
+  void handle_pws_si_change_indication(const pws_si_scheduling_update_request& request) override;
 
   mac_positioning_measurement_handler& get_positioning_handler() override { return *pos_handler; }
 

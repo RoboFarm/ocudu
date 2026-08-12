@@ -5,11 +5,13 @@
 #pragma once
 
 #include "lib/mac/mac_ctrl/si_message_controller.h"
+#include "lib/mac/mac_dl/mac_dl_configurator.h"
 #include "lib/mac/mac_dl/sib_pdu_assembler.h"
 #include "mac_test_helpers.h"
 #include "tests/test_doubles/utils/test_rng.h"
 #include "ocudu/asn1/rrc_nr/bcch_dl_sch_msg.h"
 #include "ocudu/asn1/rrc_nr/sys_info.h"
+#include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/executors/manual_task_worker.h"
 
 namespace ocudu {
@@ -124,15 +126,28 @@ inline sib_information make_sib_pdu(std::optional<unsigned> si_msg_index, si_ver
 /// \brief Bench pairing an SI message controller with the SIB assembler it feeds.
 ///
 /// The encoders are owned by the controller, so the assembler can only be exercised through the commands the
-/// controller emits.
-class si_bench
+/// controller emits. It stands in for the MAC DL cell the controller applies its SI epochs in.
+class si_bench : private mac_dl_cell_controller
 {
+  /// Cell that discards the SI epochs it is given.
+  class null_dl_cell final : public mac_dl_cell_controller
+  {
+    async_task<void> start() override { return launch_no_op_task(); }
+    async_task<void> stop() override { return launch_no_op_task(); }
+    void             start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                                     const si_update_command&                      cmd) override
+    {
+    }
+    void             handle_si_update(const si_update_command& cmd) override {}
+    void             handle_pws_si_update(const si_update_command& cmd) override {}
+    async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return launch_no_op_task(); }
+  };
+
 public:
   explicit si_bench(mac_cell_sys_info_config sys_info_cfg_) :
     sys_info_cfg(std::move(sys_info_cfg_)),
-    si_mng(to_du_cell_index(0), sys_info_cfg, timer_factory{timers, task_worker}, sched)
+    si_mng(to_du_cell_index(0), sys_info_cfg, timer_factory{timers, task_worker}, *this)
   {
-    assembler.start_broadcast(si_mng.extension_handler(), si_mng.last_command());
   }
 
   /// Forwards a new System Information config to the controller and applies the resulting command, if any.
@@ -140,7 +155,7 @@ public:
   {
     std::optional<si_update_command> cmd = si_mng.handle_si_change_request(req);
     if (cmd.has_value()) {
-      assembler.handle_si_update(*cmd);
+      handle_si_update(*cmd);
     }
     return cmd;
   }
@@ -149,36 +164,24 @@ public:
   ///
   /// Stands in for the warning snapshot that the SI message controller will derive from the baseline one, so that
   /// the assembler can be exercised with two coexisting epochs.
-  si_update_command apply_etws_si(const mac_cell_sys_info_config& etws_cfg, si_version_type version)
+  si_update_command apply_pws_si(const mac_cell_sys_info_config& pws_cfg, si_version_type version)
   {
-    etws_si_mng = std::make_unique<si_message_controller>(
-        to_du_cell_index(0), etws_cfg, timer_factory{timers, task_worker}, sched);
+    pws_si_mng = std::make_unique<si_message_controller>(
+        to_du_cell_index(0), pws_cfg, timer_factory{timers, task_worker}, null_dl);
 
-    si_update_command cmd = etws_si_mng->last_command();
+    si_update_command cmd = pws_si_mng->last_command();
     cmd.version           = version;
-    assembler.handle_etws_si_update(cmd);
-    return cmd;
-  }
-
-  /// \brief Applies the ETWS/CMAS epoch the controller generated, if any.
-  /// \return The applied epoch, whose version the warning grants are stamped with.
-  std::optional<si_update_command> apply_pending_etws_si()
-  {
-    std::optional<si_update_command> cmd = si_mng.take_etws_command();
-    if (cmd.has_value()) {
-      assembler.handle_etws_si_update(*cmd);
-      last_etws_cmd = cmd;
-    }
+    assembler.handle_pws_si_update(cmd);
     return cmd;
   }
 
   /// \brief Properties of the SI message the last generated ETWS/CMAS epoch lists as broadcasting.
   /// \remark The epoch must list exactly one.
-  etws_broadcasting_si_message only_broadcasting_si_message() const
+  pws_broadcasting_si_message only_broadcasting_si_message() const
   {
-    report_fatal_error_if_not(last_etws_cmd.has_value() and last_etws_cmd->broadcasting.size() == 1,
+    report_fatal_error_if_not(last_pws_cmd.has_value() and last_pws_cmd->broadcasting.size() == 1,
                               "Expected exactly one SI message broadcasting a warning");
-    return last_etws_cmd->broadcasting[0];
+    return last_pws_cmd->broadcasting[0];
   }
 
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
@@ -195,16 +198,44 @@ public:
   dummy_mac_scheduler_adapter sched;
 
   mac_cell_sys_info_config sys_info_cfg;
-  si_message_controller    si_mng;
   sib_pdu_assembler        assembler;
 
-  // Stands in for the SI message controller-side production of the ETWS/CMAS epoch.
-  std::unique_ptr<si_message_controller> etws_si_mng;
-
-  // Last ETWS/CMAS epoch applied through apply_pending_etws_si.
-  std::optional<si_update_command> last_etws_cmd;
+  // Last ETWS/CMAS epoch the controller pushed, and how many it pushed in total.
+  std::optional<si_update_command> last_pws_cmd;
+  unsigned                         nof_pws_epochs = 0;
 
   slot_point_extended current_slot{subcarrier_spacing::kHz30, 0};
+
+  // Declared last, given that its constructor already applies SI epochs in this bench.
+  si_message_controller si_mng;
+
+  // Stands in for the SI message controller-side production of the ETWS/CMAS epoch.
+  null_dl_cell                           null_dl;
+  std::unique_ptr<si_message_controller> pws_si_mng;
+
+private:
+  async_task<void> start() override { return launch_no_op_task(); }
+
+  async_task<void> stop() override { return launch_no_op_task(); }
+
+  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler_,
+                       const si_update_command&                      cmd) override
+  {
+    assembler.start_broadcast(std::move(ext_handler_), cmd);
+  }
+
+  void handle_si_update(const si_update_command& cmd) override { assembler.handle_si_update(cmd); }
+
+  void handle_pws_si_update(const si_update_command& cmd) override
+  {
+    assembler.handle_pws_si_update(cmd);
+    sched.handle_pws_si_change_indication(pws_si_scheduling_update_request{
+        to_du_cell_index(0), cmd.version, cmd.si_sched_cfg, cmd.broadcasting, cmd.new_broadcast});
+    last_pws_cmd = cmd;
+    ++nof_pws_epochs;
+  }
+
+  async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return launch_no_op_task(); }
 };
 
 } // namespace test_helpers

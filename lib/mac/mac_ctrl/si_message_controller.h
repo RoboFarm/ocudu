@@ -10,7 +10,7 @@
 
 namespace ocudu {
 
-class mac_scheduler_cell_configurator;
+class mac_dl_cell_controller;
 
 /// \brief Entity that manages the System Information broadcast by a MAC cell.
 ///
@@ -19,10 +19,12 @@ class mac_scheduler_cell_configurator;
 class si_message_controller
 {
 public:
-  si_message_controller(du_cell_index_t                  cell_index,
-                        const mac_cell_sys_info_config&  sys_info,
-                        timer_factory                    timers,
-                        mac_scheduler_cell_configurator& sched);
+  /// \remark Starts the broadcast of the System Information in the cell, so \c dl_cell must be able to receive SI
+  /// epochs.
+  si_message_controller(du_cell_index_t                 cell_index,
+                        const mac_cell_sys_info_config& sys_info,
+                        timer_factory                   timers,
+                        mac_dl_cell_controller&         dl_cell);
   ~si_message_controller();
 
   /// Command generated from the last System Information update.
@@ -39,10 +41,6 @@ public:
   /// (Write-Replace Warning) broadcast content push and repetition sequence; otherwise it is a plain SI PDU update
   /// enqueued at its proper Tx slots.
   bool handle_si_message_pdu_updates(const mac_cell_sys_info_pdu_update& req);
-
-  /// \brief Retrieves the ETWS/CMAS SI epoch to apply, if the set of SI messages carrying a warning changed.
-  /// \remark The returned command is only generated once per change.
-  std::optional<si_update_command> take_etws_command();
 
 private:
   /// Encoder for a static BCCH-DL-SCH SIB1 payload.
@@ -74,17 +72,18 @@ private:
 
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req);
 
-  /// Derives the ETWS/CMAS SI epoch from the current one, listing the given SI messages as broadcasting.
-  void build_etws_command(span<const etws_broadcasting_si_message> broadcasting);
+  /// \brief Derives the ETWS/CMAS SI epoch from the current one and applies it in the cell.
+  /// \param new_broadcast Whether a new broadcast of the warnings is starting.
+  void push_pws_epoch(bool new_broadcast);
 
   /// \brief Fetches the PWS broadcast sequence of the SI message at a given position of an SI scheduling config.
   /// \return The sequence, or nullptr if the position does not exist or its SI message carries no PWS SIB.
   pws_broadcast_sequence* find_pws_sequence(const si_scheduling_config& si_sched_cfg, unsigned si_msg_idx) const;
 
-  ocudulog::basic_logger&          logger;
-  du_cell_index_t                  cell_index;
-  timer_factory                    timers;
-  mac_scheduler_cell_configurator& sched;
+  ocudulog::basic_logger& logger;
+  du_cell_index_t         cell_index;
+  timer_factory           timers;
+  mac_dl_cell_controller& dl_cell;
 
   // Last SIB1 payload used to build the current SIB1 encoder.
   byte_buffer last_sib1;
@@ -100,11 +99,11 @@ private:
   // Command matching the System Information currently being broadcast.
   si_update_command last_cmd;
 
-  // SI messages that are currently carrying a warning.
-  static_vector<etws_broadcasting_si_message, MAX_SI_MESSAGES> broadcasting_warnings;
+  // Index of the SI message whose warning content was just pushed, while its epoch is being derived.
+  std::optional<unsigned> pending_content_update_idx;
 
-  // ETWS/CMAS SI epoch waiting to be applied in the MAC cell.
-  std::optional<si_update_command> pending_etws_cmd;
+  // SI messages that are currently carrying a warning.
+  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> broadcasting_warnings;
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 

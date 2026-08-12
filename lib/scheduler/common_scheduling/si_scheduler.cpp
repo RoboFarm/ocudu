@@ -22,8 +22,7 @@ si_scheduler::si_scheduler(const cell_configuration&                       cfg_,
   sib1_sched(cell_cfg, pdcch_sch, msg.si_scheduling.sib1_payload_size),
   si_msg_sched(cell_cfg, pdcch_sch, msg.si_scheduling),
   pending_req(si_scheduling_update_request{INVALID_DU_CELL_INDEX, last_version, {}}),
-  pending_pws_broadcasts(0),
-  pending_etws_epoch(etws_pending_epoch{})
+  pending_pws_epoch(pws_pending_epoch{})
 {
 }
 
@@ -73,7 +72,7 @@ void si_scheduler::try_handle_pending_request(cell_resource_allocator& res_alloc
   slot_point_extended slot_sched = sl_tx_ext + res_alloc.max_dl_slot_alloc_delay;
 
   // Handle the SI epoch broadcast while a warning is on air.
-  handle_etws_epoch(slot_sched);
+  handle_pws_epoch(slot_sched);
 
   // Handle any request to change the SI sched info.
   const bool si_modification_due = try_handle_si_mod_request(slot_sched);
@@ -135,7 +134,7 @@ bool si_scheduler::try_handle_si_mod_request(slot_point_extended slot_sched)
   logger.debug("SI change with version {} starting after slot {}", on_going_req->version, slot_sched);
 
   // Apply the SIB1 and SI message changes.
-  if (not si_msg_sched.etws_epoch_in_effect()) {
+  if (not si_msg_sched.pws_epoch_in_effect()) {
     sib1_sched.handle_sib1_update_indication(on_going_req->version, on_going_req->si_sched_cfg.sib1_payload_size);
   }
   // Note: while a warning is on air, the SI epoch of the normal operation is only kept aside, to be reverted to. Its
@@ -154,61 +153,52 @@ void si_scheduler::handle_si_update_request(const si_scheduling_update_request& 
   pending_req.write_and_commit(req);
 }
 
-void si_scheduler::handle_etws_si_update_request(const etws_si_scheduling_update_request& req)
+void si_scheduler::handle_pws_si_update_request(const pws_si_scheduling_update_request& req)
 {
-  pending_etws_epoch.write_and_commit(etws_pending_epoch{next_etws_epoch++, req});
+  pending_pws_epoch.write_and_commit(pws_pending_epoch{next_pws_epoch++, req});
 }
 
-void si_scheduler::handle_etws_epoch(slot_point_extended slot_sched)
+void si_scheduler::handle_pws_epoch(slot_point_extended slot_sched)
 {
-  // Apply a newly pushed ETWS/CMAS epoch, if any.
-  const etws_pending_epoch& next = pending_etws_epoch.read();
-  if (next.version != last_seen_etws_epoch) {
-    last_seen_etws_epoch = next.version;
+  const unsigned slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
 
-    etws_until =
-        si_msg_sched.apply_etws_epoch(next.req.version, next.req.si_sched_cfg, next.req.broadcasting, slot_sched);
+  // Apply a newly pushed ETWS/CMAS epoch, if any.
+  const pws_pending_epoch& next = pending_pws_epoch.read();
+  if (next.version != last_seen_pws_epoch) {
+    last_seen_pws_epoch = next.version;
+
+    si_msg_sched.apply_pws_epoch(next.req.version, next.req.si_sched_cfg, next.req.broadcasting);
     sib1_sched.handle_sib1_update_indication(next.req.version, next.req.si_sched_cfg.sib1_payload_size);
     logger.debug("ETWS/CMAS SI epoch {} applied", next.req.version);
+
+    if (next.req.new_broadcast) {
+      // Keep the epoch in effect for one more broadcast.
+      pws_until = si_msg_sched.refresh_pws_deadline(slot_sched);
+
+      // As per TS 38.304, ETWS/CMAS-capable UEs monitor for this notification only in their own paging occasion, once
+      // per DRX cycle. Since we don't know a given UE's UE_ID (hence its exact paging occasion), extend the
+      // notification window to cover at least one full default paging cycle from now.
+      const slot_point_extended new_until = slot_sched + default_paging_cycle * slots_per_frame;
+      if (not pws_notif_until_slot.has_value() or pws_notif_until_slot.value() < new_until) {
+        pws_notif_until_slot = new_until;
+      }
+    }
   }
 
-  if (not si_msg_sched.etws_epoch_in_effect() or not etws_until.has_value() or slot_sched < etws_until.value()) {
+  if (not si_msg_sched.pws_epoch_in_effect() or not pws_until.has_value() or slot_sched < pws_until.value()) {
     return;
   }
 
   // Every warning finished being broadcast. Go back to the System Information of the normal operation, whose SIB1
   // lists them all as dormant again.
-  etws_until.reset();
-  si_msg_sched.revert_etws_epoch();
+  pws_until.reset();
+  si_msg_sched.revert_pws_epoch();
   sib1_sched.handle_sib1_update_indication(si_msg_sched.get_version(), si_msg_sched.get_sib1_payload_size());
   logger.debug("ETWS/CMAS SI epoch ended. Going back to SI epoch {}", si_msg_sched.get_version());
 }
 
-void si_scheduler::handle_pws_broadcast_indication(const pws_broadcast_request& req)
-{
-  pending_pws_broadcasts.write_and_commit(next_pws_broadcast++);
-}
-
 bool si_scheduler::try_handle_pending_pws_request(slot_point_extended slot_sched)
 {
-  const unsigned slots_per_frame = get_nof_slots_per_subframe(scs_common) * NOF_SUBFRAMES_PER_FRAME;
-
-  const si_version_type next = pending_pws_broadcasts.read();
-  if (next != last_seen_pws_broadcast) {
-    last_seen_pws_broadcast = next;
-
-    // A new broadcast of the on-going ETWS/CMAS SI epoch. Keep it in effect for one more broadcast.
-    etws_until = si_msg_sched.refresh_etws_deadline(slot_sched);
-
-    // As per TS 38.304, ETWS/CMAS-capable UEs monitor for this notification only in their own paging occasion, once
-    // per DRX cycle. Since we don't know a given UE's UE_ID (hence its exact paging occasion), extend the
-    // notification window to cover at least one full default paging cycle from now.
-    const slot_point_extended new_until = slot_sched + default_paging_cycle * slots_per_frame;
-    if (not pws_notif_until_slot.has_value() or pws_notif_until_slot.value() < new_until) {
-      pws_notif_until_slot = new_until;
-    }
-  }
-
   if (not pws_notif_until_slot.has_value()) {
     return false;
   }

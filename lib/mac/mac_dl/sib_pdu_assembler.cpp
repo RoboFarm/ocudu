@@ -30,9 +30,9 @@ void sib_pdu_assembler::handle_si_update(const si_update_command& cmd)
   pending.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
 }
 
-void sib_pdu_assembler::handle_etws_si_update(const si_update_command& cmd)
+void sib_pdu_assembler::handle_pws_si_update(const si_update_command& cmd)
 {
-  pending_etws.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
+  pending_pws.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
 }
 
 const sib_pdu_assembler::si_encoder_snapshot& sib_pdu_assembler::select_snapshot(si_version_type version)
@@ -40,8 +40,8 @@ const sib_pdu_assembler::si_encoder_snapshot& sib_pdu_assembler::select_snapshot
   if (version == current.version) {
     return current;
   }
-  if (version == current_etws.version) {
-    return current_etws;
+  if (version == current_pws.version) {
+    return current_pws;
   }
 
   // The grant was scheduled with an SI epoch that is not held yet. Fetch it from the shared buffers.
@@ -49,9 +49,9 @@ const sib_pdu_assembler::si_encoder_snapshot& sib_pdu_assembler::select_snapshot
   if (version == current.version) {
     return current;
   }
-  current_etws = pending_etws.read();
-  if (version == current_etws.version) {
-    return current_etws;
+  current_pws = pending_pws.read();
+  if (version == current_pws.version) {
+    return current_pws;
   }
 
   logger.error("SI message version mismatch. Expected: {}, got: {}", version, current.version);

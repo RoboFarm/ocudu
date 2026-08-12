@@ -24,6 +24,11 @@ enum class sib_type : uint8_t {
   sib_invalid = 255
 };
 
+/// \brief Maximum number of SI messages that can carry PWS (ETWS/CMAS) content.
+///
+/// There are only three PWS SIBs (SIB6, SIB7 and SIB8), and a SIB is mapped to at most one SI message.
+constexpr size_t MAX_PWS_SI_MESSAGES = 3;
+
 /// Whether the given SIB carries PWS (ETWS/CMAS) content.
 constexpr bool is_pws_sib(sib_type sib)
 {

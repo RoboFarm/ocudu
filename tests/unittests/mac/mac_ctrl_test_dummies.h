@@ -54,7 +54,7 @@ class mac_cell_dummy_controller final : public mac_dl_cell_controller
 public:
   unsigned                       nof_starts = 0;
   std::optional<si_version_type> last_si_version;
-  std::optional<si_version_type> last_etws_si_version;
+  std::optional<si_version_type> last_pws_si_version;
 
   async_task<void> start() override;
   async_task<void> stop() override { return start(); }
@@ -63,7 +63,7 @@ public:
     handle_si_update(cmd);
   }
   void             handle_si_update(const si_update_command& cmd) override { last_si_version = cmd.version; }
-  void             handle_etws_si_update(const si_update_command& cmd) override { last_etws_si_version = cmd.version; }
+  void             handle_pws_si_update(const si_update_command& cmd) override { last_pws_si_version = cmd.version; }
   async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return start(); }
 };
 
@@ -171,8 +171,6 @@ public:
   void add_cell(const mac_scheduler_cell_creation_request& msg) override {}
 
   void remove_cell(du_cell_index_t cell_index) override {}
-
-  mac_scheduler_cell_configurator& get_cell_configurator() override { return cell_cfg; }
 
   async_task<bool> handle_ue_creation_request(const mac_ue_create_request& msg) override;
   async_task<bool> handle_ue_reconfiguration_request(const mac_ue_reconfiguration_request& msg) override;

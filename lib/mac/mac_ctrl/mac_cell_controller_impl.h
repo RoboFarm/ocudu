@@ -10,7 +10,6 @@
 namespace ocudu {
 
 class mac_dl_cell_controller;
-class mac_scheduler_cell_configurator;
 
 /// Handler of the state of a MAC cell.
 class mac_cell_controller_impl final : public mac_cell_controller
@@ -18,7 +17,6 @@ class mac_cell_controller_impl final : public mac_cell_controller
 public:
   mac_cell_controller_impl(const mac_cell_creation_request& cell_cfg,
                            timer_factory                    timers,
-                           mac_scheduler_cell_configurator& sched,
                            mac_dl_cell_controller&          dl_cell_);
 
   async_task<void> start() override;

@@ -45,19 +45,14 @@ cell_scheduler::cell_scheduler(const scheduler_expert_config&                  s
                                                                    &ue_cell_db});
 }
 
-void cell_scheduler::handle_etws_si_update_request(const etws_si_scheduling_update_request& msg)
+void cell_scheduler::handle_pws_si_update_request(const pws_si_scheduling_update_request& msg)
 {
-  si_sch.handle_etws_si_update_request(msg);
+  si_sch.handle_pws_si_update_request(msg);
 }
 
 void cell_scheduler::handle_si_update_request(const si_scheduling_update_request& msg)
 {
   si_sch.handle_si_update_request(msg);
-}
-
-void cell_scheduler::handle_pws_broadcast_indication(const pws_broadcast_request& req)
-{
-  si_sch.handle_pws_broadcast_indication(req);
 }
 
 void cell_scheduler::handle_slice_reconfiguration_request(const du_cell_slice_reconfig_request& slice_reconf_req)

@@ -61,7 +61,7 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   // An on-going PWS broadcast is not part of this SI change: its content is exempt from the SI modification window,
   // and it must keep being transmitted for the duration it was activated for. Save it, matched by the SIBs it
   // broadcasts, so that it survives an SI change that reorders the SI messages.
-  static_vector<std::pair<sib_type_set, message_window_context>, MAX_SI_MESSAGES> ongoing_pws;
+  static_vector<std::pair<sib_type_set, message_window_context>, MAX_PWS_SI_MESSAGES> ongoing_pws;
   for (unsigned i = 0, e = pending_messages.size(); i != e; ++i) {
     if (si_sched_cfg.si_messages[i].requires_activation() and pending_messages[i].active) {
       ongoing_pws.emplace_back(si_sched_cfg.si_messages[i].sibs, pending_messages[i]);
@@ -99,7 +99,7 @@ void si_message_scheduler::handle_si_message_update_indication(unsigned         
   }
 }
 
-std::optional<slot_point_extended> si_message_scheduler::compute_etws_deadline(slot_point_extended broadcast_slot) const
+std::optional<slot_point_extended> si_message_scheduler::compute_pws_deadline(slot_point_extended broadcast_slot) const
 {
   // Ensure single-round PWS delivery reaches every UE, not just the ones whose paging occasion happens to land
   // early within the notification window. As per TS 38.304, idle/inactive UEs only monitor their own paging
@@ -111,7 +111,7 @@ std::optional<slot_point_extended> si_message_scheduler::compute_etws_deadline(s
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
 
   unsigned longest_duration_rfs = 0;
-  for (const etws_broadcasting_si_message& si_msg : etws_broadcasting) {
+  for (const pws_broadcasting_si_message& si_msg : pws_broadcasting) {
     if (not si_msg.nof_segments.has_value()) {
       // Broadcast indefinitely (test_mode-configured content); never goes back to dormant.
       return std::nullopt;
@@ -130,24 +130,22 @@ std::optional<slot_point_extended> si_message_scheduler::compute_etws_deadline(s
   return broadcast_slot + longest_duration_rfs * broadcast_slot.nof_slots_per_frame();
 }
 
-std::optional<slot_point_extended> si_message_scheduler::refresh_etws_deadline(slot_point_extended broadcast_slot) const
+std::optional<slot_point_extended> si_message_scheduler::refresh_pws_deadline(slot_point_extended broadcast_slot) const
 {
-  return compute_etws_deadline(broadcast_slot);
+  return compute_pws_deadline(broadcast_slot);
 }
 
-std::optional<slot_point_extended>
-si_message_scheduler::apply_etws_epoch(unsigned                                 new_version,
-                                       const si_scheduling_config&              etws_si_sched_cfg,
-                                       span<const etws_broadcasting_si_message> broadcasting,
-                                       slot_point_extended                      activation_slot)
+void si_message_scheduler::apply_pws_epoch(unsigned                                new_version,
+                                           const si_scheduling_config&             pws_si_sched_cfg,
+                                           span<const pws_broadcasting_si_message> broadcasting)
 {
   if (not baseline.has_value()) {
     baseline.emplace(baseline_epoch{version, si_sched_cfg});
   }
 
   version      = new_version;
-  si_sched_cfg = etws_si_sched_cfg;
-  etws_broadcasting.assign(broadcasting.begin(), broadcasting.end());
+  si_sched_cfg = pws_si_sched_cfg;
+  pws_broadcasting.assign(broadcasting.begin(), broadcasting.end());
   pending_messages.resize(si_sched_cfg.si_messages.size());
 
   // The epoch declares which SI messages carry a warning, so that the SI messages being broadcast and the ones its
@@ -173,16 +171,14 @@ si_message_scheduler::apply_etws_epoch(unsigned                                 
     pending_messages[i].active  = true;
     pending_messages[i].msg_len = it->msg_len;
   }
-
-  return compute_etws_deadline(activation_slot);
 }
 
-void si_message_scheduler::revert_etws_epoch()
+void si_message_scheduler::revert_pws_epoch()
 {
   if (not baseline.has_value()) {
     return;
   }
-  etws_broadcasting.clear();
+  pws_broadcasting.clear();
 
   version      = baseline->version;
   si_sched_cfg = baseline->si_sched_cfg;

@@ -338,19 +338,18 @@ TEST_F(si_scheduler_test, when_si_is_updated_all_ues_in_rrc_idle_get_notified_ex
 
 /// \brief Puts an ETWS/CMAS SI epoch in effect and signals one broadcast of it.
 ///
-/// What is broadcast, and for how long each broadcast lasts, is stated by the epoch. The broadcast indication only
-/// says that one more broadcast is taking place.
-static void broadcast_warning(si_scheduler&                                       si_sched,
-                              const si_scheduling_config&                         cfg,
-                              si_version_type                                     version,
-                              std::initializer_list<etws_broadcasting_si_message> broadcasting)
+/// What is broadcast, and for how long each broadcast lasts, is stated by the epoch, which is flagged as a new
+/// broadcast so that the warning notification window is (re)started.
+static void broadcast_warning(si_scheduler&                                      si_sched,
+                              const si_scheduling_config&                        cfg,
+                              si_version_type                                    version,
+                              std::initializer_list<pws_broadcasting_si_message> broadcasting)
 {
-  etws_si_scheduling_update_request req{to_du_cell_index(0), version, cfg, {}};
-  for (const etws_broadcasting_si_message& entry : broadcasting) {
+  pws_si_scheduling_update_request req{to_du_cell_index(0), version, cfg, {}, true};
+  for (const pws_broadcasting_si_message& entry : broadcasting) {
     req.broadcasting.push_back(entry);
   }
-  si_sched.handle_etws_si_update_request(req);
-  si_sched.handle_pws_broadcast_indication(pws_broadcast_request{to_du_cell_index(0)});
+  si_sched.handle_pws_si_update_request(req);
 }
 
 const si_scheduling_config ACTIVATION_REQUIRED_SI_SCHED_CFG{
@@ -679,7 +678,7 @@ TEST_F(si_msg_scheduler_tdra_test, when_custom_pdsch_td_alloc_list_configured_th
 
 } // namespace
 
-TEST_F(si_msg_scheduler_activation_test, when_etws_epoch_is_applied_then_grants_use_it_until_the_warning_ends)
+TEST_F(si_msg_scheduler_activation_test, when_pws_epoch_is_applied_then_grants_use_it_until_the_warning_ends)
 {
   // The ETWS/CMAS epoch is stamped on the grants for as long as a warning is on air, so that the SIB PDU assembler
   // serves the SIB1 that lists it as broadcasting. Once the warning ends, the grants go back to the normal operation
@@ -689,12 +688,10 @@ TEST_F(si_msg_scheduler_activation_test, when_etws_epoch_is_applied_then_grants_
   const units::bytes msg_len             = ACTIVATION_REQUIRED_SI_SCHED_CFG.si_messages[0].msg_len;
 
   const si_version_type baseline_version = 0;
-  const si_version_type etws_version     = 1;
+  const si_version_type pws_version      = 1;
 
-  broadcast_warning(si_sched,
-                    ACTIVATION_REQUIRED_SI_SCHED_CFG,
-                    etws_version,
-                    {{sib_type_set{sib_type::sib7}, nof_segments, msg_len}});
+  broadcast_warning(
+      si_sched, ACTIVATION_REQUIRED_SI_SCHED_CFG, pws_version, {{sib_type_set{sib_type::sib7}, nof_segments, msg_len}});
 
   const unsigned default_paging_cycle_rfs =
       static_cast<unsigned>(cell_cfg.params.dl_cfg_common.pcch_cfg.default_paging_cycle);
@@ -707,7 +704,7 @@ TEST_F(si_msg_scheduler_activation_test, when_etws_epoch_is_applied_then_grants_
   for (unsigned i = 0; i != nof_test_slots; ++i) {
     run_slot();
     for (const auto& sib : res_grid[0].result.dl.bc.sibs) {
-      if (sib.version == etws_version) {
+      if (sib.version == pws_version) {
         ++nof_etws_grants;
         ASSERT_FALSE(reverted) << "The ETWS/CMAS epoch came back after the warning had ended";
       } else {

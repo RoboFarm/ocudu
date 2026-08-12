@@ -3,6 +3,7 @@
 // Portions of this file may implement 3GPP specifications, which may be subject to additional licensing requirements.
 
 #include "si_message_controller.h"
+#include "../mac_dl/mac_dl_configurator.h"
 #include "../mac_dl/mac_scheduler_cell_configurator.h"
 #include "../mac_dl/segmented_sib_list.h"
 #include "ocudu/adt/lockfree_triple_buffer.h"
@@ -10,6 +11,7 @@
 #include "ocudu/asn1/rrc_nr/sys_info.h"
 #include "ocudu/ocudulog/ocudulog.h"
 #include <algorithm>
+#include <functional>
 
 using namespace ocudu;
 
@@ -250,11 +252,9 @@ private:
 class si_message_controller::pws_broadcast_sequence
 {
 public:
-  pws_broadcast_sequence(sib_type_set                     sib_set_,
-                         timer_factory                    timers_,
-                         mac_scheduler_cell_configurator& sched_,
-                         du_cell_index_t                  cell_index_) :
-    sib_set(sib_set_), timers(timers_), sched(sched_), cell_index(cell_index_)
+  /// \param on_broadcast Invoked once per broadcast occurrence, including the first one.
+  pws_broadcast_sequence(sib_type_set sib_set_, timer_factory timers_, std::function<void()> on_broadcast_) :
+    sib_set(sib_set_), timers(timers_), on_broadcast(std::move(on_broadcast_))
   {
   }
 
@@ -263,9 +263,9 @@ public:
 
   /// \brief Properties of the warning currently being broadcast, as the SI epoch states them.
   /// \remark Only valid once a warning was pushed.
-  etws_broadcasting_si_message broadcasting_si_message() const
+  pws_broadcasting_si_message broadcasting_si_message() const
   {
-    return etws_broadcasting_si_message{sib_set, nof_segments_per_broadcast, current_encoder->largest_segment_len()};
+    return pws_broadcasting_si_message{sib_set, nof_segments_per_broadcast, current_encoder->largest_segment_len()};
   }
 
   /// \brief Handles a new Write-Replace Warning content push, called from the control executor.
@@ -292,7 +292,7 @@ public:
     current_encoder            = std::make_shared<pws_si_msg_encoder>(content);
     nof_segments_per_broadcast = std::nullopt;
 
-    sched.handle_pws_broadcast_indication(cell_index);
+    on_broadcast();
   }
 
 private:
@@ -304,7 +304,7 @@ private:
     }
     --nof_broadcasts_remaining;
 
-    sched.handle_pws_broadcast_indication(cell_index);
+    on_broadcast();
 
     if (nof_broadcasts_remaining == 0) {
       return;
@@ -317,10 +317,9 @@ private:
     timer.run();
   }
 
-  sib_type_set                     sib_set;
-  timer_factory                    timers;
-  mac_scheduler_cell_configurator& sched;
-  du_cell_index_t                  cell_index;
+  sib_type_set          sib_set;
+  timer_factory         timers;
+  std::function<void()> on_broadcast;
 
   std::shared_ptr<pws_si_msg_encoder> current_encoder;
   /// Number of segments of one broadcast. Empty when the content is broadcast indefinitely.
@@ -333,23 +332,24 @@ private:
   unique_timer timer;
 };
 
-si_message_controller::si_message_controller(du_cell_index_t                  cell_index_,
-                                             const mac_cell_sys_info_config&  sys_info,
-                                             timer_factory                    timers_,
-                                             mac_scheduler_cell_configurator& sched_) :
+si_message_controller::si_message_controller(du_cell_index_t                 cell_index_,
+                                             const mac_cell_sys_info_config& sys_info,
+                                             timer_factory                   timers_,
+                                             mac_dl_cell_controller&         dl_cell_) :
   logger(ocudulog::fetch_basic_logger("MAC")),
   cell_index(cell_index_),
   timers(timers_),
-  sched(sched_),
+  dl_cell(dl_cell_),
   ext_handler(create_si_message_extension_handler(sys_info))
 {
   // Set up PWS broadcast sequences, one entry per SI message carrying PWS SIBs.
   const auto& si_sched_messages = sys_info.si_sched_cfg.si_messages;
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i < si_sched_messages.size() and si_sched_messages[i].requires_activation()) {
-      pws_sequences.emplace_back(
-          si_sched_messages[i].sibs,
-          std::make_unique<pws_broadcast_sequence>(si_sched_messages[i].sibs, timers, sched, cell_index));
+      pws_sequences.emplace_back(si_sched_messages[i].sibs,
+                                 std::make_unique<pws_broadcast_sequence>(si_sched_messages[i].sibs, timers, [this]() {
+                                   push_pws_epoch(/* new_broadcast */ true);
+                                 }));
     }
   }
 
@@ -357,19 +357,19 @@ si_message_controller::si_message_controller(du_cell_index_t                  ce
   last_cmd.version = 0;
   build_command(sys_info);
 
+  // Start broadcasting the System Information the cell was created with.
+  dl_cell.start_broadcast(ext_handler, last_cmd);
+
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i >= si_sched_messages.size() or not si_sched_messages[i].test_mode_auto_broadcast) {
       continue;
     }
     // test_mode ETWS/CMAS config was set for this SI-message. Broadcast its (already encoded) content right away,
-    // indefinitely, instead of waiting for a real Write-Replace Warning.
-    pws_broadcast_sequence* pws_seq = find_pws_sequence(sys_info.si_sched_cfg, i);
+    // indefinitely, instead of waiting for a real Write-Replace Warning. The sequence pushes the epoch.
+    pending_content_update_idx      = i;
+    pws_broadcast_sequence* pws_seq = find_pws_sequence(last_cmd.si_sched_cfg, i);
     pws_seq->activate_forever(sys_info.si_messages[i]);
-    last_cmd.si_msgs[i] = pws_seq->encoder();
-    broadcasting_warnings.push_back(pws_seq->broadcasting_si_message());
-  }
-  if (not broadcasting_warnings.empty()) {
-    build_etws_command(broadcasting_warnings);
+    pending_content_update_idx.reset();
   }
 }
 
@@ -388,8 +388,9 @@ std::optional<si_update_command> si_message_controller::handle_si_change_request
 
   if (not broadcasting_warnings.empty()) {
     // A warning is on air, so its epoch is the one being broadcast. Derive it again from the System Information that
-    // just changed, otherwise it keeps serving a SIB1 that this update has superseded, with its old valueTag.
-    build_etws_command(broadcasting_warnings);
+    // just changed, otherwise it keeps serving a SIB1 that this update has superseded, with its old valueTag. This is
+    // not a new broadcast, so it must not prolong the warning.
+    push_pws_epoch(/* new_broadcast */ false);
   }
 
   return last_cmd;
@@ -483,35 +484,45 @@ bool si_message_controller::handle_pws_broadcast(const mac_cell_sys_info_pdu_upd
     // The SI message carries no PWS SIB, so no PWS broadcast state was allocated for it.
     return false;
   }
+  // The new content is broadcast from the epochs that carry its encoder, and the SI message starts being listed as
+  // broadcasting in SIB1 for as long as the warning is on air. A replacement warning updates the properties of the one
+  // it supersedes. The epoch itself is pushed by the sequence, once per broadcast.
+  pending_content_update_idx = req.si_msg_idx;
   pws_seq->handle_pws_broadcast(req);
+  pending_content_update_idx.reset();
 
-  // The new content is broadcast from the epochs that carry its encoder.
-  last_cmd.si_msgs[req.si_msg_idx] = pws_seq->encoder();
-
-  // The SI message starts being listed as broadcasting in SIB1, for as long as the warning is on air. A replacement
-  // warning updates the properties of the one it supersedes.
-  const etws_broadcasting_si_message broadcasting_si_msg = pws_seq->broadcasting_si_message();
-  auto entry = std::find_if(broadcasting_warnings.begin(), broadcasting_warnings.end(), [&](const auto& warning) {
-    return warning.sib_set == broadcasting_si_msg.sib_set;
-  });
-  if (entry != broadcasting_warnings.end()) {
-    *entry = broadcasting_si_msg;
-  } else {
-    broadcasting_warnings.push_back(broadcasting_si_msg);
-  }
-  build_etws_command(broadcasting_warnings);
   return true;
 }
 
-void si_message_controller::build_etws_command(span<const etws_broadcasting_si_message> broadcasting)
+void si_message_controller::push_pws_epoch(bool new_broadcast)
 {
-  static_vector<sib_type_set, MAX_SI_MESSAGES> broadcasting_sib_sets;
-  for (const etws_broadcasting_si_message& warning : broadcasting) {
+  if (pending_content_update_idx.has_value()) {
+    // New warning content was just pushed for this SI message. Refresh the encoder and the properties the epoch
+    // states for it, before deriving the epoch.
+    const unsigned          si_msg_idx = pending_content_update_idx.value();
+    pws_broadcast_sequence* pws_seq    = find_pws_sequence(last_cmd.si_sched_cfg, si_msg_idx);
+    last_cmd.si_msgs[si_msg_idx]       = pws_seq->encoder();
+
+    const pws_broadcasting_si_message broadcasting_si_msg = pws_seq->broadcasting_si_message();
+    auto entry = std::find_if(broadcasting_warnings.begin(), broadcasting_warnings.end(), [&](const auto& warning) {
+      return warning.sib_set == broadcasting_si_msg.sib_set;
+    });
+    if (entry != broadcasting_warnings.end()) {
+      *entry = broadcasting_si_msg;
+    } else {
+      broadcasting_warnings.push_back(broadcasting_si_msg);
+    }
+  }
+
+  span<const pws_broadcasting_si_message> broadcasting{broadcasting_warnings};
+
+  static_vector<sib_type_set, MAX_PWS_SI_MESSAGES> broadcasting_sib_sets;
+  for (const pws_broadcasting_si_message& warning : broadcasting) {
     broadcasting_sib_sets.push_back(warning.sib_set);
   }
 
-  byte_buffer etws_sib1 = repack_sib1_broadcast_status(last_sib1, broadcasting_sib_sets);
-  if (etws_sib1.empty()) {
+  byte_buffer pws_sib1 = repack_sib1_broadcast_status(last_sib1, broadcasting_sib_sets);
+  if (pws_sib1.empty()) {
     logger.error("cell={}: Failed to generate the SIB1 of a warning broadcast", cell_index);
     return;
   }
@@ -519,15 +530,10 @@ void si_message_controller::build_etws_command(span<const etws_broadcasting_si_m
   // The ETWS/CMAS epoch only differs from the normal operation one in SIB1, so the remaining encoders are shared.
   si_update_command cmd              = last_cmd;
   cmd.version                        = ++last_version;
-  cmd.si_sched_cfg.sib1_payload_size = units::bytes{static_cast<unsigned>(etws_sib1.length())};
-  cmd.sib1                           = std::make_shared<sib1_static_encoder>(etws_sib1);
+  cmd.si_sched_cfg.sib1_payload_size = units::bytes{static_cast<unsigned>(pws_sib1.length())};
+  cmd.sib1                           = std::make_shared<sib1_static_encoder>(pws_sib1);
   cmd.broadcasting.assign(broadcasting.begin(), broadcasting.end());
-  pending_etws_cmd = std::move(cmd);
-}
+  cmd.new_broadcast = new_broadcast;
 
-std::optional<si_update_command> si_message_controller::take_etws_command()
-{
-  std::optional<si_update_command> cmd = std::move(pending_etws_cmd);
-  pending_etws_cmd.reset();
-  return cmd;
+  dl_cell.handle_pws_si_update(cmd);
 }

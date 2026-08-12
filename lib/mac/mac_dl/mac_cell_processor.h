@@ -48,7 +48,7 @@ public:
 
   void handle_si_update(const si_update_command& cmd) override;
 
-  void handle_etws_si_update(const si_update_command& cmd) override;
+  void handle_pws_si_update(const si_update_command& cmd) override;
 
   async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override;
 

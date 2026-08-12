@@ -32,22 +32,19 @@ public:
   /// \brief Makes the ETWS/CMAS SI epoch the one in effect, activating only the SI messages it lists as broadcasting.
   ///
   /// The SI epoch of the normal operation is kept aside, and keeps being updated, so that it can be reverted to.
-  /// \param activation_slot Slot at which the epoch is applied, used as the origin of its deadline.
-  /// \return Slot until which the epoch must stay in effect, or \c std::nullopt if indefinitely.
-  std::optional<slot_point_extended> apply_etws_epoch(unsigned                                 version,
-                                                      const si_scheduling_config&              etws_si_sched_cfg,
-                                                      span<const etws_broadcasting_si_message> broadcasting,
-                                                      slot_point_extended                      activation_slot);
+  void apply_pws_epoch(unsigned                                version,
+                       const si_scheduling_config&             pws_si_sched_cfg,
+                       span<const pws_broadcasting_si_message> broadcasting);
 
   /// \brief Recomputes for how long the ETWS/CMAS SI epoch in effect must stay on air, as of a new broadcast.
   /// \return Slot until which the epoch must stay in effect, or \c std::nullopt if indefinitely.
-  std::optional<slot_point_extended> refresh_etws_deadline(slot_point_extended broadcast_slot) const;
+  std::optional<slot_point_extended> refresh_pws_deadline(slot_point_extended broadcast_slot) const;
 
   /// Makes the SI epoch of the normal operation the one in effect again, with every warning back to dormant.
-  void revert_etws_epoch();
+  void revert_pws_epoch();
 
   /// Whether the ETWS/CMAS SI epoch is the one in effect.
-  bool etws_epoch_in_effect() const { return baseline.has_value(); }
+  bool pws_epoch_in_effect() const { return baseline.has_value(); }
 
   /// SI epoch currently in effect.
   unsigned get_version() const { return version; }
@@ -88,7 +85,7 @@ private:
   };
 
   /// Slot until which a broadcast starting at the given slot must keep being transmitted.
-  std::optional<slot_point_extended> compute_etws_deadline(slot_point_extended broadcast_slot) const;
+  std::optional<slot_point_extended> compute_pws_deadline(slot_point_extended broadcast_slot) const;
 
   void update_si_message_windows(slot_point_extended sl_tx_ext);
 
@@ -122,7 +119,7 @@ private:
   std::optional<baseline_epoch>       baseline;
 
   /// SI messages of the ETWS/CMAS SI epoch in effect that are broadcasting a warning.
-  static_vector<etws_broadcasting_si_message, MAX_SI_MESSAGES> etws_broadcasting;
+  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> pws_broadcasting;
 };
 
 } // namespace ocudu
