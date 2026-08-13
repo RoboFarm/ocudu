@@ -34,13 +34,9 @@ static const char* event_to_string(scheduler_cell_event::event_type ev)
   return "invalid";
 }
 
-void scheduler_cell_metrics_consumer_stdout::handle_metric(const std::optional<scheduler_metrics_report>& report)
+void scheduler_cell_metrics_consumer_stdout::handle_metric(const scheduler_metrics_report& report)
 {
-  if (!report) {
-    return;
-  }
-
-  for (const auto& cell : report->cells) {
+  for (const auto& cell : report.cells) {
     if (not cell.report_ue_metrics or cell.ue_metrics.empty()) {
       continue;
     }
@@ -150,13 +146,9 @@ static ResultType to_percentage(unsigned numerator, unsigned denominator)
   return static_cast<ResultType>(100.0 * static_cast<double>(numerator) / static_cast<double>(denominator));
 }
 
-void scheduler_cell_metrics_consumer_log::handle_metric(const std::optional<scheduler_metrics_report>& report)
+void scheduler_cell_metrics_consumer_log::handle_metric(const scheduler_metrics_report& report)
 {
-  if (!report) {
-    return;
-  }
-
-  for (const auto& cell : report->cells) {
+  for (const auto& cell : report.cells) {
     fmt::memory_buffer buffer;
 
     unsigned sum_dl_bitrate_kbps   = 0;
@@ -410,13 +402,9 @@ void scheduler_cell_metrics_consumer_log::handle_metric(const std::optional<sche
   }
 }
 
-void scheduler_cell_metrics_consumer_e2::handle_metric(const std::optional<scheduler_metrics_report>& report)
+void scheduler_cell_metrics_consumer_e2::handle_metric(const scheduler_metrics_report& report)
 {
-  if (!report) {
-    return;
-  }
-
-  for (const auto& cell : report->cells) {
+  for (const auto& cell : report.cells) {
     notifier.report_metrics(cell);
   }
 }
