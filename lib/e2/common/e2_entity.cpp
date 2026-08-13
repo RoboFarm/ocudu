@@ -83,20 +83,22 @@ void e2_entity::stop()
   // Stop and delete RIC connection.
   // Note: tk is copied, not moved, because a failed defer destroys the task and its token copy.
   while (not task_exec.defer([this, tk]() mutable {
-    main_ctrl_loop.schedule([this, tk = std::move(tk)](coro_context<async_task<void>>& ctx) {
-      CORO_BEGIN(ctx);
-      CORO_AWAIT(disconnect_ric());
+    if (not main_ctrl_loop.schedule([this, tk = std::move(tk)](coro_context<async_task<void>>& ctx) {
+          CORO_BEGIN(ctx);
+          CORO_AWAIT(disconnect_ric());
 
-      // RIC disconnection successfully finished. Stop the main task loop.
-      // Dispatch main async task loop destruction via defer so that the current coroutine ends successfully.
-      while (not task_exec.defer([tk]() {
-        // Releases the token.
-      })) {
-        logger.warning("Unable to stop E2 Agent. Retrying...");
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      }
-      CORO_RETURN();
-    });
+          // RIC disconnection successfully finished. Stop the main task loop.
+          // Dispatch main async task loop destruction via defer so that the current coroutine ends successfully.
+          while (not task_exec.defer([tk]() {
+            // Releases the token.
+          })) {
+            logger.warning("Unable to stop E2 Agent. Retrying...");
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          }
+          CORO_RETURN();
+        })) {
+      logger.error("Failed to schedule the RIC disconnection. The E2 TNL association is left up.");
+    }
   })) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
