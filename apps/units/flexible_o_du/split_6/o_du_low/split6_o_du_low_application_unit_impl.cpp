@@ -87,6 +87,14 @@ void split6_o_du_low_application_unit_impl::fill_worker_manager_config(worker_ma
                          .pusch_max_nof_layers = split6_du_low::PUSCH_MAX_NOF_LAYERS});
   fill_du_low_worker_manager_config(config, unit_cfg.du_low_cfg, is_blocking_mode_enable, cell_params);
 
+  // Note: cell parameters are unknown until a MAC requests the cell configuration, so the automatically derived PUSCH
+  // and SRS concurrency in the worker manager config is based on placeholder values.
+  // Leave it unlimited instead, unless the user sets different value in the config.
+  if (unit_cfg.du_low_cfg.expert_execution_cfg.threads.max_pusch_and_srs_concurrency ==
+      du_low_unit_expert_threads_config::concurrency_auto) {
+    config.du_low_cfg->max_pusch_and_srs_concurrency = du_low_unit_expert_threads_config::concurrency_unlimited;
+  }
+
   if (auto* ru_sdr = std::get_if<ru_sdr_unit_config>(&unit_cfg.ru_cfg)) {
     fill_sdr_worker_manager_config(config, *ru_sdr);
   } else if (auto* ru_ofh = std::get_if<ru_ofh_unit_parsed_config>(&unit_cfg.ru_cfg)) {
