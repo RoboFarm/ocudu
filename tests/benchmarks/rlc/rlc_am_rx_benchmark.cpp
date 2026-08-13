@@ -146,7 +146,7 @@ static std::vector<byte_buffer> generate_pdus(bench_params params, rx_order orde
   manual_task_worker ue_worker{128};
 
   std::unique_ptr<rlc_drb_tx_window_seg_pool, rlc_pool_deleter> drb_tx_pool =
-      make_rlc_drb_tx_window_seg_pool(rlc_drb_tx_window_seg_pool_size);
+      make_rlc_drb_tx_window_seg_pool(rlc_drb_tx_window_seg_pool_size, rlc_drb_tx_window_seg_size);
 
   null_rlc_pcap pcap;
 
@@ -248,7 +248,7 @@ static void benchmark_rx_pdu(const bench_params& params, rx_order order, timer_m
       gnb_du_id_t{}, du_ue_index_t{}, rb_id_t{}, timer_duration{0}, tester.get(), ue_worker);
 
   std::unique_ptr<rlc_drb_rx_window_seg_pool, rlc_pool_deleter> drb_rx_pool =
-      make_rlc_drb_rx_window_seg_pool(rlc_drb_rx_window_seg_pool_size);
+      make_rlc_drb_rx_window_seg_pool(rlc_drb_rx_window_seg_pool_size, rlc_drb_rx_window_seg_size);
 
   // Create RLC AM RX entity
   std::unique_ptr<rlc_rx_am_entity> rlc_rx =

@@ -111,9 +111,13 @@ protected:
                             f1ap_dummy,
                             rlc_pcap,
                             nullptr,
+                            rlc_drb_rx_window_seg_size,
                             rlc_drb_rx_window_seg_pool_size,
+                            rlc_drb_tx_window_seg_size,
                             rlc_drb_tx_window_seg_pool_size,
+                            rlc_srb_rx_window_seg_size,
                             rlc_srb_rx_window_seg_pool_size,
+                            rlc_srb_tx_window_seg_size,
                             rlc_srb_tx_window_seg_pool_size},
                            {mac_dummy}};
 

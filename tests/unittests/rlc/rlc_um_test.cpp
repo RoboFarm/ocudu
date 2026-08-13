@@ -272,7 +272,7 @@ protected:
   virtual rlc_drb_um_rx_window_seg_pool& get_window_pool() { return pool->get_pool_of_type<rlc_rx_um_sdu_info>(); }
 
   std::unique_ptr<rlc_drb_rx_window_seg_pool, rlc_pool_deleter> pool =
-      make_rlc_drb_rx_window_seg_pool(rlc_drb_rx_window_seg_pool_size);
+      make_rlc_drb_rx_window_seg_pool(rlc_drb_rx_window_seg_pool_size, rlc_drb_rx_window_seg_size);
 
   ocudulog::basic_logger&            logger  = ocudulog::fetch_basic_logger("TEST", false);
   rlc_um_sn_size                     sn_size = GetParam();
