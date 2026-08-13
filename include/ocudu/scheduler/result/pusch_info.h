@@ -49,9 +49,9 @@ struct pusch_information {
   bool transform_precoding;
   /// Parameter \f$n_{ID}\f$ as per TS 38.211 Section 6.3.1.1. Values: {0,...,1023}.
   uint16_t n_id;
-  /// Number of layers as per TS 38.211, Section 6.3.1.3.
-  unsigned nof_layers;
-  /// DMRS configuration as per TS 38.211 Section 6.4.1.1.
+  /// Number of layers as per TS38.211, Section 6.3.1.3. Values: {1,...,4}.
+  uint8_t nof_layers;
+  /// DMRS configuration as per TS38.211 Section 6.4.1.1.
   dmrs_information dmrs;
   /// \brief PUSCH DMRS ID \f$n_{ID}^{RS}\f$ as per TS38.211 Section 6.4.1.1.1.2. This field is only valid when
   /// transform_precoding is enabled. Values: {0,...,1007} (Rel-15), {0,...,65535} (Rel-16).
@@ -115,10 +115,10 @@ struct ul_sched_info {
   struct decision_context {
     du_ue_index_t   ue_index;
     search_space_id ss_id;
-    /// Chosen k2 delay between UL PDCCH and PUSCH.
-    unsigned k2;
+    /// Chosen k2 delay between UL PDCCH and PUSCH. Values: {1,...,32}.
+    uint8_t k2;
     /// Number of times the HARQ process has been retransmitted.
-    unsigned nof_retxs;
+    uint8_t nof_retxs;
     /// Delay between PDSCH message with RAR and its corresponding PUSCH. Only set for the Msg3 first tx.
     std::optional<unsigned> msg3_delay;
     /// RAPID (RACH preamble index) of the UE this PUSCH belongs to. Only set for MsgA PUSCH.

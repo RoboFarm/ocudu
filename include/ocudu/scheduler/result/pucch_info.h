@@ -20,8 +20,8 @@ struct pucch_info {
   struct f0_config {
     /// \c pucch-GroupHopping, as per TS 38.331.
     pucch_group_hopping group_hopping;
-    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned n_id_hopping;
+    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211. Values: {0,...,1023}.
+    uint16_t n_id_hopping;
 
     bool operator==(const f0_config& rhs) const
     {
@@ -33,8 +33,8 @@ struct pucch_info {
   struct f1_config {
     /// \c pucch-GroupHopping, as per TS 38.331.
     pucch_group_hopping group_hopping;
-    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned n_id_hopping;
+    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211. Values: {0,...,1023}.
+    uint16_t n_id_hopping;
 
     bool operator==(const f1_config& rhs) const
     {
@@ -61,8 +61,8 @@ struct pucch_info {
   struct f3_config {
     /// \c pucch-GroupHopping, as per TS 38.331
     pucch_group_hopping group_hopping;
-    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned n_id_hopping;
+    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211. Values: {0,...,1023}.
+    uint16_t n_id_hopping;
     uint16_t n_id_scrambling;
     uint16_t n_id_0_scrambling;
     uint8_t  nof_prbs;
@@ -79,8 +79,8 @@ struct pucch_info {
   struct f4_config {
     /// \c pucch-GroupHopping, as per TS 38.331
     pucch_group_hopping group_hopping;
-    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211.
-    unsigned n_id_hopping;
+    /// \f$n_{ID}\f$ as per Section 6.3.2.2.1, TS 38.211. Values: {0,...,1023}.
+    uint16_t n_id_hopping;
     uint16_t n_id_scrambling;
     uint16_t n_id_0_scrambling;
 

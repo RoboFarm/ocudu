@@ -190,7 +190,7 @@ public:
   {
     rach_indication_message rach_ind{to_du_cell_index(0), next_slot_rx(), {{0, 0, {}}}};
     auto                    nof_preambles = test_rng::uniform_int<unsigned>(1, 10);
-    for (unsigned i = 0; i != nof_preambles; ++i) {
+    for (uint8_t i = 0; i != nof_preambles; ++i) {
       rach_ind.occasions[0].preambles.push_back({i, to_rnti(static_cast<uint16_t>(rnti) + 1 + i), phy_time_unit{}});
     }
     this->sched->handle_rach_indication(rach_ind);
