@@ -10,7 +10,7 @@
 #include "e2_impl.h"
 #include "e2_subscription_manager_impl.h"
 #include "ocudu/e2/e2.h"
-#include "ocudu/support/synchronization/baton.h"
+#include "ocudu/support/synchronization/sync_event.h"
 #include <thread>
 
 using namespace ocudu;
@@ -70,8 +70,8 @@ void e2_entity::start()
 
 void e2_entity::stop()
 {
-  baton               stop_baton;
-  scoped_baton_sender signal_stop{stop_baton};
+  sync_event stop_sync;
+  auto       tk = stop_sync.get_token();
 
   stopped = true;
 
@@ -81,14 +81,17 @@ void e2_entity::stop()
   }
 
   // Stop and delete RIC connection.
-  while (not task_exec.defer([this, signal_stop = std::move(signal_stop)]() mutable {
-    main_ctrl_loop.schedule([this, signal_stop = std::move(signal_stop)](coro_context<async_task<void>>& ctx) mutable {
+  // Note: tk is copied, not moved, because a failed defer destroys the task and its token copy.
+  while (not task_exec.defer([this, tk]() mutable {
+    main_ctrl_loop.schedule([this, tk = std::move(tk)](coro_context<async_task<void>>& ctx) {
       CORO_BEGIN(ctx);
       CORO_AWAIT(disconnect_ric());
 
       // RIC disconnection successfully finished. Stop the main task loop.
       // Dispatch main async task loop destruction via defer so that the current coroutine ends successfully.
-      while (not task_exec.defer([signal_stop = std::move(signal_stop)]() mutable { signal_stop.post(); })) {
+      while (not task_exec.defer([tk]() {
+        // Releases the token.
+      })) {
         logger.warning("Unable to stop E2 Agent. Retrying...");
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
@@ -98,7 +101,10 @@ void e2_entity::stop()
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  stop_baton.wait();
+  // Let only the dispatched tasks keep the token.
+  tk.reset();
+
+  stop_sync.wait();
 }
 
 void e2_entity::on_e2_disconnection()
