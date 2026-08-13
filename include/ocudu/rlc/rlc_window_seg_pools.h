@@ -18,11 +18,11 @@ constexpr unsigned rlc_drb_tx_window_seg_size = 256;
 constexpr unsigned rlc_drb_tx_window_seg_pool_size = 2048;
 
 /// Default SRB receive window segment size.
-constexpr unsigned rlc_srb_rx_window_seg_size = 256; // TODO: Should be 8.
+constexpr unsigned rlc_srb_rx_window_seg_size = 8;
 /// Default SRB receive window segment pool size.
 constexpr unsigned rlc_srb_rx_window_seg_pool_size = 2048;
 /// Default SRB transmit window segment size.
-constexpr unsigned rlc_srb_tx_window_seg_size = 256; // TODO: Should be 8.
+constexpr unsigned rlc_srb_tx_window_seg_size = 8;
 /// Default SRB transmit window segment pool size.
 constexpr unsigned rlc_srb_tx_window_seg_pool_size = 2048;
 
