@@ -5,7 +5,7 @@
 
 #include "ocudu/adt/bounded_bitset.h"
 #include "ocudu/adt/span.h"
-#include "fmt/base.h"
+#include "fmt/ranges.h"
 
 namespace ocudu {
 
@@ -322,12 +322,12 @@ public:
   {
     unsigned byte_remainder = current_size % bits_per_word;
     if (byte_remainder == 0) {
-      fmt::format_to(mem_buffer, "{:08B}", buffer.first(nof_words()));
+      fmt::format_to(mem_buffer, "{:08B}", fmt::join(buffer.first(nof_words()), " "));
       return mem_buffer;
     }
 
     if (nof_words() > 1) {
-      fmt::format_to(mem_buffer, "{:08B}", buffer.first(nof_words() - 1));
+      fmt::format_to(mem_buffer, "{:08B}", fmt::join(buffer.first(nof_words() - 1), " "));
     }
 
     fmt::format_to(mem_buffer, " {:0{}B}", buffer[nof_words() - 1] >> (bits_per_word - byte_remainder), byte_remainder);
@@ -338,7 +338,7 @@ public:
   template <typename OutputIt>
   OutputIt to_hex_string(OutputIt&& mem_buffer) const
   {
-    fmt::format_to(mem_buffer, "{:02X}", buffer.first(nof_words()));
+    fmt::format_to(mem_buffer, "{:02X}", fmt::join(buffer.first(nof_words()), " "));
     return mem_buffer;
   }
 

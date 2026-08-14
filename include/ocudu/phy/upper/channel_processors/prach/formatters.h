@@ -87,7 +87,7 @@ struct formatter<ocudu::prach_detection_result> {
     helper.format_if_verbose(ctx, "res={:.1f}us", result.time_resolution.to_seconds() * 1e6);
     helper.format_if_verbose(ctx, "max_ta={:.2f}us", result.time_advance_max.to_seconds() * 1e6);
     helper.format_always(ctx,
-                         "detected_preambles=[{:,}]",
+                         "detected_preambles={}",
                          ocudu::span<const ocudu::prach_detection_result::preamble_indication>(result.preambles));
 
     return ctx.out();

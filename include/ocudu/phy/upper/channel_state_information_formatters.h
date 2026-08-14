@@ -111,7 +111,7 @@ struct formatter<ocudu::channel_state_information> {
       // Print the RSRP for each port, if available. Otherwise, print the average RSRP.
       ocudu::span<const float> port_rsrp = csi.get_port_rsrp_dB();
       if (std::any_of(port_rsrp.begin(), port_rsrp.end(), [](auto elem) { return !std::isnan(elem); })) {
-        helper.format_if_verbose(ctx, "rsrp=[{:.1f}]dB", port_rsrp);
+        helper.format_if_verbose(ctx, "rsrp={::.1f}dB", port_rsrp);
       } else {
         std::optional<float> rsrp_dB = csi.get_rsrp_dB();
         if (rsrp_dB.has_value()) {

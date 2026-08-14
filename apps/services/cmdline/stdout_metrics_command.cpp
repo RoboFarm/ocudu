@@ -12,7 +12,7 @@ using namespace app_services;
 static std::string generate_command_description(span<const std::string_view> subcommands)
 {
   return fmt::format(
-      " <metric>:                           start/stop console trace. List of available metric [{:,}]. Default={}",
+      " <metric>:                           start/stop console trace. List of available metric {}. Default={}",
       span<const std::string_view>(subcommands),
       subcommands.front());
 }

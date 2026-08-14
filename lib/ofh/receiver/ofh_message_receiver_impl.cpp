@@ -156,8 +156,8 @@ bool message_receiver_impl::should_ethernet_frame_be_filtered(const ether::vlan_
     logger.debug("Sector#{}: dropped received Ethernet frame as source MAC addresses do not match (detected={:02X}, "
                  "expected={:02X})",
                  sector_id,
-                 span<const uint8_t>(eth_params.mac_src_address),
-                 span<const uint8_t>(vlan_params.mac_src_address));
+                 fmt::join(eth_params.mac_src_address, ":"),
+                 fmt::join(vlan_params.mac_src_address, ":"));
 
     return true;
   }
@@ -167,8 +167,8 @@ bool message_receiver_impl::should_ethernet_frame_be_filtered(const ether::vlan_
         "Sector#{}: dropped received Ethernet frame as destination MAC addresses do not match match (detected={:02X}, "
         "expected={:02X})",
         sector_id,
-        span<const uint8_t>(eth_params.mac_dst_address),
-        span<const uint8_t>(vlan_params.mac_dst_address));
+        fmt::join(eth_params.mac_dst_address, ":"),
+        fmt::join(vlan_params.mac_dst_address, ":"));
 
     return true;
   }

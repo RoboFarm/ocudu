@@ -67,7 +67,7 @@ struct formatter<ocudu::srs_estimator_configuration> {
       helper.format_always(ctx, "re=invalid");
     }
 
-    helper.format_if_verbose(ctx, "ports=[{}]", ocudu::span<const uint8_t>(config.ports));
+    helper.format_if_verbose(ctx, "ports={}", ocudu::span<const uint8_t>(config.ports));
 
     return ctx.out();
   }

@@ -80,7 +80,7 @@ struct formatter<ocudu::pdsch_processor::pdu_t> {
     helper.format_if_verbose(ctx, "cp={}", pdu.cp.to_string());
     helper.format_if_verbose(ctx, "precoding={}", pdu.precoding);
     if (pdu.reserved.get_nof_entries() > 0) {
-      helper.format_if_verbose(ctx, "reserved=[{:,}]", pdu.reserved.get_re_patterns());
+      helper.format_if_verbose(ctx, "reserved={}", pdu.reserved.get_re_patterns());
     }
     return ctx.out();
   }
