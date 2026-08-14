@@ -295,10 +295,15 @@ void du_meas_config_manager::update(du_ue_resource_config&       ue_cfg,
   // anchored to the UE downlink timing, so the UEs' uplink timing advance is needed to compare the two.
   const std::optional<std::chrono::microseconds> ul_ta = get_ref_location_ul_ta(pcell_common.ran.ntn_params);
   if (not ul_ta.has_value() and pcell_common.ran.ntn_params.has_value() and pcell_common.ran.ntn_params->is_enabled()) {
-    // Without T_TA the gap's uplink shadow is unknown, so the offset cannot be steered clear of the SR and CSI
-    // occasions. Only the offset choice suffers: is_ul_enabled() re-tests the window per slot.
-    logger.warning("Placing a measurement gap on an NTN cell with no uplink timing advance estimate. Cause: no cell "
-                   "reference location configured");
+    // With no T_TA the offset is placed as if it were zero, i.e. against the gNB receive timeline rather than the UE
+    // transmit one. Correctness holds - is_ul_enabled() re-tests the window per slot - but in GEO, where T_TA barely
+    // moves, a gap landing on an SR or CSI occasion shadows it for the whole connection.
+    //
+    // TODO: place the offset against the range of T_TA the cell will see, sourced from the NTN configuration manager.
+    // Where no offset clears the occasions, the SR or CSI periodicity has to be picked alongside the gap. Reached on
+    // every NTN cell today: ref_location_ul_ta only updates the du_cell_manager copy, not the one spanned here.
+    logger.debug("cell={}: Choosing a measurement gap offset with no uplink timing advance estimate",
+                 pcell_ue_cfg.serv_cell_cfg.cell_index);
   }
 
   for (const auto& asn1measobj : meas_cfg.meas_obj_to_add_mod_list) {
