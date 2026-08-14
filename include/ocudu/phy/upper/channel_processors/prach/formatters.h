@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ocudu/adt/format.h"
 #include "ocudu/phy/upper/channel_processors/prach/prach_detector.h"
 #include "ocudu/support/format/delimited_formatter.h"
 
