@@ -139,7 +139,6 @@ class si_bench : private mac_dl_cell_controller
     {
     }
     void             handle_si_update(const si_update_command& cmd) override {}
-    void             handle_pws_si_update(const si_update_command& cmd) override {}
     async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return launch_no_op_task(); }
   };
 
@@ -153,11 +152,15 @@ public:
   /// Forwards a new System Information config to the controller and applies the resulting command, if any.
   std::optional<si_update_command> update_si(const mac_cell_sys_info_config& req)
   {
-    std::optional<si_update_command> cmd = si_mng.handle_si_change_request(req);
-    if (cmd.has_value()) {
-      handle_si_update(*cmd);
-    }
-    return cmd;
+    last_si_cmd.reset();
+    si_mng.handle_si_change_request(req, std::nullopt);
+    return last_si_cmd;
+  }
+
+  /// Forwards SI message PDU updates, which includes the push of a warning content, to the controller.
+  bool push_si_pdu_updates(const mac_cell_sys_info_pdu_update& req)
+  {
+    return si_mng.handle_si_change_request(std::nullopt, req).si_pdus_enqueued;
   }
 
   /// \brief Builds an SI epoch out of a separate SI configuration and applies it as the ETWS/CMAS one.
@@ -179,9 +182,9 @@ public:
   /// \remark The epoch must list exactly one.
   pws_broadcasting_si_message only_broadcasting_si_message() const
   {
-    report_fatal_error_if_not(last_pws_cmd.has_value() and last_pws_cmd->broadcasting.size() == 1,
+    report_fatal_error_if_not(last_pws_cmd.has_value() and last_pws_cmd->active_pws_si_messages.size() == 1,
                               "Expected exactly one SI message broadcasting a warning");
-    return last_pws_cmd->broadcasting[0];
+    return last_pws_cmd->active_pws_si_messages[0];
   }
 
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
@@ -199,6 +202,9 @@ public:
 
   mac_cell_sys_info_config sys_info_cfg;
   sib_pdu_assembler        assembler;
+
+  // Last SI epoch of the normal operation the controller pushed.
+  std::optional<si_update_command> last_si_cmd;
 
   // Last ETWS/CMAS epoch the controller pushed, and how many it pushed in total.
   std::optional<si_update_command> last_pws_cmd;
@@ -224,13 +230,21 @@ private:
     assembler.start_broadcast(std::move(ext_handler_), cmd);
   }
 
-  void handle_si_update(const si_update_command& cmd) override { assembler.handle_si_update(cmd); }
+  void handle_si_update(const si_update_command& cmd) override
+  {
+    if (not cmd.active_pws_si_messages.empty()) {
+      handle_pws_si_update(cmd);
+      return;
+    }
+    assembler.handle_si_update(cmd);
+    last_si_cmd = cmd;
+  }
 
-  void handle_pws_si_update(const si_update_command& cmd) override
+  void handle_pws_si_update(const si_update_command& cmd)
   {
     assembler.handle_pws_si_update(cmd);
-    sched.handle_pws_si_change_indication(
-        pws_si_scheduling_update_request{to_du_cell_index(0), cmd.version, cmd.si_sched_cfg, cmd.broadcasting});
+    sched.handle_pws_si_change_indication(pws_si_scheduling_update_request{
+        to_du_cell_index(0), cmd.version, cmd.si_sched_cfg, cmd.active_pws_si_messages});
     last_pws_cmd = cmd;
     ++nof_pws_epochs;
   }

@@ -30,17 +30,17 @@ public:
   /// Command generated from the last System Information update.
   const si_update_command& last_command() const { return last_cmd; }
 
-  /// Handler used to serve SI PDU updates that bypass the SI modification window.
-  std::shared_ptr<si_message_extension_handler> extension_handler() const { return ext_handler; }
+  /// Outcome of the requested System Information updates.
+  struct si_update_result {
+    /// Whether the System Information changed, and a new SI epoch was applied in the cell.
+    bool si_updated = false;
+    /// Whether the SI message PDU updates were enqueued.
+    bool si_pdus_enqueued = false;
+  };
 
-  /// \brief Handles an update of the System Information broadcast by the cell.
-  /// \return Command to apply in the MAC cell, or \c std::nullopt if the System Information did not change.
-  std::optional<si_update_command> handle_si_change_request(const mac_cell_sys_info_config& req);
-
-  /// \brief Handles an SI message PDU update. If \c req.pws_broadcast is set, this is routed to the PWS
-  /// (Write-Replace Warning) broadcast content push and repetition sequence; otherwise it is a plain SI PDU update
-  /// enqueued at its proper Tx slots.
-  bool handle_si_message_pdu_updates(const mac_cell_sys_info_pdu_update& req);
+  /// Handles the System Information updates requested for the cell, applying the SI epochs they generate.
+  si_update_result handle_si_change_request(const std::optional<mac_cell_sys_info_config>&     new_sys_info,
+                                            const std::optional<mac_cell_sys_info_pdu_update>& new_si_pdu_info);
 
 private:
   /// Encoder for a static BCCH-DL-SCH SIB1 payload.
@@ -64,6 +64,15 @@ private:
   /// must survive across CU-driven Write-Replace Warning content pushes.
   class pws_broadcast_sequence;
 
+  /// \brief Generates a new SI epoch and applies it in the cell.
+  /// \return Whether the System Information changed, and hence an epoch was generated.
+  bool push_si_epoch(const mac_cell_sys_info_config& req);
+
+  /// \brief Handles an SI message PDU update. If \c req.pws_broadcast is set, this is routed to the PWS
+  /// (Write-Replace Warning) broadcast content push and repetition sequence; otherwise it is a plain SI PDU update
+  /// enqueued at its proper Tx slots.
+  bool handle_si_message_pdu_updates(const mac_cell_sys_info_pdu_update& req);
+
   /// Whether the System Information differs from the one the current encoders were built from.
   bool has_si_changed(const mac_cell_sys_info_config& req) const;
 
@@ -73,8 +82,8 @@ private:
   bool handle_pws_broadcast(const mac_cell_sys_info_pdu_update& req);
 
   /// \brief Derives the ETWS/CMAS SI epoch from the current one and applies it in the cell.
-  /// \param triggered_by SI message starting one more broadcast of its warning, if the epoch is due to one.
-  void push_pws_epoch(std::optional<sib_type_set> triggered_by);
+  /// \param pws_sib_set SIB set of the SI message starting one more broadcast of its warning.
+  void push_pws_epoch(std::optional<sib_type_set> pws_sib_set);
 
   /// \brief Fetches the PWS broadcast sequence of the SI message at a given position of an SI scheduling config.
   /// \return The sequence, or nullptr if the position does not exist or its SI message carries no PWS SIB.
@@ -104,7 +113,7 @@ private:
   si_update_command last_cmd;
 
   // SI messages that are currently carrying a warning.
-  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> broadcasting_warnings;
+  static_vector<pws_broadcasting_si_message, MAX_PWS_SI_MESSAGES> active_pws_si_msgs;
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
 

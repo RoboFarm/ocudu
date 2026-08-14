@@ -143,29 +143,24 @@ void mac_cell_processor::handle_si_update(const si_update_command& cmd)
 {
   // Provide the new encoders to the SIB assembler before the scheduler starts stamping its grants with the new
   // version, otherwise the assembler has no encoders to serve those grants with.
+  if (not cmd.active_pws_si_messages.empty()) {
+    // Only the epoch broadcast while a warning is on air lists the SI messages carrying it.
+    sib_assembler.handle_pws_si_update(cmd);
+    sched.handle_pws_si_change_indication(pws_si_scheduling_update_request{
+        cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg, cmd.active_pws_si_messages});
+    return;
+  }
+
   sib_assembler.handle_si_update(cmd);
 
   // Notify scheduler of SIB1/SI message scheduling update.
   sched.handle_si_change_indication(si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg});
 }
 
-void mac_cell_processor::handle_pws_si_update(const si_update_command& cmd)
-{
-  // Provide the encoders before the scheduler starts stamping its grants with this epoch, as above.
-  sib_assembler.handle_pws_si_update(cmd);
-
-  sched.handle_pws_si_change_indication(
-      pws_si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg, cmd.broadcasting});
-}
-
 async_task<void> mac_cell_processor::reconfigure(const mac_dl_cell_reconfig_request& request)
 {
   return launch_async([this, request](coro_context<async_task<void>>& ctx) mutable {
     CORO_BEGIN(ctx);
-
-    if (request.si_update.has_value()) {
-      handle_si_update(*request.si_update);
-    }
 
     if (request.slice_reconf_req.has_value() or request.ntn_ul_ta_update.has_value()) {
       // Change to respective DL cell executor context. Both updates mutate the scheduler cell configuration, which is

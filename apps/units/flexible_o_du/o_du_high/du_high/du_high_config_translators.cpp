@@ -461,7 +461,7 @@ static std::optional<si_scheduling_info_config> make_si_sched_info_config(const 
   // Set SIB mapping info.
   out.si_sched_info.resize(sib_cfg.si_sched_info.size());
   std::vector<uint8_t> sibs_included;
-  auto                 is_pws_sib = [](uint8_t t) { return t >= 6 && t <= 8; };
+  auto                 is_pws_sib = [](uint8_t sib_id) { return ocudu::is_pws_sib(static_cast<sib_type>(sib_id)); };
   for (unsigned i = 0; i != sib_cfg.si_sched_info.size(); ++i) {
     auto& out_si                  = out.si_sched_info[i];
     out_si.si_period_radio_frames = sib_cfg.si_sched_info[i].si_period_rf;
@@ -474,8 +474,8 @@ static std::optional<si_scheduling_info_config> make_si_sched_info_config(const 
     // Unless its (testing-only) content is explicitly configured, in which case it is broadcast right away,
     // indefinitely.
     if (std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), is_pws_sib)) {
-      out_si.auto_broadcast = std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), [&sib_cfg](uint8_t t) {
-        return t == 8 ? sib_cfg.cmas_cfg.has_value() : sib_cfg.etws_cfg.has_value();
+      out_si.auto_broadcast = std::any_of(sib_mapping_info.begin(), sib_mapping_info.end(), [&sib_cfg](uint8_t sib_id) {
+        return sib_id == 8 ? sib_cfg.cmas_cfg.has_value() : sib_cfg.etws_cfg.has_value();
       });
     }
 

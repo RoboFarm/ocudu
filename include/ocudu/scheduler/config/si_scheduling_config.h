@@ -32,7 +32,7 @@ struct si_message_scheduling_config {
   bool test_mode_auto_broadcast = false;
 
   /// Whether this SI-message requires explicit activation before it is actually scheduled.
-  bool requires_activation() const { return sibs.is_etws_cmas(); }
+  bool requires_activation() const { return sibs.is_pws(); }
 
   /// Whether this SI-message carries the NTN SIB19, whose content is pushed to the PHY immediately.
   bool is_ntn() const { return sibs.is_ntn(); }

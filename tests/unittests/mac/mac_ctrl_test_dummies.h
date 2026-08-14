@@ -62,8 +62,14 @@ public:
   {
     handle_si_update(cmd);
   }
-  void             handle_si_update(const si_update_command& cmd) override { last_si_version = cmd.version; }
-  void             handle_pws_si_update(const si_update_command& cmd) override { last_pws_si_version = cmd.version; }
+  void handle_si_update(const si_update_command& cmd) override
+  {
+    if (not cmd.active_pws_si_messages.empty()) {
+      last_pws_si_version = cmd.version;
+      return;
+    }
+    last_si_version = cmd.version;
+  }
   async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) override { return start(); }
 };
 

@@ -91,7 +91,7 @@ public:
   }
 
   /// Whether this SI message carries a PWS (ETWS/CMAS) SIB, and therefore is only broadcast while a warning is active.
-  bool is_etws_cmas() const { return contains(sib_type::sib6) or contains(sib_type::sib7) or contains(sib_type::sib8); }
+  bool is_pws() const { return contains(sib_type::sib6) or contains(sib_type::sib7) or contains(sib_type::sib8); }
 
   /// \brief Whether this SI message carries the NTN SIB19.
   ///

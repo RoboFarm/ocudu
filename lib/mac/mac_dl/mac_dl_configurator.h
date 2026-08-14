@@ -42,8 +42,6 @@ struct mac_cell_config_dependencies {
 
 /// Reconfiguration of a MAC cell in the MAC DL processor.
 struct mac_dl_cell_reconfig_request {
-  /// If not empty, contains the new System Information to broadcast.
-  std::optional<si_update_command> si_update;
   /// If not empty, contains the updates to be applied to the RRM policies.
   std::optional<du_cell_slice_reconfig_request> slice_reconf_req;
   /// If not empty, contains a new reference location uplink timing advance for an NTN cell.
@@ -75,12 +73,11 @@ public:
                                const si_update_command&                      cmd) = 0;
 
   /// \brief Applies a new SI epoch, to be broadcast by the cell.
+  ///
+  /// An epoch listing active PWS SI messages is the one broadcast while a warning is on air, and coexists with the
+  /// epoch of the normal operation.
   /// \remark Must be called from the cell control executor.
   virtual void handle_si_update(const si_update_command& cmd) = 0;
-
-  /// \brief Applies a new SI epoch, to be broadcast while a warning is on air.
-  /// \remark Must be called from the cell control executor.
-  virtual void handle_pws_si_update(const si_update_command& cmd) = 0;
 
   /// Reconfigure operational cell.
   virtual async_task<void> reconfigure(const mac_dl_cell_reconfig_request& request) = 0;
