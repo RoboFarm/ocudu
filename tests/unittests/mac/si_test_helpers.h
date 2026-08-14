@@ -135,7 +135,8 @@ class si_bench : private mac_dl_cell_controller
     async_task<void> start() override { return launch_no_op_task(); }
     async_task<void> stop() override { return launch_no_op_task(); }
     void             start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
-                                     const si_update_command&                      cmd) override
+                                     const si_update_command&                      cmd,
+                                     std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier) override
     {
     }
     void             handle_si_update(const si_update_command& cmd) override {}
@@ -145,7 +146,7 @@ class si_bench : private mac_dl_cell_controller
 public:
   explicit si_bench(mac_cell_sys_info_config sys_info_cfg_) :
     sys_info_cfg(std::move(sys_info_cfg_)),
-    si_mng(to_du_cell_index(0), sys_info_cfg, timer_factory{timers, task_worker}, *this)
+    si_mng(to_du_cell_index(0), sys_info_cfg, timer_factory{timers, task_worker}, task_worker, *this)
   {
   }
 
@@ -170,7 +171,7 @@ public:
   si_update_command apply_pws_si(const mac_cell_sys_info_config& pws_cfg, si_version_type version)
   {
     pws_si_mng = std::make_unique<si_message_controller>(
-        to_du_cell_index(0), pws_cfg, timer_factory{timers, task_worker}, null_dl);
+        to_du_cell_index(0), pws_cfg, timer_factory{timers, task_worker}, task_worker, null_dl);
 
     si_update_command cmd = pws_si_mng->last_command();
     cmd.version           = version;
@@ -185,6 +186,18 @@ public:
     report_fatal_error_if_not(last_pws_cmd.has_value() and last_pws_cmd->active_pws_si_messages.size() == 1,
                               "Expected exactly one SI message broadcasting a warning");
     return last_pws_cmd->active_pws_si_messages[0];
+  }
+
+  /// \brief Serves one SIB1 grant stamped with a given SI epoch, as the cell does every SIB1 occasion.
+  ///
+  /// Going back to the epoch of the normal operation is how the MAC learns that a warning is over.
+  void serve_sib1_grant(si_version_type version)
+  {
+    assembler.encode_si_pdu(current_slot,
+                            make_sib_pdu(std::nullopt, version, units::bytes{MAX_BCCH_DL_SCH_PDU_SIZE / 2}));
+
+    // The end of a warning broadcast is notified in the cell control context.
+    task_worker.run_pending_tasks();
   }
 
   /// Advances the timers by the given number of milliseconds, running any dispatched task.
@@ -225,9 +238,10 @@ private:
   async_task<void> stop() override { return launch_no_op_task(); }
 
   void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler_,
-                       const si_update_command&                      cmd) override
+                       const si_update_command&                      cmd,
+                       std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier) override
   {
-    assembler.start_broadcast(std::move(ext_handler_), cmd);
+    assembler.start_broadcast(std::move(ext_handler_), cmd, std::move(pws_end_notifier));
   }
 
   void handle_si_update(const si_update_command& cmd) override

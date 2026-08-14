@@ -13,10 +13,12 @@ static const std::vector<uint8_t> zeros_payload(MAX_BCCH_DL_SCH_PDU_SIZE, 0);
 sib_pdu_assembler::sib_pdu_assembler() : logger(ocudulog::fetch_basic_logger("MAC")) {}
 
 void sib_pdu_assembler::start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler_,
-                                        const si_update_command&                      first_cmd)
+                                        const si_update_command&                      first_cmd,
+                                        std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier_)
 {
   ocudu_assert(current.sib1 == nullptr, "The SI broadcast cannot be started more than once");
-  ext_handler = std::move(ext_handler_);
+  ext_handler      = std::move(ext_handler_);
+  pws_end_notifier = std::move(pws_end_notifier_);
 
   handle_si_update(first_cmd);
 
@@ -35,22 +37,39 @@ void sib_pdu_assembler::handle_pws_si_update(const si_update_command& cmd)
   pending_pws.write_and_commit(si_encoder_snapshot{cmd.version, cmd.sib1, cmd.si_msgs});
 }
 
+void sib_pdu_assembler::handle_pws_broadcast_end()
+{
+  if (not pws_version_in_use.has_value()) {
+    // No warning is active.
+    return;
+  }
+
+  // The scheduler went back to stamping the grants with the epoch of the normal operation, which it only does once
+  // every warning finished being broadcast.
+  pws_end_notifier->on_pws_broadcast_end(pws_version_in_use.value());
+  pws_version_in_use.reset();
+}
+
 const sib_pdu_assembler::si_encoder_snapshot& sib_pdu_assembler::select_snapshot(si_version_type version)
 {
   if (version == current.version) {
+    handle_pws_broadcast_end();
     return current;
   }
   if (version == current_pws.version) {
+    pws_version_in_use = current_pws.version;
     return current_pws;
   }
 
   // The grant was scheduled with an SI epoch that is not held yet. Fetch it from the shared buffers.
   current = pending.read();
   if (version == current.version) {
+    handle_pws_broadcast_end();
     return current;
   }
   current_pws = pending_pws.read();
   if (version == current_pws.version) {
+    pws_version_in_use = current_pws.version;
     return current_pws;
   }
 

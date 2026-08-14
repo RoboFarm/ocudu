@@ -9,8 +9,9 @@ using namespace ocudu;
 
 mac_cell_controller_impl::mac_cell_controller_impl(const mac_cell_creation_request& cell_cfg,
                                                    timer_factory                    timers,
+                                                   task_executor&                   ctrl_exec,
                                                    mac_dl_cell_controller&          dl_cell_) :
-  si_mng(cell_cfg.cell_index, cell_cfg.sys_info, timers, dl_cell_), dl_cell(dl_cell_)
+  si_mng(cell_cfg.cell_index, cell_cfg.sys_info, timers, ctrl_exec, dl_cell_), dl_cell(dl_cell_)
 {
 }
 

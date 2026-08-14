@@ -334,13 +334,33 @@ private:
   unique_timer timer;
 };
 
+/// Hops from the RT path, where the end of a warning broadcast is detected, to the cell control context, where the
+/// System Information of the cell is handled.
+class si_message_controller::pws_broadcast_end_adapter final : public pws_broadcast_end_notifier
+{
+public:
+  explicit pws_broadcast_end_adapter(si_message_controller& parent_) : parent(parent_) {}
+
+  void on_pws_broadcast_end(si_version_type ended_version) override
+  {
+    if (not parent.ctrl_exec.defer([this, ended_version]() { parent.handle_pws_broadcast_end(ended_version); })) {
+      parent.logger.warning("cell={}: Failed to notify the end of a warning broadcast", parent.cell_index);
+    }
+  }
+
+private:
+  si_message_controller& parent;
+};
+
 si_message_controller::si_message_controller(du_cell_index_t                 cell_index_,
                                              const mac_cell_sys_info_config& sys_info,
                                              timer_factory                   timers_,
+                                             task_executor&                  ctrl_exec_,
                                              mac_dl_cell_controller&         dl_cell_) :
   logger(ocudulog::fetch_basic_logger("MAC")),
   cell_index(cell_index_),
   timers(timers_),
+  ctrl_exec(ctrl_exec_),
   dl_cell(dl_cell_),
   ext_handler(create_si_message_extension_handler(sys_info))
 {
@@ -360,7 +380,7 @@ si_message_controller::si_message_controller(du_cell_index_t                 cel
   build_command(sys_info);
 
   // Start broadcasting the System Information the cell was created with.
-  dl_cell.start_broadcast(ext_handler, last_cmd);
+  dl_cell.start_broadcast(ext_handler, last_cmd, std::make_unique<pws_broadcast_end_adapter>(*this));
 
   for (unsigned i = 0, e = sys_info.si_messages.size(); i != e; ++i) {
     if (i >= si_sched_messages.size() or not si_sched_messages[i].test_mode_auto_broadcast) {
@@ -373,6 +393,15 @@ si_message_controller::si_message_controller(du_cell_index_t                 cel
 }
 
 si_message_controller::~si_message_controller() = default;
+
+void si_message_controller::handle_pws_broadcast_end(si_version_type ended_version)
+{
+  // The cell only goes back to the System Information of the normal operation once the last warning of the epoch ended,
+  // so every warning that the epoch carried is over. A warning triggered by a later epoch is still on air.
+  for (auto it = active_pws_si_msgs.begin(); it != active_pws_si_msgs.end();) {
+    it = it->version <= ended_version ? active_pws_si_msgs.erase(it) : it + 1;
+  }
+}
 
 si_message_controller::si_update_result
 si_message_controller::handle_si_change_request(const std::optional<mac_cell_sys_info_config>&     new_sys_info,

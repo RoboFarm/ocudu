@@ -68,9 +68,11 @@ public:
   /// \brief Starts the broadcast of the cell System Information.
   /// \param[in] ext_handler Handler of the SI PDU updates that bypass the SI modification window.
   /// \param[in] cmd First SI epoch of the cell.
+  /// \param[in] pws_end_notifier Notified once the cell stops broadcasting the warnings of an ETWS/CMAS SI epoch.
   /// \remark Must be called once, before the cell is started.
   virtual void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
-                               const si_update_command&                      cmd) = 0;
+                               const si_update_command&                      cmd,
+                               std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier) = 0;
 
   /// \brief Applies a new SI epoch, to be broadcast by the cell.
   ///

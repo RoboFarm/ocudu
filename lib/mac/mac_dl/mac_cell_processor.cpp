@@ -131,9 +131,10 @@ async_task<void> mac_cell_processor::stop()
 }
 
 void mac_cell_processor::start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
-                                         const si_update_command&                      cmd)
+                                         const si_update_command&                      cmd,
+                                         std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier)
 {
-  sib_assembler.start_broadcast(std::move(ext_handler), cmd);
+  sib_assembler.start_broadcast(std::move(ext_handler), cmd, std::move(pws_end_notifier));
 
   // Notify scheduler of the initial SIB1/SI message scheduling.
   sched.handle_si_change_indication(si_scheduling_update_request{cell_cfg.cell_index, cmd.version, cmd.si_sched_cfg});

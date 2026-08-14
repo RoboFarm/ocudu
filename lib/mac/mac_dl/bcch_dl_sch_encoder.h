@@ -52,6 +52,17 @@ public:
                                                              const sib_information& si_info) = 0;
 };
 
+/// Notifier of the end of the broadcast of the warnings carried by an ETWS/CMAS SI epoch.
+class pws_broadcast_end_notifier
+{
+public:
+  virtual ~pws_broadcast_end_notifier() = default;
+
+  /// \brief Notifies that the cell went back to broadcasting the System Information of the normal operation.
+  /// \param[in] ended_version Version of the last ETWS/CMAS SI epoch broadcast by the cell.
+  virtual void on_pws_broadcast_end(si_version_type ended_version) = 0;
+};
+
 /// Handler of SI-message PDU updates that are applied at a given Tx slot, bypassing the SI modification window.
 class si_message_extension_handler
 {

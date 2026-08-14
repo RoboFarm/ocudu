@@ -52,14 +52,18 @@ public:
 class mac_cell_dummy_controller final : public mac_dl_cell_controller
 {
 public:
-  unsigned                       nof_starts = 0;
-  std::optional<si_version_type> last_si_version;
-  std::optional<si_version_type> last_pws_si_version;
+  unsigned                                    nof_starts = 0;
+  std::optional<si_version_type>              last_si_version;
+  std::optional<si_version_type>              last_pws_si_version;
+  std::unique_ptr<pws_broadcast_end_notifier> pws_end_notifier;
 
   async_task<void> start() override;
   async_task<void> stop() override { return start(); }
-  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler, const si_update_command& cmd) override
+  void             start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                                   const si_update_command&                      cmd,
+                                   std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier_) override
   {
+    pws_end_notifier = std::move(pws_end_notifier_);
     handle_si_update(cmd);
   }
   void handle_si_update(const si_update_command& cmd) override

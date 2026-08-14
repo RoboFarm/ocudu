@@ -19,7 +19,10 @@ public:
   /// \brief Starts the broadcast of the cell System Information.
   /// \param[in] ext_handler Handler used to serve SI PDU updates that bypass the SI modification window.
   /// \param[in] first_cmd First SI epoch of the cell.
-  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler, const si_update_command& first_cmd);
+  /// \param[in] pws_end_notifier Notified once the grants go back to the SI epoch of the normal operation.
+  void start_broadcast(std::shared_ptr<si_message_extension_handler> ext_handler,
+                       const si_update_command&                      first_cmd,
+                       std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier);
 
   /// Applies a new SI epoch, to be used for the SI grants stamped with its version.
   void handle_si_update(const si_update_command& cmd);
@@ -45,9 +48,13 @@ private:
   ocudulog::basic_logger& logger;
 
   std::shared_ptr<si_message_extension_handler> ext_handler;
+  std::unique_ptr<pws_broadcast_end_notifier>   pws_end_notifier;
 
   /// Selects the encoders that a given SI grant was scheduled with, refreshing them if they are not held yet.
   const si_encoder_snapshot& select_snapshot(si_version_type version);
+
+  /// Notifies the end of the warning broadcast, if the grants went back to the epoch of the normal operation.
+  void handle_pws_broadcast_end();
 
   // Encoders being transferred from the configuration plane to the assembler RT path, one per SI epoch channel.
   lockfree_triple_buffer<si_encoder_snapshot> pending;
@@ -58,6 +65,10 @@ private:
   // Note: These members are only accessed from the RT path.
   si_encoder_snapshot current;
   si_encoder_snapshot current_pws;
+
+  // Version of the ETWS/CMAS SI epoch the grants are being served from. std::nullopt if the epoch of the normal
+  // operation is the one in use.
+  std::optional<si_version_type> pws_version_in_use;
 };
 
 } // namespace ocudu

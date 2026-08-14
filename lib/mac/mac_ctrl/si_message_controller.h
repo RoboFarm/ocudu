@@ -24,6 +24,7 @@ public:
   si_message_controller(du_cell_index_t                 cell_index,
                         const mac_cell_sys_info_config& sys_info,
                         timer_factory                   timers,
+                        task_executor&                  ctrl_exec,
                         mac_dl_cell_controller&         dl_cell);
   ~si_message_controller();
 
@@ -58,11 +59,17 @@ private:
   /// segment cycle.
   class pws_si_msg_encoder;
 
+  /// Hop from the RT path, where the end of a warning broadcast is detected, to the cell control context.
+  class pws_broadcast_end_adapter;
+
   /// \brief Repeat/count sequence of the PWS (Write-Replace Warning) broadcasts of one SI message.
   ///
   /// Unlike the encoders, it persists across unrelated SI reconfigurations, since it owns a live repeat timer that
   /// must survive across CU-driven Write-Replace Warning content pushes.
   class pws_broadcast_sequence;
+
+  /// Handles the end of the broadcast of the warnings that an ETWS/CMAS SI epoch carried.
+  void handle_pws_broadcast_end(si_version_type ended_version);
 
   /// \brief Generates a new SI epoch and applies it in the cell.
   /// \return Whether the System Information changed, and hence an epoch was generated.
@@ -96,6 +103,7 @@ private:
   ocudulog::basic_logger& logger;
   du_cell_index_t         cell_index;
   timer_factory           timers;
+  task_executor&          ctrl_exec;
   mac_dl_cell_controller& dl_cell;
 
   // Last SIB1 payload used to build the current SIB1 encoder.
