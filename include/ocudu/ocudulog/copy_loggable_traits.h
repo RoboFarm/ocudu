@@ -5,6 +5,9 @@
 
 #include "fmt/args.h"
 #include "fmt/ranges.h"
+#include <array>
+#include <iterator>
+#include <type_traits>
 #include <vector>
 
 namespace ocudulog {
@@ -30,6 +33,38 @@ struct owning_join_view {
   fmt::basic_string_view<Char> sep;
 };
 
+/// Container of up to \c MAX_SIZE elements, stored inline. Copying it only touches the elements in use.
+/// \note It works like a static_vector, but the static_vector dependency is avoided here.
+template <typename T, size_t MAX_SIZE>
+struct owning_join_inline_array {
+  owning_join_inline_array() = default;
+  owning_join_inline_array(const owning_join_inline_array& other) : nof_values(other.nof_values) { copy_values(other); }
+  owning_join_inline_array& operator=(const owning_join_inline_array& other)
+  {
+    nof_values = other.nof_values;
+    copy_values(other);
+    return *this;
+  }
+
+  void push_back(const T& value) { values[nof_values++] = value; }
+
+  const T* begin() const { return values.data(); }
+  const T* end() const { return values.data() + nof_values; }
+
+private:
+  void copy_values(const owning_join_inline_array& other)
+  {
+    for (unsigned i = 0; i != nof_values; ++i) {
+      values[i] = other.values[i];
+    }
+  }
+
+  /// Inline storage, of which only the first nof_values elements hold a value.
+  std::array<T, MAX_SIZE> values;
+  /// Number of elements in use.
+  unsigned nof_values = 0;
+};
+
 /// \brief Owns a copy of the tuple captured by an \c fmt::tuple_join_view, keeping its separator as a view.
 ///
 /// \c fmt::tuple_join_view is even more directly dangerous than \c fmt::join_view: it stores a plain reference to the
@@ -52,9 +87,67 @@ struct copy_loggable_type<fmt::join_view<It, Sentinel, Char>> {
 
   using value_type = std::remove_cv_t<typename std::iterator_traits<It>::value_type>;
 
+  /// Byte budget of the inline storage.
+  static constexpr size_t MAX_INLINE_BYTES = 128;
+
+  /// Number of elements that fit in the inline storage.
+  static constexpr size_t MAX_INLINE_ELEMENTS = MAX_INLINE_BYTES / sizeof(value_type);
+
+  /// Inline storage type.
+  using inline_storage = owning_join_inline_array<value_type, MAX_INLINE_ELEMENTS>;
+
+  /// Set to true when the range can be kept inline, instead of on a heap allocated vector.
+  static constexpr bool fits_inline = (MAX_INLINE_ELEMENTS != 0) and std::is_trivially_copyable_v<value_type> and
+                                      std::is_default_constructible_v<value_type>;
+
+  /// Set to true when the range is randomly accessible, so its length is known in constant time.
+  static constexpr bool has_random_access =
+      std::is_same_v<It, Sentinel> and
+      std::is_base_of_v<std::random_access_iterator_tag, typename std::iterator_traits<It>::iterator_category>;
+
   static void copy(fmt::dynamic_format_arg_store<fmt::format_context>* store, fmt::join_view<It, Sentinel, Char> j)
   {
-    store->push_back(owning_join_view<std::vector<value_type>, Char>{std::vector<value_type>(j.begin, j.end), j.sep});
+    // This copy runs on the thread that emits the log entry, so short ranges, which are the common case, are kept
+    // inline to keep that thread away from the allocator. Counting the range first picks the storage before any
+    // element is copied, so no element is ever copied twice.
+    if constexpr (fits_inline and has_random_access) {
+      if (static_cast<size_t>(std::distance(j.begin, j.end)) <= MAX_INLINE_ELEMENTS) {
+        push_inline(store, j);
+        return;
+      }
+    }
+    push_on_heap(store, j);
+  }
+
+private:
+  /// Stores a range that is known to fit in the inline storage.
+  static void push_inline(fmt::dynamic_format_arg_store<fmt::format_context>* store,
+                          fmt::join_view<It, Sentinel, Char>                  j)
+  {
+    // Filled in place, so that the only copy of the inline storage is the one the argument store makes, and that copy
+    // is sized by the number of elements held, not by the storage capacity.
+    owning_join_view<inline_storage, Char> owned;
+    owned.sep = j.sep;
+    for (It it = j.begin; it != j.end; ++it) {
+      owned.values.push_back(*it);
+    }
+    store->push_back(owned);
+  }
+
+  /// Stores a range on a heap allocated vector.
+  static void push_on_heap(fmt::dynamic_format_arg_store<fmt::format_context>* store,
+                           fmt::join_view<It, Sentinel, Char>                  j)
+  {
+    if constexpr (std::is_same_v<It, Sentinel>) {
+      store->push_back(owning_join_view<std::vector<value_type>, Char>{std::vector<value_type>(j.begin, j.end), j.sep});
+    } else {
+      // The iterator and the sentinel differ in type, so the range has to be appended one element at a time.
+      std::vector<value_type> values;
+      for (It it = j.begin; it != j.end; ++it) {
+        values.push_back(*it);
+      }
+      store->push_back(owning_join_view<std::vector<value_type>, Char>{std::move(values), j.sep});
+    }
   }
 };
 
