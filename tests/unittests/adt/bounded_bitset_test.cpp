@@ -562,8 +562,8 @@ TEST(bounded_bitset_test, one_word_bitset_format)
   ASSERT_EQ(fmt::format("{:br}", bitset), "10000100000000000000000");
   ASSERT_EQ(fmt::format("{:x}", bitset), "000021");
   ASSERT_EQ(fmt::format("{:xr}", bitset), "420000");
-  ASSERT_EQ(fmt::format("{:n}", bitset), "0 5");
-  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "0 5");
+  ASSERT_EQ(fmt::format("{:n}", bitset), "[0, 5]");
+  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "[0, 5]");
   ASSERT_EQ(fmt::format("{:b}", bitset), fmt::format("{:br}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:br}", bitset), fmt::format("{:b}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:x}", bitset), fmt::format("{:xr}", bitset_reversed));
@@ -576,8 +576,8 @@ TEST(bounded_bitset_test, one_word_bitset_format)
   ASSERT_EQ(fmt::format("{:br}", bitset), "10000100000000000000001");
   ASSERT_EQ(fmt::format("{:x}", bitset), "400021");
   ASSERT_EQ(fmt::format("{:xr}", bitset), "420001");
-  ASSERT_EQ(fmt::format("{:n}", bitset), "0 5 22");
-  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "0 5 22");
+  ASSERT_EQ(fmt::format("{:n}", bitset), "[0, 5, 22]");
+  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "[0, 5, 22]");
   ASSERT_EQ(fmt::format("{:b}", bitset), fmt::format("{:br}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:br}", bitset), fmt::format("{:b}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:x}", bitset), fmt::format("{:xr}", bitset_reversed));
@@ -651,8 +651,8 @@ TEST(bounded_bitset_test, contiguous_bitset_format)
   ASSERT_EQ(fmt::format("{:br}", bitset), "010011011");
   ASSERT_EQ(fmt::format("{:x}", bitset), "1b2");
   ASSERT_EQ(fmt::format("{:xr}", bitset), "09b");
-  ASSERT_EQ(fmt::format("{:n}", bitset), "1 4 5 7 8");
-  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "1 4 5 7 8");
+  ASSERT_EQ(fmt::format("{:n}", bitset), "[1, 4, 5, 7, 8]");
+  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "[1, 4, 5, 7, 8]");
   ASSERT_EQ(fmt::format("{:i}", bitset), "{1, [4, 6), [7, 9)}");
   ASSERT_EQ(fmt::format("{:i}", bitset_reversed), "{1, [4, 6), [7, 9)}");
   ASSERT_EQ(fmt::format("{:b}", bitset), fmt::format("{:br}", bitset_reversed));
@@ -678,8 +678,8 @@ TEST(bounded_bitset_test, two_word_bitset_format)
             "1000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
   ASSERT_EQ(fmt::format("{:x}", bitset), "0000000000000000000000021");
   ASSERT_EQ(fmt::format("{:xr}", bitset), "8400000000000000000000000");
-  ASSERT_EQ(fmt::format("{:n}", bitset), "0 5");
-  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "0 5");
+  ASSERT_EQ(fmt::format("{:n}", bitset), "[0, 5]");
+  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "[0, 5]");
   ASSERT_EQ(fmt::format("{:b}", bitset), fmt::format("{:br}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:br}", bitset), fmt::format("{:b}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:x}", bitset), fmt::format("{:xr}", bitset_reversed));
@@ -694,8 +694,8 @@ TEST(bounded_bitset_test, two_word_bitset_format)
             "1000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
   ASSERT_EQ(fmt::format("{:x}", bitset), "8000000000000000000000021");
   ASSERT_EQ(fmt::format("{:xr}", bitset), "8400000000000000000000001");
-  ASSERT_EQ(fmt::format("{:n}", bitset), "0 5 99");
-  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "0 5 99");
+  ASSERT_EQ(fmt::format("{:n}", bitset), "[0, 5, 99]");
+  ASSERT_EQ(fmt::format("{:n}", bitset_reversed), "[0, 5, 99]");
   ASSERT_EQ(fmt::format("{:b}", bitset), fmt::format("{:br}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:br}", bitset), fmt::format("{:b}", bitset_reversed));
   ASSERT_EQ(fmt::format("{:x}", bitset), fmt::format("{:xr}", bitset_reversed));

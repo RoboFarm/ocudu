@@ -322,11 +322,10 @@ struct formatter<ocudu::bounded_bitset<N, LowestInfoBitIsMSB, Tag>> {
         }
 
       } else {
-        // Format as a list of bit positions. The separator is kept as a space so that the list does not read as the
-        // "[start, stop)" range printed for contiguous bitsets.
+        // Format as a list of bit positions.
         ocudu::static_vector<size_t, N> bit_pos = s.get_bit_positions();
 
-        fmt::format_to(ctx.out(), "{}", fmt::join(bit_pos, " "));
+        fmt::format_to(ctx.out(), "{}", bit_pos);
       }
       return ctx.out();
     }
