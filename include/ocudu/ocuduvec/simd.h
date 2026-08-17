@@ -1712,11 +1712,12 @@ inline simd_i_t ocudu_simd_i_select(simd_i_t a, simd_i_t b, simd_sel_t selector)
 #endif /* __AVX512F__ */
 }
 
-/// \brief Horizontally sums non-negative int32 SIMD lanes into a 64-bit unsigned integer.
-///
-/// The input lanes are treated as unsigned 32-bit values. This is intended for sums of squared magnitudes.
 #if defined(__AVX512F__) || defined(__AVX2__)
-inline uint64_t ocudu_simd_i_hsum_u64_avx256(__m256i v)
+
+/// \brief Accumulates all the 32-bit unsigned integer values within an AVX register into a 64-bit unsigned integer.
+///
+/// The input lanes are treated as unsigned 32-bit values. This is intended for accumulating squared integer magnitudes.
+inline uint64_t ocudu_simd_i_accumulate_avx2(__m256i v)
 {
   const __m256i lo     = _mm256_unpacklo_epi32(v, _mm256_setzero_si256());
   const __m256i hi     = _mm256_unpackhi_epi32(v, _mm256_setzero_si256());
@@ -1726,15 +1727,15 @@ inline uint64_t ocudu_simd_i_hsum_u64_avx256(__m256i v)
 }
 #endif /* __AVX512F__ || __AVX2__ */
 
-inline uint64_t ocudu_simd_i_hsum_u64(simd_i_t v)
+inline uint64_t ocudu_simd_i_accumulate(simd_i_t v)
 {
 #ifdef __AVX512F__
   const __m256i lo = _mm512_castsi512_si256(v);
   const __m256i hi = _mm512_extracti64x4_epi64(v, 1);
-  return ocudu_simd_i_hsum_u64_avx256(lo) + ocudu_simd_i_hsum_u64_avx256(hi);
+  return ocudu_simd_i_accumulate_avx2(lo) + ocudu_simd_i_accumulate_avx2(hi);
 #else /* __AVX512F__ */
 #ifdef __AVX2__
-  return ocudu_simd_i_hsum_u64_avx256(v);
+  return ocudu_simd_i_accumulate_avx2(v);
 #else /* __AVX2__ */
 #ifdef __SSE4_1__
   const __m128i lo    = _mm_unpacklo_epi32(v, _mm_setzero_si128());
@@ -1985,9 +1986,9 @@ inline simd_s_t ocudu_simd_s_set1(int16_t x)
 
 #if OCUDU_SIMD_CI16_SIZE && OCUDU_SIMD_I_SIZE
 
-inline simd_s_t ocudu_simd_ci16_loadu(const int16_t* ptr)
+inline simd_s_t ocudu_simd_ci16_loadu(const ci16_t* ptr)
 {
-  return ocudu_simd_s_loadu(ptr);
+  return ocudu_simd_s_loadu(reinterpret_cast<const int16_t*>(ptr));
 }
 
 inline simd_i_t ocudu_simd_ci16_norm_sq(simd_s_t v)
@@ -2013,7 +2014,7 @@ inline simd_i_t ocudu_simd_ci16_norm_sq(simd_s_t v)
 #endif /* __AVX512F__ */
 }
 
-inline simd_sel_t ocudu_simd_i_cmpgt(simd_i_t a, simd_i_t b)
+inline simd_sel_t ocudu_simd_i_max(simd_i_t a, simd_i_t b)
 {
 #ifdef __AVX512F__
   return _mm512_cmpgt_epi32_mask(a, b);

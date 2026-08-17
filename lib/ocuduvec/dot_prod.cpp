@@ -148,24 +148,22 @@ float ocudu::ocuduvec::average_power(span<const ci16_t> x, float scale)
   unsigned i          = 0;
   unsigned len        = x.size();
 
-  const int16_t* samples = reinterpret_cast<const int16_t*>(x.data());
-
 #if OCUDU_SIMD_CI16_SIZE
   for (unsigned simd_end = OCUDU_SIMD_CI16_SIZE * (len / OCUDU_SIMD_CI16_SIZE); i != simd_end;
        i += OCUDU_SIMD_CI16_SIZE) {
-    const simd_s_t simd_v    = ocudu_simd_ci16_loadu(samples + 2 * i);
-    const simd_i_t simd_abs2 = ocudu_simd_ci16_norm_sq(simd_v);
-    energy_sum += ocudu_simd_i_hsum_u64(simd_abs2);
+    simd_s_t simd_v    = ocudu_simd_ci16_loadu(x.data() + i);
+    simd_i_t simd_abs2 = ocudu_simd_ci16_norm_sq(simd_v);
+    energy_sum += ocudu_simd_i_accumulate(simd_abs2);
   }
 #endif // OCUDU_SIMD_CI16_SIZE
 
   for (; i != len; ++i) {
-    const int32_t re = x[i].real();
-    const int32_t im = x[i].imag();
+    int32_t re = x[i].real();
+    int32_t im = x[i].imag();
     energy_sum += static_cast<uint64_t>(re) * static_cast<uint64_t>(re);
     energy_sum += static_cast<uint64_t>(im) * static_cast<uint64_t>(im);
   }
 
-  const float scale_sq = scale * scale;
+  float scale_sq = scale * scale;
   return static_cast<float>(energy_sum) / (static_cast<float>(len) * scale_sq);
 }

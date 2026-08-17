@@ -175,21 +175,20 @@ TEST_P(OcuduvecDotProdFixture, OcuduvecDotProdTestAvgPowerCi16)
 
 TEST(OcuduvecDotProdOverflowTest, AvgPowerCi16SimdExtremePairsMatchCf)
 {
-  constexpr float           scale           = static_cast<float>(std::numeric_limits<int16_t>::max());
-  const std::vector<ci16_t> extreme_samples = {
-      {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()},
-      {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::min()},
-      {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::max()},
-      {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()}};
+  constexpr float     scale           = static_cast<float>(std::numeric_limits<int16_t>::max());
+  std::vector<ci16_t> extreme_samples = {{std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()},
+                                         {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::min()},
+                                         {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::max()},
+                                         {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()}};
 
   for (const ci16_t& sample : extreme_samples) {
-    const std::vector<ci16_t> x(8192, sample);
+    std::vector<ci16_t> x(8192, sample);
 
     std::vector<cf_t> x_cf(x.size());
     ocuduvec::convert(x_cf, x, scale);
 
-    const float z_ci16 = ocuduvec::average_power(x, scale);
-    const float z_cf   = ocuduvec::average_power(x_cf);
+    float z_ci16 = ocuduvec::average_power(x, scale);
+    float z_cf   = ocuduvec::average_power(x_cf);
 
     // Saturated int16 parts can differ slightly from cf after scale/convert.
     ASSERT_LT(std::abs(z_ci16 - z_cf), 1e-4F) << "sample re=" << sample.real() << " im=" << sample.imag();

@@ -129,7 +129,7 @@ TEST_P(OcuduvecCompareFixture, OcuduvecCompareTestCountIfPartAbsGreaterThanCi16)
 {
   constexpr float                    scale     = static_cast<float>(std::numeric_limits<int16_t>::max());
   constexpr float                    threshold = 0.95F;
-  std::uniform_int_distribution<int> dist(-30000, 30000);
+  std::uniform_int_distribution<int> dist(std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max());
 
   std::vector<ci16_t> x(size);
   for (ci16_t& v : x) {
@@ -147,20 +147,19 @@ TEST_P(OcuduvecCompareFixture, OcuduvecCompareTestCountIfPartAbsGreaterThanCi16)
 
 TEST(OcuduvecCompareOverflowTest, MaxAbsCi16SimdExtremePairsMatchCf)
 {
-  constexpr float           scale           = static_cast<float>(std::numeric_limits<int16_t>::max());
-  const std::vector<ci16_t> extreme_samples = {
-      {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()},
-      {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::min()},
-      {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::max()},
-      {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()}};
+  constexpr float     scale           = static_cast<float>(std::numeric_limits<int16_t>::max());
+  std::vector<ci16_t> extreme_samples = {{std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::min()},
+                                         {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::min()},
+                                         {std::numeric_limits<int16_t>::max(), std::numeric_limits<int16_t>::max()},
+                                         {std::numeric_limits<int16_t>::min(), std::numeric_limits<int16_t>::max()}};
 
   for (const ci16_t& sample : extreme_samples) {
-    const std::vector<ci16_t> x(8192, sample);
-    std::vector<cf_t>         x_cf(x.size());
+    std::vector<ci16_t> x(8192, sample);
+    std::vector<cf_t>   x_cf(x.size());
     ocuduvec::convert(x_cf, x, scale);
 
-    const auto result_ci16 = ocuduvec::max_abs_element(x, scale);
-    const auto result_cf   = ocuduvec::max_abs_element(x_cf);
+    auto result_ci16 = ocuduvec::max_abs_element(x, scale);
+    auto result_cf   = ocuduvec::max_abs_element(x_cf);
 
     ASSERT_EQ(result_cf.first, result_ci16.first) << "sample re=" << sample.real() << " im=" << sample.imag();
     ASSERT_LT(std::abs(result_cf.second - result_ci16.second), 1e-4F)
@@ -172,9 +171,9 @@ TEST(OcuduvecCompareOverflowTest, CountIfCi16ProductionThresholdBoundary)
 {
   constexpr float scale          = static_cast<float>(std::numeric_limits<int16_t>::max());
   constexpr float threshold      = 0.95F;
-  const int32_t   part_threshold = static_cast<int32_t>(std::lround(threshold * scale));
+  int32_t         part_threshold = static_cast<int32_t>(std::lround(threshold * scale));
 
-  const std::vector<ci16_t> x = {
+  std::vector<ci16_t> x = {
       {static_cast<int16_t>(part_threshold), 0},
       {static_cast<int16_t>(part_threshold + 1), 0},
       {0, static_cast<int16_t>(part_threshold)},
@@ -184,8 +183,8 @@ TEST(OcuduvecCompareOverflowTest, CountIfCi16ProductionThresholdBoundary)
   std::vector<cf_t> x_cf(x.size());
   ocuduvec::convert(x_cf, x, scale);
 
-  const unsigned result_ci16 = ocuduvec::count_if_part_abs_greater_than(x, threshold, scale);
-  const unsigned result_cf   = ocuduvec::count_if_part_abs_greater_than(x_cf, threshold);
+  unsigned result_ci16 = ocuduvec::count_if_part_abs_greater_than(x, threshold, scale);
+  unsigned result_cf   = ocuduvec::count_if_part_abs_greater_than(x_cf, threshold);
 
   ASSERT_EQ(2U, result_ci16);
   ASSERT_GE(result_cf, result_ci16);
