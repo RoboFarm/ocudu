@@ -70,6 +70,23 @@ TEST_F(si_message_controller_test, when_only_si_scheduling_config_changes_then_v
   ASSERT_EQ(cmd->sib1, previous.sib1) << "An unchanged SIB1 must reuse its encoder";
 }
 
+TEST_F(si_message_controller_test, when_si_message_is_removed_then_readded_with_same_content_then_it_is_reencoded)
+{
+  // Removing an SI-message and re-adding it with identical content must re-encode the re-added index, not leave a
+  // stale null encoder that broadcasts zeros (#658).
+  mac_cell_sys_info_config two_msgs = bench.sys_info_cfg;
+  two_msgs.si_messages.push_back(bcch_dl_sch_payload_type{make_random_pdu()});
+  two_msgs.si_sched_cfg.si_messages.emplace_back();
+  ASSERT_TRUE(bench.update_si(two_msgs).has_value());
+  ASSERT_TRUE(bench.update_si(bench.sys_info_cfg).has_value());
+
+  std::optional<si_update_command> cmd = bench.update_si(two_msgs);
+  ASSERT_TRUE(cmd.has_value());
+  ASSERT_EQ(cmd->si_msgs.size(), 2);
+  ASSERT_NE(cmd->si_msgs[1], nullptr)
+      << "A removed-then-re-added SI-message must be re-encoded, not broadcasting zeros";
+}
+
 TEST_F(si_message_controller_test, when_si_message_does_not_require_activation_then_pws_broadcast_is_rejected)
 {
   // The SI-message at index 0 does not mark requires_activation, so no PWS broadcast state was allocated for it -- a
