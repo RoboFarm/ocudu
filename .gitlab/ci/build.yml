@@ -907,6 +907,7 @@ sanitizers avx2:
     - if: $CI_PIPELINE_SCHEDULE_DESCRIPTION =~ /Weekly/
       when: delayed
       start_in: 1 hour
+  timeout: 4 hours
   variables:
     MARCH: x86-64-v3
   tags:
@@ -979,6 +980,7 @@ sanitizers arm neon:
   extends: .weekly sanitizers
   tags:
     - ${OCUDU_RUNNER_TAG}-arm64
+  timeout: 4 hours
   variables:
     MCPU: neoverse-n1+crc+crypto+ssbs
   parallel:
