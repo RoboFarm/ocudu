@@ -39,6 +39,13 @@ struct cg_duplex_test_params {
   unsigned                               default_cg_offset;
 };
 
+/// Formatter for duplex test params, used by gtest. Avoids the fallback raw-byte printer, which reads
+/// uninitialized padding bytes.
+void PrintTo(const cg_duplex_test_params& value, ::std::ostream* os)
+{
+  *os << fmt::format("{}, default_cg_offset={}", value.name, value.default_cg_offset);
+}
+
 /// Builds cell_config_builder_params from duplex test params.
 static cell_config_builder_params make_cell_builder_params(const cg_duplex_test_params& p)
 {
@@ -644,6 +651,12 @@ struct cg_period_test_params {
   cg_configuration::periodicity_t periodicity;
   unsigned                        period_slots;
 };
+
+/// Formatter for period test params, used by gtest. Avoids the fallback raw-byte printer.
+void PrintTo(const cg_period_test_params& value, ::std::ostream* os)
+{
+  *os << fmt::format("period={} slots", value.period_slots);
+}
 
 class cg_period_test : public configured_grant_scheduler_test,
                        public ::testing::WithParamInterface<cg_period_test_params>
