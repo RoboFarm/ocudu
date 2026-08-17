@@ -42,19 +42,13 @@
       export PFLT_ARTIFACTS="${CI_PROJECT_DIR}/preflight-results"
       export PFLT_LOGFILE="${CI_PROJECT_DIR}/preflight-results/preflight.log"
       export PFLT_JUNIT=true
+      [ -z "${PFLT_PYXIS_API_TOKEN}" ] && echo "PFLT_PYXIS_API_TOKEN is mandatory" && exit 1
+      [ -z "${PFLT_CERTIFICATION_COMPONENT_ID}" ] && echo "PFLT_CERTIFICATION_COMPONENT_ID is mandatory" && exit 1
       set +e
-      if [ "${PFLT_SUBMIT:-false}" = "true" ]; then
-        [ -z "${PFLT_PYXIS_API_TOKEN}" ] && echo "PFLT_PYXIS_API_TOKEN is mandatory when PFLT_SUBMIT=true" && exit 1
-        [ -z "${PFLT_CERTIFICATION_COMPONENT_ID}" ] && echo "PFLT_CERTIFICATION_COMPONENT_ID is mandatory when PFLT_SUBMIT=true" && exit 1
-        preflight check container "${IMAGE_REF}-stable" --platform "${TARGETARCH}" --submit \
-          > preflight-results/preflight-results.json \
-          2> preflight-results/preflight-stderr.log
-      else
-        env -u PFLT_PYXIS_API_TOKEN -u PFLT_CERTIFICATION_COMPONENT_ID \
-          preflight check container "${IMAGE_REF}-stable" --platform "${TARGETARCH}" \
-          > preflight-results/preflight-results.json \
-          2> preflight-results/preflight-stderr.log
-      fi
+      preflight check container "${IMAGE_REF}-stable" --platform "${TARGETARCH}" \
+        --docker-config "${PFLT_DOCKERCONFIG}" --submit \
+        > preflight-results/preflight-results.json \
+        2> preflight-results/preflight-stderr.log
       PREFLIGHT_STATUS=$?
       set -e
       cat preflight-results/preflight-stderr.log
@@ -69,7 +63,11 @@
       - preflight-results/
     expire_in: 7 days
     when: always
-  rules: *promote_rules
+  rules:
+    - if: $ON_MR
+    - if: $ON_WEB
+    - if: $ON_API
+    - if: $ON_MAIN
 
 .legacy-image-build:
   extends:
@@ -200,6 +198,10 @@ promote-stable:ubuntu:ru-emulator:
 
 .promote-stable-rh:
   extends: .promote-stable
+  variables:
+    REGISTRY_AUTH_SERVER: docker.io
+    REGISTRY_AUTH_USERNAME: ${DOCKERHUB_USERNAME}
+    REGISTRY_AUTH_PASSWORD: ${DOCKERHUB_WRITE_TOKEN}
   before_script:
     - *simd-label
     - |
@@ -215,7 +217,7 @@ promote-stable:ubuntu:ru-emulator:
       else
         VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
       fi
-      IMAGE_REF="${CI_REGISTRY}/${CI_PROJECT_PATH}/images/${IMAGE_COMPONENT}:${VERSION}"
+      IMAGE_REF="docker.io/softwareradiosystems/${IMAGE_COMPONENT}:${VERSION}"
       export SOURCE_IMAGE="${IMAGE_REF}"
       export DESTINATION_IMAGE="${IMAGE_REF}-stable"
 
@@ -269,9 +271,13 @@ promote-stable:rh:ru-emulator:
 
 .preflight-rh:
   extends: .preflight-stable
+  variables:
+    REGISTRY_AUTH_SERVER: docker.io
+    REGISTRY_AUTH_USERNAME: ${DOCKERHUB_USERNAME}
+    REGISTRY_AUTH_PASSWORD: ${DOCKERHUB_READ_TOKEN}
   before_script:
     - *simd-label
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - echo "${REGISTRY_AUTH_PASSWORD}" | docker login "${REGISTRY_AUTH_SERVER}" -u "${REGISTRY_AUTH_USERNAME}" --password-stdin
     - export PFLT_DOCKERCONFIG=/root/.docker/config.json
     - |
       if [ -n "${DRIVER}" ]; then
@@ -286,7 +292,7 @@ promote-stable:rh:ru-emulator:
       else
         VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
       fi
-      export IMAGE_REF="${CI_REGISTRY}/${CI_PROJECT_PATH}/images/${IMAGE_COMPONENT}:${VERSION}"
+      export IMAGE_REF="docker.io/softwareradiosystems/${IMAGE_COMPONENT}:${VERSION}"
     - |
       CERTIFICATION_COMPONENT_ID=""
       case "${IMAGE_COMPONENT}" in
@@ -297,11 +303,7 @@ promote-stable:rh:ru-emulator:
         cu-up)            CERTIFICATION_COMPONENT_ID="${PFLT_CERTIFICATION_COMPONENT_ID_CU_UP}" ;;
         ru-emulator-dpdk) CERTIFICATION_COMPONENT_ID="${PFLT_CERTIFICATION_COMPONENT_ID_RU_EMULATOR}" ;;
       esac
-      if [ "${PFLT_SUBMIT:-false}" = "true" ]; then
-        export PFLT_CERTIFICATION_COMPONENT_ID="${CERTIFICATION_COMPONENT_ID}"
-      else
-        unset PFLT_CERTIFICATION_COMPONENT_ID
-      fi
+      export PFLT_CERTIFICATION_COMPONENT_ID="${CERTIFICATION_COMPONENT_ID}"
 
 preflight:rh:gnb:
   extends:

@@ -27,6 +27,9 @@ variables:
     GRYPE_SKIP: "false"
     COSIGN_YES: "true" # Used by Cosign to skip confirmation prompts for non-destructive operations
     REGISTRY_URI: ${CI_REGISTRY_IMAGE}
+    REGISTRY_AUTH_SERVER: ${CI_REGISTRY}
+    REGISTRY_AUTH_USERNAME: ${CI_REGISTRY_USER}
+    REGISTRY_AUTH_PASSWORD: ${CI_REGISTRY_PASSWORD}
   id_tokens:
     SIGSTORE_ID_TOKEN: # Used by Cosign to get certificate from Fulcio
       aud: sigstore
@@ -66,7 +69,10 @@ variables:
 
     # Add docker config
     - &docker_login |
-      echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+      [ -z "${REGISTRY_AUTH_SERVER}" ] && echo "REGISTRY_AUTH_SERVER is mandatory" && exit 1
+      [ -z "${REGISTRY_AUTH_USERNAME}" ] && echo "REGISTRY_AUTH_USERNAME is mandatory" && exit 1
+      [ -z "${REGISTRY_AUTH_PASSWORD}" ] && echo "REGISTRY_AUTH_PASSWORD is mandatory" && exit 1
+      echo "${REGISTRY_AUTH_PASSWORD}" | docker login "${REGISTRY_AUTH_SERVER}" -u "${REGISTRY_AUTH_USERNAME}" --password-stdin
 
     # check if exists
     - |
@@ -120,9 +126,9 @@ variables:
         #   grep 1: removes evident-by RelationshipComment lines paired with file refs
         #   grep 2: removes CONTAINS/OTHER Relationship lines pointing to SPDXRef-File-
 
-        SYFT_REGISTRY_AUTH_USERNAME="${CI_REGISTRY_USER}" \
-          SYFT_REGISTRY_AUTH_PASSWORD="${CI_REGISTRY_PASSWORD}" \
-          SYFT_REGISTRY_AUTH_AUTHORITY="${CI_REGISTRY}" \
+        SYFT_REGISTRY_AUTH_USERNAME="${REGISTRY_AUTH_USERNAME}" \
+          SYFT_REGISTRY_AUTH_PASSWORD="${REGISTRY_AUTH_PASSWORD}" \
+          SYFT_REGISTRY_AUTH_AUTHORITY="${REGISTRY_AUTH_SERVER}" \
           syft registry:${IMAGE_NAME_VERSION} -o spdx \
           --select-catalogers "os,-file-metadata-cataloger,-file-executable-cataloger" \
           | awk '/^FileName:/{skip=1;next} /^$/{if(skip){skip=0;next}} !skip' \
@@ -202,6 +208,9 @@ variables:
     NAME: none
     VERSION: none
     REGISTRY_URI: ${CI_REGISTRY_IMAGE}
+    REGISTRY_AUTH_SERVER: ${CI_REGISTRY}
+    REGISTRY_AUTH_USERNAME: ${CI_REGISTRY_USER}
+    REGISTRY_AUTH_PASSWORD: ${CI_REGISTRY_PASSWORD}
   before_script:
     - *docker_login
   script:
@@ -222,6 +231,9 @@ variables:
     GIT_STRATEGY: none
     SOURCE_IMAGE: ""
     DESTINATION_IMAGE: ""
+    REGISTRY_AUTH_SERVER: ${CI_REGISTRY}
+    REGISTRY_AUTH_USERNAME: ${CI_REGISTRY_USER}
+    REGISTRY_AUTH_PASSWORD: ${CI_REGISTRY_PASSWORD}
   before_script:
     - *docker_login
   script:

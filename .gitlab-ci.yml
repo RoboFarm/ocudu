@@ -7,12 +7,6 @@ spec:
       description: "Optional Docker tag prefix to build and promote. Leave empty to use the normal date-based tag."
       default: ""
       regex: "^$|^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
-    pflt-submit:
-      description: "Submit RH preflight results to Red Hat/Pyxis."
-      default: "false"
-      options:
-        - "false"
-        - "true"
 ---
 include:
   - local: .gitlab/ci-shared/gitlab_settings/.gitlab-ci.yml
@@ -153,7 +147,6 @@ trigger deploy:
         ON_MAIN: "true"
   variables:
     PROMOTE_IMAGE_TAG: "$[[ inputs.promote-image-tag ]]"
-    PFLT_SUBMIT: "$[[ inputs.pflt-submit ]]"
     OCUDU_RUNNER_TAG: $OCUDU_RUNNER_TAG
   trigger:
     include: .gitlab/ci/deploy/.gitlab-ci.yml
