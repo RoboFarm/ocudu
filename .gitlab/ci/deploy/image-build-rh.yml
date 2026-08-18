@@ -30,6 +30,7 @@
     IMAGE_TAG_DRIVER: "true"
   before_script:
     - !reference [.image-build-common, before_script]
+    - unset DOCKER_AUTH_CONFIG
     - |
       ENT_DIR=/etc/pki/entitlement
       ENT_CERT=$(ls "$ENT_DIR"/*.pem 2>/dev/null | grep -v -- '-key.pem' | head -n1)
