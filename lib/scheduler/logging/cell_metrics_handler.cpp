@@ -49,9 +49,12 @@ cell_metrics_handler::cell_metrics_handler(
   }
 
   // Pre-reserve space.
-  ues.reserve(MAX_NOF_DU_UES);
-  rnti_to_ue_index_lookup.reserve(MAX_NOF_DU_UES);
-  const unsigned pre_reserved_event_capacity = std::min(3U * MAX_NOF_DU_UES, metrics_cfg->max_ue_events_per_report);
+  // Note: The metrics of a UE are addressed by DU UE index, which is not bounded by the number of UE contexts of the
+  // cell, so the range of indexes is reserved separately.
+  ues.reserve(cell_cfg.max_nof_ue_contexts, MAX_NOF_DU_UES);
+  rnti_to_ue_index_lookup.reserve(cell_cfg.max_nof_ue_contexts);
+  const unsigned pre_reserved_event_capacity =
+      std::min(3U * cell_cfg.max_nof_ue_contexts, metrics_cfg->max_ue_events_per_report);
   pending_events.reserve(pre_reserved_event_capacity);
   unsigned tdd_period_slots = cell_cfg.is_tdd() ? nof_slots_per_tdd_period(*cell_cfg.params.tdd_cfg) : 0U;
   ul_prbs_used_per_tdd_slot_idx.resize(tdd_period_slots);
