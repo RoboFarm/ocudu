@@ -50,7 +50,8 @@ si_scheduling_config ocudu::odu::make_si_scheduling_info_config(const du_cell_co
 sched_cell_configuration_request_message
 ocudu::odu::make_sched_cell_config_req(du_cell_index_t             cell_index,
                                        const odu::du_cell_config&  du_cfg,
-                                       const si_scheduling_config& si_sched_cfg)
+                                       const si_scheduling_config& si_sched_cfg,
+                                       unsigned                    max_nof_ue_contexts)
 {
   ocudu_assert(si_sched_cfg.sib1_payload_size.value() > 0, "SIB1 payload size needs to be set");
   ocudu_assert(si_sched_cfg.si_messages.size() ==
@@ -65,7 +66,8 @@ ocudu::odu::make_sched_cell_config_req(du_cell_index_t             cell_index,
   // Convert SIB1 and SI message info scheduling config.
   sched_req.si_scheduling = si_sched_cfg;
 
-  sched_req.rrm_policy_members = du_cfg.rrm_policy_members;
+  sched_req.rrm_policy_members  = du_cfg.rrm_policy_members;
+  sched_req.max_nof_ue_contexts = max_nof_ue_contexts;
 
   return sched_req;
 }

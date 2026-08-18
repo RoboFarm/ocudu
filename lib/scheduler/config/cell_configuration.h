@@ -37,6 +37,8 @@ public:
   const du_cell_group_index_t cell_group_index;
   /// List of RRM Policy members configured for this cell.
   std::vector<slice_rrm_policy_config> rrm_policy_members;
+  /// Number of UE contexts that the cell is expected to hold, including the UEs to be RRC Rejected.
+  const unsigned max_nof_ue_contexts;
 
   /// @name Derived parameters.
   /// Parameters derived from \ref ran_cell_config.

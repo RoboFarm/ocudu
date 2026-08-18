@@ -41,6 +41,7 @@ cell_configuration::cell_configuration(const scheduler_expert_config&           
   cell_index(msg.cell_index),
   cell_group_index(msg.cell_group_index),
   rrm_policy_members(msg.rrm_policy_members),
+  max_nof_ue_contexts(msg.max_nof_ue_contexts),
   // Derived parameters.
   nof_dl_prbs(
       get_max_Nprb(params.dl_carrier.carrier_bw, scs_common(), band_helper::get_freq_range(params.dl_carrier.band))),

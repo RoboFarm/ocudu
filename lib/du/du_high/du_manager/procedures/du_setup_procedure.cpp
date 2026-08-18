@@ -171,7 +171,11 @@ void du_setup_procedure::configure_du_cells()
     const du_cell_config&           du_cfg     = ctxt.cell_mng.get_cell_cfg(cell_index);
     const mac_cell_sys_info_config& sys_info   = ctxt.cell_mng.get_sys_info(cell_index);
 
-    auto                    sched_cfg = make_sched_cell_config_req(cell_index, du_cfg, sys_info.si_sched_cfg);
+    const unsigned max_nof_established_ue_ctxts = ctxt.res_mng.get_max_nof_established_ue_contexts(cell_index);
+    const unsigned max_nof_rejected_ue_ctxts    = ctxt.res_mng.get_max_nof_rejected_ue_contexts(cell_index);
+
+    auto sched_cfg = make_sched_cell_config_req(
+        cell_index, du_cfg, sys_info.si_sched_cfg, max_nof_established_ue_ctxts + max_nof_rejected_ue_ctxts);
     error_type<std::string> result =
         config_validators::validate_sched_cell_configuration_request_message(sched_cfg, ctxt.params.mac.sched_cfg);
     if (not result.has_value()) {
@@ -179,13 +183,8 @@ void du_setup_procedure::configure_du_cells()
     }
 
     // Forward config to MAC.
-    ctxt.params.mac.mgr.get_cell_manager().add_cell(
-        make_mac_cell_config(cell_index,
-                             du_cfg,
-                             sys_info,
-                             sched_cfg,
-                             ctxt.res_mng.get_max_nof_established_ue_contexts(cell_index),
-                             ctxt.res_mng.get_max_nof_rejected_ue_contexts(cell_index)));
+    ctxt.params.mac.mgr.get_cell_manager().add_cell(make_mac_cell_config(
+        cell_index, du_cfg, sys_info, sched_cfg, max_nof_established_ue_ctxts, max_nof_rejected_ue_ctxts));
   }
 }
 

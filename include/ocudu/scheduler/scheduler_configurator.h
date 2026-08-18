@@ -46,6 +46,9 @@ struct sched_cell_configuration_request_message {
   /// List of RAN slices to support in the scheduler.
   std::vector<slice_rrm_policy_config> rrm_policy_members;
 
+  /// Number of UE contexts that the cell is expected to hold, including the UEs to be RRC Rejected.
+  unsigned max_nof_ue_contexts = MAX_NOF_DU_UES_PER_CELL;
+
   /// Configuration of scheduler cell metrics.
   metrics_config metrics;
 };

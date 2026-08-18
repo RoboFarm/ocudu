@@ -280,6 +280,11 @@ error_type<std::string> config_validators::validate_sched_cell_configuration_req
 {
   VERIFY(msg.cell_index < MAX_NOF_DU_CELLS, "cell index={} is not valid", msg.cell_index);
 
+  VERIFY(msg.max_nof_ue_contexts > 0 and msg.max_nof_ue_contexts <= MAX_NOF_DU_UES_PER_CELL,
+         "Number of UE contexts={} of cell={} is not valid",
+         msg.max_nof_ue_contexts,
+         msg.cell_index);
+
   const auto& dl_lst = msg.ran.dl_cfg_common.init_dl_bwp.pdsch_common.pdsch_td_alloc_list;
   for (const auto& pdsch : dl_lst) {
     VERIFY(pdsch.k0 <= SCHEDULER_MAX_K0, "k0={} value exceeds maximum supported k0", pdsch.k0);
