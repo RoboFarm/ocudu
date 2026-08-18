@@ -21,7 +21,7 @@ uci_scheduler_impl::uci_scheduler_impl(const cell_configuration& cell_cfg_,
   periodic_uci_slot_wheel.resize(std::max(MAX_SR_PERIOD, MAX_CSI_REPORT_PERIOD));
 
   // Pre-reserve space for the UEs that will be added.
-  updated_ues.reserve(MAX_NOF_DU_UES);
+  updated_ues.reserve(cell_cfg.max_nof_ue_contexts);
 }
 
 void uci_scheduler_impl::run_slot(cell_resource_allocator& res_alloc)

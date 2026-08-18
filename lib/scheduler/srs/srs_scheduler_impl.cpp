@@ -56,7 +56,7 @@ srs_scheduler_impl::srs_scheduler_impl(const cell_configuration& cell_cfg_, ue_r
   periodic_srs_slot_wheel.resize(static_cast<unsigned>(srs_periodicity::sl2560));
 
   // Pre-reserve space for the UEs that will be added.
-  updated_ues.reserve(MAX_NOF_DU_UES);
+  updated_ues.reserve(cell_cfg.max_nof_ue_contexts);
 }
 
 srs_scheduler_impl::~srs_scheduler_impl() = default;

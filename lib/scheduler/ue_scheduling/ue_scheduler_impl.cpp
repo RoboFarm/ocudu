@@ -219,6 +219,7 @@ ue_scheduler_impl::cell_context::cell_context(ue_scheduler_impl&                
   uci_selector(*this,
                uci_indication_selector::DEFAULT_ACK_TIMEOUT_SLOTS,
                MAX_PUCCH_PDUS_PER_SLOT,
+               params.cell_res_alloc->cfg.max_nof_ue_contexts,
                parent.expert_cfg.pucch_sinr_threshold_dB)
 {
 }

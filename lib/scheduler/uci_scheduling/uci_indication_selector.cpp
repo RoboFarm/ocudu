@@ -10,6 +10,7 @@ using namespace ocudu;
 uci_indication_selector::uci_indication_selector(uci_indication_timeout_notifier& timeout_notifier_,
                                                  unsigned                         uci_ack_timeout,
                                                  unsigned                         max_pucch_grants_per_slot,
+                                                 unsigned                         max_nof_ue_contexts,
                                                  std::optional<float>             pucch_sinr_threshold_dB_) :
   ack_timeout_slots(uci_ack_timeout),
   pucch_sinr_threshold_dB(pucch_sinr_threshold_dB_),
@@ -20,7 +21,7 @@ uci_indication_selector::uci_indication_selector(uci_indication_timeout_notifier
 {
   uci_pool.reserve(
       std::min<unsigned>(ack_timeout_slots * std::min<unsigned>(max_pucch_grants_per_slot, MAX_PUCCH_PDUS_PER_SLOT),
-                         MAX_NOF_DU_UES * MAX_NOF_HARQS));
+                         max_nof_ue_contexts * MAX_NOF_HARQS));
   report_fatal_error_if_not(uci_ack_timeout > SHORT_PUCCH_TIMEOUT_SLOTS, "Invalid UCI ACK timeout");
 }
 

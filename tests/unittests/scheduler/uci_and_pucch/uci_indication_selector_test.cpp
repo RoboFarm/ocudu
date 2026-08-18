@@ -37,7 +37,7 @@ protected:
   static constexpr rnti_t   second_rnti   = to_rnti(0x4602);
 
   explicit uci_indication_selector_test(std::optional<float> pucch_sinr_threshold_dB = std::nullopt) :
-    selector(timeout_notifier, timeout_slots, MAX_PUCCH_PDUS_PER_SLOT, pucch_sinr_threshold_dB)
+    selector(timeout_notifier, timeout_slots, MAX_PUCCH_PDUS_PER_SLOT, MAX_NOF_DU_UES_PER_CELL, pucch_sinr_threshold_dB)
   {
   }
 

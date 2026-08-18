@@ -67,6 +67,7 @@ public:
   uci_indication_selector(uci_indication_timeout_notifier& timeout_notifier,
                           unsigned                         ack_timeout_slots         = DEFAULT_ACK_TIMEOUT_SLOTS,
                           unsigned                         max_pucch_grants_per_slot = MAX_PUCCH_PDUS_PER_SLOT,
+                          unsigned                         max_nof_ue_contexts       = MAX_NOF_DU_UES_PER_CELL,
                           std::optional<float>             pucch_sinr_threshold_dB   = std::nullopt);
 
   std::optional<uci_action> handle_uci_ind_pdu(slot_point sl_rx, const uci_indication::uci_pdu& pdu);
