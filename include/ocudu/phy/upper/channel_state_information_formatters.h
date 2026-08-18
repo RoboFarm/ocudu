@@ -90,7 +90,7 @@ struct formatter<ocudu::channel_state_information> {
       auto total_evm  = csi.get_total_evm();
       auto symbol_evm = csi.get_symbol_evm();
       if (std::any_of(symbol_evm.begin(), symbol_evm.end(), [](auto elem) { return elem.has_value(); })) {
-        helper.format_if_verbose(ctx, "evm=[{:.2f}]", symbol_evm);
+        helper.format_if_verbose(ctx, "evm={::.2f}", symbol_evm);
       } else if (total_evm.has_value()) {
         helper.format_if_verbose(ctx, "evm={:.2f}", total_evm);
       }
