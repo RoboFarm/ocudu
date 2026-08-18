@@ -466,7 +466,7 @@ struct cu_cp_unit_config {
   /// Enable RRC inactive state.
   bool enable_rrc_inactive = false;
   /// RAN Paging cycle for RRC inactive UEs in number of radio frames.
-  uint8_t ran_paging_cycle = 32;
+  uint16_t ran_paging_cycle = 32;
   /// I-RNTI profile used to compose the Full-I-RNTI of a suspended UE (TS 38.300 table F-1).
   std::string full_i_rnti_profile = "profile0";
   /// I-RNTI profile used to compose the Short-I-RNTI of a suspended UE (TS 38.300 table F-2).

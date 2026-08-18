@@ -17,7 +17,7 @@ struct ue_configuration {
   /// When set to false, UEs will not be set to RRC inactive.
   bool enable_rrc_inactive = false;
   /// RAN Paging cycle for RRC inactive UEs in number of radio frames.
-  uint8_t ran_paging_cycle = 32;
+  uint16_t ran_paging_cycle = 32;
   /// T380 timer value in minutes.
   std::chrono::minutes t380 = std::chrono::minutes{10};
   /// I-RNTI profile used to compose the Full-I-RNTI of a suspended UE (TS 38.300 table F-1).
