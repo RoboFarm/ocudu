@@ -8,7 +8,7 @@
 #include "ocudu/adt/to_array.h"
 #include "ocudu/asn1/rrc_nr/ue_cap.h"
 #include "ocudu/support/error_handling.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 
 using namespace ocudu;

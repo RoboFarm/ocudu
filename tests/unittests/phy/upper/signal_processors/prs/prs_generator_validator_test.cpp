@@ -10,7 +10,7 @@
 #include "ocudu/phy/upper/signal_processors/prs/formatters.h"
 #include "ocudu/phy/upper/signal_processors/prs/prs_generator.h"
 #include "ocudu/ran/precoding/precoding_codebooks.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 
 using namespace ocudu;

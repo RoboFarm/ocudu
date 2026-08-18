@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Open-MPI
 
 #include "sidekiq_helper_functions.h"
+#include "ocudu/adt/format.h"
 #include <gtest/gtest.h>
 #include <random>
 

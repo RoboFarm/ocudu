@@ -8,7 +8,7 @@
 #include "ocudu/phy/upper/channel_processors/prach/formatters.h"
 #include "ocudu/phy/upper/channel_processors/pucch/formatters.h"
 #include "ocudu/ran/pucch/pucch_constants.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 #include <regex>
 

@@ -18,7 +18,7 @@
 #include "ocudu/phy/lower/processors/downlink/downlink_processor_notifier.h"
 #include "ocudu/phy/lower/processors/uplink/uplink_processor_notifier.h"
 #include "ocudu/support/executors/manual_task_worker.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 #include <random>
 

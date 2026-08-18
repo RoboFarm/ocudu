@@ -8,7 +8,7 @@
 #include "ocudu/rlc/rlc_window_seg_pool_factory.h"
 #include "ocudu/support/executors/manual_task_worker.h"
 #include "ocudu/support/test_utils.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 #include <list>
 #include <queue>

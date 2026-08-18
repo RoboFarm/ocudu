@@ -17,7 +17,7 @@
 #include "ocudu/ran/pusch/ulsch_info.h"
 #include "ocudu/ran/resource_block.h"
 #include "ocudu/ran/sch/sch_dmrs_power.h"
-#include <fmt/ostream.h>
+#include "fmt/ostream.h"
 #include <gtest/gtest.h>
 #include <random>
 
