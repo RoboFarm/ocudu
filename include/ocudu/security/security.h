@@ -234,14 +234,14 @@ struct sec_as_keys {
 using sec_short_mac_i = std::array<uint8_t, 2>;
 
 struct security_context {
-  ocudulog::basic_logger&        logger = ocudulog::fetch_basic_logger("SEC");
-  security::sec_key              k;
-  uint8_t                        ncc = 0;
-  security::supported_algorithms supported_int_algos;
-  security::supported_algorithms supported_enc_algos;
-  sec_selected_algos             sel_algos;
-  sec_as_keys                    as_keys;
-  security_state                 state = security_state::not_enabled;
+  ocudulog::basic_logger&        logger              = ocudulog::fetch_basic_logger("SEC");
+  security::sec_key              k                   = {};
+  uint8_t                        ncc                 = 0;
+  security::supported_algorithms supported_int_algos = {};
+  security::supported_algorithms supported_enc_algos = {};
+  sec_selected_algos             sel_algos           = {};
+  sec_as_keys                    as_keys             = {};
+  security_state                 state               = security_state::not_enabled;
 
   security_context() = default;
 
