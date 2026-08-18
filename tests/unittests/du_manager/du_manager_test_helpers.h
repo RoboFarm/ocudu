@@ -395,6 +395,8 @@ public:
 
 class dummy_ue_resource_configurator_factory : public du_ran_resource_manager
 {
+  static constexpr unsigned max_nof_rejected_ue_ctxts = 64;
+
 public:
   class dummy_resource_updater : public ue_ran_resource_configurator::resource_updater
   {
@@ -428,7 +430,15 @@ public:
   expected<ue_ran_resource_configurator, std::string>
   create_ue_resource_configurator(du_ue_index_t ue_index, du_cell_index_t pcell_index, bool has_tc_rnti) override;
 
-  unsigned get_max_nof_setup_ues(du_cell_index_t cell_index) const override { return MAX_NOF_DU_UES_PER_CELL; }
+  unsigned get_max_nof_established_ue_contexts(du_cell_index_t cell_index) const override
+  {
+    return MAX_NOF_DU_UES_PER_CELL - max_nof_rejected_ue_ctxts;
+  }
+
+  unsigned get_max_nof_rejected_ue_contexts(du_cell_index_t cell_index) const override
+  {
+    return max_nof_rejected_ue_ctxts;
+  }
 };
 
 f1ap_ue_context_update_request create_f1ap_ue_context_update_request(du_ue_index_t                   ue_idx,
