@@ -204,6 +204,7 @@ promote-stable:ubuntu:ru-emulator:
     REGISTRY_AUTH_PASSWORD: ${DOCKERHUB_WRITE_TOKEN}
   before_script:
     - *simd-label
+    - unset DOCKER_AUTH_CONFIG
     - |
       if [ -n "${DRIVER}" ]; then
         IMAGE_COMPONENT="${COMPONENT}-${DRIVER}"
@@ -277,6 +278,7 @@ promote-stable:rh:ru-emulator:
     REGISTRY_AUTH_PASSWORD: ${DOCKERHUB_READ_TOKEN}
   before_script:
     - *simd-label
+    - unset DOCKER_AUTH_CONFIG
     - echo "${REGISTRY_AUTH_PASSWORD}" | docker login "${REGISTRY_AUTH_SERVER}" -u "${REGISTRY_AUTH_USERNAME}" --password-stdin
     - export PFLT_DOCKERCONFIG=/root/.docker/config.json
     - |
