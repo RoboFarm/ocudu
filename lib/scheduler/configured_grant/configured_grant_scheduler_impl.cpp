@@ -36,7 +36,8 @@ configured_grant_scheduler_impl::configured_grant_scheduler_impl(const cell_conf
   periodic_pusch_slot_wheel.resize(max_cg_slot_periodicity);
 
   // Pre-reserve space for the UEs that will be added.
-  updated_ues.reserve(MAX_NOF_DU_UES);
+  // Note: The list is cleared every slot, so it generally holds far fewer UEs than the cell can have contexts for.
+  updated_ues.reserve(cell_cfg.max_nof_ue_contexts);
 }
 
 const ue_cell_configuration* configured_grant_scheduler_impl::get_ue_cfg(rnti_t rnti) const
