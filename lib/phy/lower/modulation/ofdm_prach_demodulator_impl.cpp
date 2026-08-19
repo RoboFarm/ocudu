@@ -12,11 +12,6 @@
 
 using namespace ocudu;
 
-namespace {
-/// Scaling factor for converting from 16-bit complex integer to complex float.
-constexpr float scaling_factor_ci16_to_cf = std::numeric_limits<int16_t>::max();
-} // namespace
-
 void ofdm_prach_demodulator_impl::demodulate(prach_buffer&                                buffer,
                                              span<const ci16_t>                           input,
                                              const ofdm_prach_demodulator::configuration& config)
@@ -165,7 +160,7 @@ void ofdm_prach_demodulator_impl::demodulate(prach_buffer&                      
       // Load symbol time-domain in the DFT.
       ocuduvec::convert(dft.get_input(),
                         input_occasion.subspan(cyclic_prefix_length + ofdm_symbol_len * i_symbol, ofdm_symbol_len),
-                        scaling_factor_ci16_to_cf);
+                        ocuduvec::scaling_factor_ci16_to_cf);
 
       // Perform DFT.
       span<const cf_t> dft_output = dft.run();

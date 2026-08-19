@@ -16,10 +16,6 @@
 
 using namespace ocudu;
 
-namespace {
-constexpr float scaling_factor_ci16_to_cf = std::numeric_limits<int16_t>::max();
-} // namespace
-
 int main()
 {
   std::mt19937                            rgen(0);
@@ -94,7 +90,7 @@ int main()
           unsigned port_idx = dist_port(rgen);
 
           // Generate random time domain data.
-          unsigned          nsymb = get_nsymb_per_slot(cp);
+          unsigned            nsymb = get_nsymb_per_slot(cp);
           std::vector<ci16_t> time_data;
           // Iterate all symbols in the slot.
           for (unsigned symbol_idx = 0; symbol_idx != nsymb; ++symbol_idx) {
@@ -103,7 +99,7 @@ int main()
                 cp.get_length(nsymb * slot_idx + symbol_idx, scs).to_samples(sampling_rate_Hz) + dft_size;
             for (unsigned sample_idx = 0; sample_idx != nsamples; ++sample_idx) {
               cf_t random_value = {dist_rg(rgen), dist_rg(rgen)};
-              time_data.push_back(to_ci16(random_value * scaling_factor_ci16_to_cf));
+              time_data.push_back(to_ci16(random_value * ocuduvec::scaling_factor_ci16_to_cf));
             }
           }
 
@@ -134,7 +130,7 @@ int main()
 
             // Verify DFT input.
             std::vector<cf_t> expected_dft_input(dft_size);
-            ocuduvec::convert(expected_dft_input, time_data_symbol.last(dft_size), scaling_factor_ci16_to_cf);
+            ocuduvec::convert(expected_dft_input, time_data_symbol.last(dft_size), ocuduvec::scaling_factor_ci16_to_cf);
             TESTASSERT(ocuduvec::equal(expected_dft_input, dft_input.first(dft_size)));
 
             // Generate ideal frequency domain outputs.

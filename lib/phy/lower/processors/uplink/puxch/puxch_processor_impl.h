@@ -31,7 +31,9 @@ public:
   };
 
   puxch_processor_impl(std::unique_ptr<ofdm_symbol_demodulator> demodulator_, const configuration& config) :
-    nof_symbols_per_slot(get_nsymb_per_slot(config.cp)), nof_rx_ports(config.nof_rx_ports), demodulator(std::move(demodulator_))
+    nof_symbols_per_slot(get_nsymb_per_slot(config.cp)),
+    nof_rx_ports(config.nof_rx_ports),
+    demodulator(std::move(demodulator_))
   {
     ocudu_assert(demodulator, "Invalid demodulator.");
   }

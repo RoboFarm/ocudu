@@ -211,9 +211,9 @@ void lower_phy_uplink_processor_impl::process_collecting(const baseband_gateway_
     // single-precision complex floating-point samples.
     span<ci16_t> channel_buffer = temp_buffer.get_writer().get_channel_buffer(i_channel);
     view                        = temp_cf_buffer.get_view({i_channel}).subspan(0, channel_buffer.size());
-    ocuduvec::convert(view, channel_buffer, scaling_factor_ci16_to_cf);
+    ocuduvec::convert(view, channel_buffer, ocuduvec::scaling_factor_ci16_to_cf);
     cfo_processor.process(view);
-    ocuduvec::convert(channel_buffer, view, scaling_factor_cf_to_ci16);
+    ocuduvec::convert(channel_buffer, view, ocuduvec::scaling_factor_cf_to_ci16);
   }
 
   // Advance CFO processor number of samples.
@@ -242,9 +242,10 @@ void lower_phy_uplink_processor_impl::process_collecting(const baseband_gateway_
       // Perform signal measurements on CI16 samples.
       span<const ci16_t> channel_buffer = temp_buffer.get_reader().get_channel_buffer(i_channel);
 
-      avg_power.update(ocuduvec::average_power(channel_buffer, scaling_factor_ci16_to_cf));
-      peak_power.update(ocuduvec::max_abs_element(channel_buffer, scaling_factor_ci16_to_cf).second);
-      nof_clipped_samples += ocuduvec::count_if_part_abs_greater_than(channel_buffer, 0.95F, scaling_factor_ci16_to_cf);
+      avg_power.update(ocuduvec::average_power(channel_buffer, ocuduvec::scaling_factor_ci16_to_cf));
+      peak_power.update(ocuduvec::max_abs_element(channel_buffer, ocuduvec::scaling_factor_ci16_to_cf).second);
+      nof_clipped_samples +=
+          ocuduvec::count_if_part_abs_greater_than(channel_buffer, 0.95F, ocuduvec::scaling_factor_ci16_to_cf);
       total_processed_samples += channel_buffer.size();
     }
 

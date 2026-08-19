@@ -14,11 +14,6 @@
 
 using namespace ocudu;
 
-namespace {
-/// Scaling factor for converting from 16-bit complex integer to complex float.
-constexpr float scaling_factor_ci16_to_cf = std::numeric_limits<int16_t>::max();
-} // namespace
-
 ofdm_symbol_demodulator_impl::ofdm_symbol_demodulator_impl(const ofdm_demodulator_configuration& ofdm_config,
                                                            ofdm_demodulator_dependencies         dependencies) :
   dft_size(ofdm_config.dft_size),
@@ -111,7 +106,7 @@ void ofdm_symbol_demodulator_impl::demodulate(resource_grid_writer& grid,
   // Prepare the DFT inputs, while skipping the cyclic prefix.
   ocuduvec::convert(dft->get_input().first(dft_size),
                     input.subspan(cp_len - nof_samples_window_offset, dft_size),
-                    scaling_factor_ci16_to_cf);
+                    ocuduvec::scaling_factor_ci16_to_cf);
 
   // Execute DFT.
   span<const cf_t> dft_output = dft->run();

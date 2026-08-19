@@ -12,9 +12,9 @@ class ofdm_prach_demodulator_spy : public ofdm_prach_demodulator
 {
 public:
   struct demodulate_entry {
-    prach_buffer*      buffer;
+    prach_buffer*       buffer;
     std::vector<ci16_t> input;
-    configuration      config;
+    configuration       config;
   };
 
   void demodulate(prach_buffer& buffer, span<const ci16_t> input, const configuration& config) override
