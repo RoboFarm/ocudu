@@ -219,7 +219,7 @@ promote-stable:ubuntu:ru-emulator:
       else
         VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
       fi
-      IMAGE_REF="docker.io/softwareradiosystems/${IMAGE_COMPONENT}:${VERSION}"
+      IMAGE_REF="${RH_DOCKERHUB_REGISTRY_URI}/${IMAGE_COMPONENT}:${VERSION}"
       export SOURCE_IMAGE="${IMAGE_REF}"
       export DESTINATION_IMAGE="${IMAGE_REF}-stable"
 
@@ -295,7 +295,7 @@ promote-stable:rh:ru-emulator:
       else
         VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
       fi
-      export IMAGE_REF="docker.io/softwareradiosystems/${IMAGE_COMPONENT}:${VERSION}"
+      export IMAGE_REF="${RH_DOCKERHUB_REGISTRY_URI}/${IMAGE_COMPONENT}:${VERSION}"
     - |
       CERTIFICATION_COMPONENT_ID=""
       case "${IMAGE_COMPONENT}" in
