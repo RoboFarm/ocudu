@@ -50,11 +50,14 @@ ue_cell_repository::ue_cell_repository(const cell_configuration& cell_cfg, cell_
              cell_harq_manager::DEFAULT_ACK_TIMEOUT_SLOTS,
              cell_cfg.ntn_cs_koffset,
              cell_cfg.params.ntn_params.has_value() && cell_cfg.params.ntn_params->ul_harq_mode_b),
+  ue_pool(cell_cfg.max_nof_ue_contexts),
   channel_state_pool(cell_cfg.max_nof_ue_contexts),
   mcs_calculator_pool(cell_cfg.max_nof_ue_contexts),
   pusch_pwr_controller_pool(cell_cfg.max_nof_ue_contexts),
   pucch_pwr_controller_pool(cell_cfg.max_nof_ue_contexts)
 {
+  // Pre-reserve the UE storage and the range of DU UE indexes, so that no allocation is needed to add a UE.
+  ues.reserve(cell_cfg.max_nof_ue_contexts, MAX_NOF_DU_UES);
   rnti_to_ue_index_lookup.reserve(cell_cfg.max_nof_ue_contexts);
 }
 
@@ -77,12 +80,11 @@ ue_cell& ue_cell_repository::add_ue(const ue_configuration& ue_cfg,
   ocudu_assert(not ues.contains(ue_cfg.ue_index), "UE with duplicate index being added to the cell UE repository");
   const auto& ue_cell_cfg = ue_cfg.ue_cell_cfg(serv_cell_index);
 
-  report_fatal_error_if_not(not channel_state_pool.full() and not mcs_calculator_pool.full() and
-                                not pusch_pwr_controller_pool.full() and not pucch_pwr_controller_pool.full(),
+  report_fatal_error_if_not(not ue_pool.full(),
                             "cell={}: No resources left to add ue={}. The cell was dimensioned for {} UEs",
                             cell_idx,
                             ue_cfg.ue_index,
-                            channel_state_pool.nof_objects());
+                            ue_pool.nof_objects());
 
   // Create UE cell components. The UE takes their ownership, returning them to the pools on removal.
   ue_cell_components components;
@@ -95,24 +97,24 @@ ue_cell& ue_cell_repository::add_ue(const ue_configuration& ue_cfg,
 
   // Add UE in the repository.
   ues.emplace(ue_cfg.ue_index,
-              ue_cfg.ue_index,
-              ue_cfg.crnti,
-              ue_cell_cfg,
-              cell_harqs,
-              ue_shared_context{drx},
-              std::move(components),
-              logger);
+              ue_pool.get(ue_cfg.ue_index,
+                          ue_cfg.crnti,
+                          ue_cell_cfg,
+                          cell_harqs,
+                          ue_shared_context{drx},
+                          std::move(components),
+                          logger));
   auto res = rnti_to_ue_index_lookup.insert(std::make_pair(ue_cfg.crnti, ue_cfg.ue_index));
   ocudu_assert(res.second, "UE with duplicate RNTI being added to the cell UE repository");
-  return ues[ue_cfg.ue_index];
+  return *ues[ue_cfg.ue_index];
 }
 
 void ue_cell_repository::rem_ue(du_ue_index_t ue_index)
 {
   if (not ues.contains(ue_index)) {
-    logger.error("ue={} : UE not found in the cell UE repository", fmt::underlying(ue_index));
+    logger.error("ue={} : UE not found in the cell UE repository", ue_index);
   }
-  const ue_cell&      u      = ues[ue_index];
+  const ue_cell&      u      = *ues[ue_index];
   const rnti_t        crnti  = u.rnti();
   const du_ue_index_t ue_idx = u.ue_index;
 
@@ -121,9 +123,7 @@ void ue_cell_repository::rem_ue(du_ue_index_t ue_index)
   if (it != rnti_to_ue_index_lookup.end()) {
     rnti_to_ue_index_lookup.erase(it);
   } else {
-    logger.error("ue={} rnti={}: UE with provided c-rnti not found in RNTI-to-UE-index lookup table.",
-                 fmt::underlying(ue_idx),
-                 crnti);
+    logger.error("ue={} rnti={}: UE with provided c-rnti not found in RNTI-to-UE-index lookup table.", ue_idx, crnti);
   }
 
   // Take the UE cell from the repository. This returns its components back to the pools.
