@@ -80,15 +80,17 @@ private:
   /// HARQs manager for the cell.
   cell_harq_manager cell_harqs;
 
-  /// Channel state management for different UEs in this cell.
-  slotted_id_table<du_ue_index_t, ue_channel_state_manager, MAX_NOF_DU_UES> channel_states;
+  // Note: The pools are declared before the list of UEs, as the UEs hold objects taken from them.
 
-  /// Link adaptation controllers for different UEs in this cell.
-  slotted_id_table<du_ue_index_t, ue_link_adaptation_controller, MAX_NOF_DU_UES> ue_mcs_calculators;
+  /// Pool of channel state managers of the cell.
+  free_list_object_pool<ue_channel_state_manager> channel_state_pool;
 
-  /// PUSCH and PUCCH power controllers for different UEs in this cell.
-  slotted_id_table<du_ue_index_t, pusch_power_controller, MAX_NOF_DU_UES> pusch_pwr_controllers;
-  slotted_id_table<du_ue_index_t, pucch_power_controller, MAX_NOF_DU_UES> pucch_pwr_controllers;
+  /// Pool of link adaptation controllers of the cell.
+  free_list_object_pool<ue_link_adaptation_controller> mcs_calculator_pool;
+
+  /// Pools of PUSCH and PUCCH power controllers of the cell.
+  free_list_object_pool<pusch_power_controller> pusch_pwr_controller_pool;
+  free_list_object_pool<pucch_power_controller> pucch_pwr_controller_pool;
 
   // List of UEs in the cell.
   ue_list ues;

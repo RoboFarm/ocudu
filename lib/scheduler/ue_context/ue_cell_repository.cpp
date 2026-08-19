@@ -49,9 +49,13 @@ ue_cell_repository::ue_cell_repository(const cell_configuration& cell_cfg, cell_
              cell_cfg.expert_cfg.ue.ul_harq_retx_timeout.count() * get_nof_slots_per_subframe(cell_cfg.scs_common()),
              cell_harq_manager::DEFAULT_ACK_TIMEOUT_SLOTS,
              cell_cfg.ntn_cs_koffset,
-             cell_cfg.params.ntn_params.has_value() && cell_cfg.params.ntn_params->ul_harq_mode_b)
+             cell_cfg.params.ntn_params.has_value() && cell_cfg.params.ntn_params->ul_harq_mode_b),
+  channel_state_pool(cell_cfg.max_nof_ue_contexts),
+  mcs_calculator_pool(cell_cfg.max_nof_ue_contexts),
+  pusch_pwr_controller_pool(cell_cfg.max_nof_ue_contexts),
+  pucch_pwr_controller_pool(cell_cfg.max_nof_ue_contexts)
 {
-  rnti_to_ue_index_lookup.reserve(MAX_NOF_DU_UES);
+  rnti_to_ue_index_lookup.reserve(cell_cfg.max_nof_ue_contexts);
 }
 
 void ue_cell_repository::slot_indication(slot_point sl_tx)
@@ -73,11 +77,21 @@ ue_cell& ue_cell_repository::add_ue(const ue_configuration& ue_cfg,
   ocudu_assert(not ues.contains(ue_cfg.ue_index), "UE with duplicate index being added to the cell UE repository");
   const auto& ue_cell_cfg = ue_cfg.ue_cell_cfg(serv_cell_index);
 
-  // Create UE cell components.
-  channel_states.emplace(ue_cfg.ue_index, ue_cell_cfg.cell_cfg_common.expert_cfg.ue, ue_cell_cfg.get_nof_dl_ports());
-  ue_mcs_calculators.emplace(ue_cfg.ue_index, ue_cell_cfg.cell_cfg_common, channel_states[ue_cfg.ue_index]);
-  pusch_pwr_controllers.emplace(ue_cfg.ue_index, ue_cell_cfg, channel_states[ue_cfg.ue_index], logger);
-  pucch_pwr_controllers.emplace(ue_cfg.ue_index, ue_cell_cfg, logger);
+  report_fatal_error_if_not(not channel_state_pool.full() and not mcs_calculator_pool.full() and
+                                not pusch_pwr_controller_pool.full() and not pucch_pwr_controller_pool.full(),
+                            "cell={}: No resources left to add ue={}. The cell was dimensioned for {} UEs",
+                            cell_idx,
+                            ue_cfg.ue_index,
+                            channel_state_pool.nof_objects());
+
+  // Create UE cell components. The UE takes their ownership, returning them to the pools on removal.
+  ue_cell_components components;
+  components.pcell_state = ue_pcell_fsm;
+  components.channel_state =
+      channel_state_pool.get(ue_cell_cfg.cell_cfg_common.expert_cfg.ue, ue_cell_cfg.get_nof_dl_ports());
+  components.ue_mcs_calculator    = mcs_calculator_pool.get(ue_cell_cfg.cell_cfg_common, *components.channel_state);
+  components.pusch_pwr_controller = pusch_pwr_controller_pool.get(ue_cell_cfg, *components.channel_state, logger);
+  components.pucch_pwr_controller = pucch_pwr_controller_pool.get(ue_cell_cfg, logger);
 
   // Add UE in the repository.
   ues.emplace(ue_cfg.ue_index,
@@ -86,11 +100,7 @@ ue_cell& ue_cell_repository::add_ue(const ue_configuration& ue_cfg,
               ue_cell_cfg,
               cell_harqs,
               ue_shared_context{drx},
-              ue_cell_components{ue_pcell_fsm,
-                                 &channel_states[ue_cfg.ue_index],
-                                 &ue_mcs_calculators[ue_cfg.ue_index],
-                                 &pusch_pwr_controllers[ue_cfg.ue_index],
-                                 &pucch_pwr_controllers[ue_cfg.ue_index]},
+              std::move(components),
               logger);
   auto res = rnti_to_ue_index_lookup.insert(std::make_pair(ue_cfg.crnti, ue_cfg.ue_index));
   ocudu_assert(res.second, "UE with duplicate RNTI being added to the cell UE repository");
@@ -116,11 +126,6 @@ void ue_cell_repository::rem_ue(du_ue_index_t ue_index)
                  crnti);
   }
 
-  pucch_pwr_controllers.erase(ue_idx);
-  pusch_pwr_controllers.erase(ue_idx);
-  ue_mcs_calculators.erase(ue_idx);
-  channel_states.erase(ue_idx);
-
-  // Take the ue cell from the repository.
+  // Take the UE cell from the repository. This returns its components back to the pools.
   ues.erase(ue_idx);
 }

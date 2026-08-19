@@ -25,7 +25,7 @@ ue_cell::ue_cell(du_ue_index_t                ue_index_,
                  const ue_cell_configuration& ue_cell_cfg_,
                  cell_harq_manager&           cell_harq_pool,
                  ue_shared_context            shared_ctx_,
-                 const ue_cell_components&    components_,
+                 ue_cell_components&&         components_,
                  ocudulog::basic_logger&      logger_) :
   ue_index(ue_index_),
   cell_index(ue_cell_cfg_.cell_cfg_common.cell_index),
@@ -42,7 +42,7 @@ ue_cell::ue_cell(du_ue_index_t                ue_index_,
   ue_cfg(&ue_cell_cfg_),
   expert_cfg(cell_cfg.expert_cfg.ue),
   shared_ctx(shared_ctx_),
-  components(components_),
+  components(std::move(components_)),
   logger(logger_)
 {
 }
