@@ -110,6 +110,7 @@ protected:
   base_harq_manager_test(unsigned nof_ues, unsigned ntn_cs_koffset = 0, bool ul_harq_mode_b = false) :
     max_harqs_per_ue(ntn_cs_koffset > 0 ? MAX_NOF_HARQS : MAX_NOF_HARQS_NON_NTN),
     cell_harqs(nof_ues,
+               nof_ues,
                max_harqs_per_ue,
                timeout_handler.make_notifier(),
                timeout_handler.make_notifier(),

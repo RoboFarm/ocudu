@@ -72,7 +72,7 @@ add_executable(object_pool_test unbounded_object_pool_test.cpp bounded_object_po
 target_link_libraries(object_pool_test ocudu_support gtest ocudu_gtest_main)
 add_test(object_pool_test object_pool_test)
 
-add_executable(free_list_memory_pool_test free_list_memory_pool_test.cpp)
+add_executable(free_list_memory_pool_test free_list_memory_pool_test.cpp free_list_recycling_object_pool_test.cpp)
 target_link_libraries(free_list_memory_pool_test ocudu_support gtest ocudu_gtest_main)
 add_test(free_list_memory_pool_test free_list_memory_pool_test)
 

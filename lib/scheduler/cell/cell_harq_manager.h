@@ -17,6 +17,7 @@
 #include "ocudu/ran/slot_point.h"
 #include "ocudu/scheduler/result/dci_info.h"
 #include "ocudu/scheduler/result/vrb_alloc.h"
+#include "ocudu/support/memory_pool/free_list_recycling_object_pool.h"
 
 namespace ocudu {
 
@@ -173,7 +174,8 @@ struct cell_harq_repository {
     harq_id_t first_non_reserved_harq_id = to_harq_id(0);
   };
 
-  cell_harq_repository(unsigned                max_ues,
+  cell_harq_repository(unsigned                max_nof_ue_indexes,
+                       unsigned                max_nof_ue_contexts,
                        unsigned                max_ack_wait_in_slots,
                        unsigned                harq_retx_timeout,
                        unsigned                max_harqs_per_ue,
@@ -194,11 +196,13 @@ struct cell_harq_repository {
 
   slot_point last_sl_ind;
 
-  std::vector<ue_harq_entity_impl>                               ues;
-  intrusive_double_linked_list<harq_type, pending_retx_list_tag> harq_pending_retx_list;
-  std::vector<intrusive_double_linked_list<harq_type>>           harq_timeout_wheel;
-  unsigned                                                       ntn_cs_koffset;
-  std::unique_ptr<harq_alloc_history>                            alloc_hist;
+  // Note: Declared before the list of UEs, as the entities handed out to the UEs belong to it.
+  free_list_recycling_object_pool<ue_harq_entity_impl>                            ue_entity_pool;
+  std::vector<typename free_list_recycling_object_pool<ue_harq_entity_impl>::ptr> ues;
+  intrusive_double_linked_list<harq_type, pending_retx_list_tag>                  harq_pending_retx_list;
+  std::vector<intrusive_double_linked_list<harq_type>>                            harq_timeout_wheel;
+  unsigned                                                                        ntn_cs_koffset;
+  std::unique_ptr<harq_alloc_history>                                             alloc_hist;
 
   void slot_indication(slot_point sl_tx);
   void stop();
@@ -496,7 +500,8 @@ public:
   /// \brief Default timeout in slots for HARQ to be scheduled for retransmission after a negative CRC/ACK.
   static constexpr unsigned DEFAULT_HARQ_RETX_TIMEOUT_SLOTS = 200U;
 
-  cell_harq_manager(unsigned                               max_ues,
+  cell_harq_manager(unsigned                               max_nof_ue_indexes,
+                    unsigned                               max_nof_ue_contexts,
                     unsigned                               max_harqs_per_ue,
                     std::unique_ptr<harq_timeout_notifier> dl_notifier          = nullptr,
                     std::unique_ptr<harq_timeout_notifier> ul_notifier          = nullptr,
@@ -625,7 +630,7 @@ public:
   std::optional<const dl_harq_process_handle> dl_harq(harq_id_t h_id) const
   {
     if (h_id < get_dl_ue().harqs.size() and get_dl_ue().harqs[h_id].status != harq_utils::harq_state_t::empty) {
-      return dl_harq_process_handle{cell_harq_mgr->dl, cell_harq_mgr->dl.ues[ue_index].harqs[h_id]};
+      return dl_harq_process_handle{cell_harq_mgr->dl, cell_harq_mgr->dl.ues[ue_index]->harqs[h_id]};
     }
     return std::nullopt;
   }
@@ -641,7 +646,7 @@ public:
   std::optional<const ul_harq_process_handle> ul_harq(harq_id_t h_id) const
   {
     if (h_id < get_ul_ue().harqs.size() and get_ul_ue().harqs[h_id].status != harq_utils::harq_state_t::empty) {
-      return ul_harq_process_handle{cell_harq_mgr->ul, cell_harq_mgr->ul.ues[ue_index].harqs[h_id]};
+      return ul_harq_process_handle{cell_harq_mgr->ul, cell_harq_mgr->ul.ues[ue_index]->harqs[h_id]};
     }
     return std::nullopt;
   }
@@ -693,10 +698,10 @@ public:
   units::bytes total_ul_bytes_waiting_ack() const;
 
 private:
-  dl_harq_ent_impl&       get_dl_ue() { return cell_harq_mgr->dl.ues[ue_index]; }
-  const dl_harq_ent_impl& get_dl_ue() const { return cell_harq_mgr->dl.ues[ue_index]; }
-  ul_harq_ent_impl&       get_ul_ue() { return cell_harq_mgr->ul.ues[ue_index]; }
-  const ul_harq_ent_impl& get_ul_ue() const { return cell_harq_mgr->ul.ues[ue_index]; }
+  dl_harq_ent_impl&       get_dl_ue() { return *cell_harq_mgr->dl.ues[ue_index]; }
+  const dl_harq_ent_impl& get_dl_ue() const { return *cell_harq_mgr->dl.ues[ue_index]; }
+  ul_harq_ent_impl&       get_ul_ue() { return *cell_harq_mgr->ul.ues[ue_index]; }
+  const ul_harq_ent_impl& get_ul_ue() const { return *cell_harq_mgr->ul.ues[ue_index]; }
 
   harq_id_t          first_non_reserved_harq_id = to_harq_id(0);
   cell_harq_manager* cell_harq_mgr              = nullptr;
