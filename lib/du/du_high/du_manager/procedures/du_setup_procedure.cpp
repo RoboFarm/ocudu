@@ -58,6 +58,7 @@ static mac_cell_creation_request make_mac_cell_config(du_cell_index_t           
   // configured number of DL HARQ processes) plus the UE contexts that only need a single HARQ to be RRC Rejected.
   mac_cfg.max_harq_buffers =
       du_cfg.ran.init_bwp.pdsch.max_harq_procs * max_nof_established_ue_ctxts + max_nof_rejected_ue_ctxts;
+  mac_cfg.max_nof_ue_contexts = max_nof_established_ue_ctxts + max_nof_rejected_ue_ctxts;
 
   return mac_cfg;
 }

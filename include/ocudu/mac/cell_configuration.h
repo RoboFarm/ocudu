@@ -55,6 +55,9 @@ struct mac_cell_creation_request {
   /// RRC Rejected.
   unsigned max_harq_buffers = MAX_NOF_HARQS * MAX_NOF_DU_UES_PER_CELL;
 
+  /// Number of UE contexts that the cell is expected to hold, including the UEs to be RRC Rejected.
+  unsigned max_nof_ue_contexts = MAX_NOF_DU_UES_PER_CELL;
+
   /// Embedded scheduler cell configuration request.
   sched_cell_configuration_request_message sched_req;
 
