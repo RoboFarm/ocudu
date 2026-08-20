@@ -288,10 +288,16 @@ static sib19_info create_sib19_info(const du_high_unit_cell_ntn_config& config)
     sib19.moving_ref_location = serving.moving_ref_location;
 
     sib19.ntn_cfg.emplace();
-    sib19.ntn_cfg->cell_specific_koffset    = serving.cell_specific_koffset;
-    sib19.ntn_cfg->ephemeris_info           = serving.sat_ref.ephemeris_info;
-    sib19.ntn_cfg->k_mac                    = serving.k_mac;
-    sib19.ntn_cfg->ta_info                  = serving.sat_ref.ta_info;
+    // Placeholder: this SIB19 sizes the SI-message PDSCH grant, and the live one always carries epochTime.
+    sib19.ntn_cfg->epoch_time            = epoch_time_t{0, 0};
+    sib19.ntn_cfg->cell_specific_koffset = serving.cell_specific_koffset;
+    sib19.ntn_cfg->ephemeris_info        = serving.sat_ref.ephemeris_info;
+    sib19.ntn_cfg->k_mac                 = serving.k_mac;
+    sib19.ntn_cfg->ta_info               = serving.sat_ref.ta_info;
+    if (serving.feeder_link_info and not sib19.ntn_cfg->ta_info) {
+      // Same, for a feeder link: the live SIB19 always carries ta-Info.
+      sib19.ntn_cfg->ta_info = ta_info_t{0.0, 0.0, 0.0, std::nullopt};
+    }
     sib19.ntn_cfg->ntn_ul_sync_validity_dur = serving.ntn_ul_sync_validity_dur;
     sib19.ntn_cfg->polarization             = serving.polarization;
     sib19.ntn_cfg->ta_report                = serving.ta_report;
