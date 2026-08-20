@@ -45,32 +45,39 @@ void cell_dl_harq_buffer_pool::clear()
   }
 }
 
-void cell_dl_harq_buffer_pool::allocate_ue_buffers(du_ue_index_t ue_index, unsigned nof_harqs)
+bool cell_dl_harq_buffer_pool::allocate_ue_buffers(du_ue_index_t ue_index, unsigned nof_harqs)
 {
   ocudu_sanity_check(is_du_ue_index_valid(ue_index), "Invalid UE index");
   ocudu_assert(nof_harqs <= MAX_NOF_HARQS, "Invalid maximum number of HARQs");
 
   if (cell_buffers[ue_index] != nullptr) {
     logger.error("ue={}: DL HARQ buffers already allocated for UE with matching ID", ue_index);
-    return;
+    return false;
   }
 
-  cell_buffers[ue_index] = ue_buffer_list_pool.get();
-  if (cell_buffers[ue_index] == nullptr) {
+  // Note: The list is only handed over to the UE once all its buffers are allocated, so that a failure leaves no
+  // resources reserved.
+  auto ue_harqs = ue_buffer_list_pool.get();
+  if (ue_harqs == nullptr) {
     logger.error("ue={}: No DL HARQ buffer lists available for new UE", ue_index);
-    return;
+    return false;
   }
-  ue_dl_harq_buffer_list& ue_harqs = *cell_buffers[ue_index];
 
   // Grow the list of HARQ buffers associated with this UE by reusing buffers from the pre-allocated free list.
-  while (ue_harqs.size() < nof_harqs) {
+  while (ue_harqs->size() < nof_harqs) {
     auto* buffer = allocate_buffer();
     if (buffer == nullptr) {
       logger.warning("ue={}: No DL HARQ buffers available for new UE", ue_index);
-      return;
+      for (auto* allocated_buffer : *ue_harqs) {
+        free_buffer_list.emplace_back(allocated_buffer);
+      }
+      return false;
     }
-    ue_harqs.emplace_back(buffer);
+    ue_harqs->emplace_back(buffer);
   }
+
+  cell_buffers[ue_index] = std::move(ue_harqs);
+  return true;
 }
 
 void cell_dl_harq_buffer_pool::deallocate_ue_buffers(du_ue_index_t ue_idx)

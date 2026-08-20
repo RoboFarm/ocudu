@@ -299,7 +299,7 @@ cell_harq_repository<IsDl>::alloc_harq(du_ue_index_t                       ue_id
   if (ntn_cs_koffset > 0 && ue_harq_entity.feedback_disabled_or_mode_b_harq_present) {
     auto rit = std::find_if(
         ue_harq_entity.free_harq_ids.rbegin(), ue_harq_entity.free_harq_ids.rend(), [&](const harq_id_t& h_id) {
-          const bool is_normal_mode = (ue_harq_entity.harqs[h_id].mode == harq_mode_t::normal);
+          const bool is_normal_mode = ue_harq_entity.harqs[h_id].mode == harq_mode_t::normal;
           return select_normal_mode == is_normal_mode;
         });
 
@@ -521,7 +521,7 @@ void cell_harq_repository<IsDl>::reserve_ue_harqs(du_ue_index_t ue_idx, rnti_t r
   ues[ue_idx] = ue_entity_pool.get();
   report_fatal_error_if_not(ues[ue_idx] != nullptr,
                             "No HARQ entities left to add ue={}. The cell was dimensioned for {} UEs",
-                            fmt::underlying(ue_idx),
+                            ue_idx,
                             ue_entity_pool.nof_objects());
 
   ue_harq_entity_impl& ue_harqs = *ues[ue_idx];
@@ -582,9 +582,9 @@ void cell_harq_repository<IsDl>::destroy_ue(du_ue_index_t ue_idx)
   for (harq_type& h : ues[ue_idx]->harqs) {
     dealloc_harq(h);
   }
-  // Note: The lists are cleared, and not destroyed, so that the entity keeps its memory for the next UE.
-  ues[ue_idx]->harqs.clear();
-  ues[ue_idx]->free_harq_ids.clear();
+  // Note: The lists are cleared, and not destroyed (recycling pool), so that the entity keeps its memory for the next
+  // UE.
+  ues[ue_idx]->clear();
   ues[ue_idx].reset();
 }
 

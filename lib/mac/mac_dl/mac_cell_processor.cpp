@@ -10,6 +10,7 @@
 #include "ocudu/ran/band_helper.h"
 #include "ocudu/ran/pdsch/pdsch_constants.h"
 #include "ocudu/scheduler/result/sched_result.h"
+#include "ocudu/support/async/async_no_op_task.h"
 #include "ocudu/support/async/async_timer.h"
 #include "ocudu/support/async/execute_on_blocking.h"
 #include "ocudu/support/executors/execute_until_success.h"
@@ -235,7 +236,9 @@ async_task<bool> mac_cell_processor::add_ue(const mac_ue_create_request& request
   // > Allocate DL HARQ resources for the new UE.
   // Note: This may call a large allocation, and therefore, should be done out of the cell thread to avoid causing
   // lates.
-  dl_harq_buffers.allocate_ue_buffers(request.ue_index, request.pdsch_harqs_per_cell);
+  if (not dl_harq_buffers.allocate_ue_buffers(request.ue_index, request.pdsch_harqs_per_cell)) {
+    return launch_no_op_task(false);
+  }
 
   // > Create a MAC UE DL context.
   mac_dl_ue_context ue_inst(request);

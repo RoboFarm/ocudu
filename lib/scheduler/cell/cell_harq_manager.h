@@ -172,7 +172,21 @@ struct cell_harq_repository {
     bool feedback_disabled_or_mode_b_harq_present = false;
     /// First HARQ-id that is not reserved for Configured Grant use.
     harq_id_t first_non_reserved_harq_id = to_harq_id(0);
+
+    // ue_harq_entity_impl objects are recycled to avoid losing the allocated vector memory.
+    void clear()
+    {
+      harqs.clear();
+      free_harq_ids.clear();
+      last_slot_tx                             = slot_point{};
+      last_slot_ack                            = slot_point{};
+      feedback_disabled_or_mode_b_harq_present = false;
+      first_non_reserved_harq_id               = to_harq_id(0);
+    }
   };
+
+  using ue_entity_pool_type = free_list_recycling_object_pool<ue_harq_entity_impl>;
+  using ue_entity_pool_ptr  = typename ue_entity_pool_type::ptr;
 
   cell_harq_repository(unsigned                max_nof_ue_indexes,
                        unsigned                max_nof_ue_contexts,
@@ -197,12 +211,12 @@ struct cell_harq_repository {
   slot_point last_sl_ind;
 
   // Note: Declared before the list of UEs, as the entities handed out to the UEs belong to it.
-  free_list_recycling_object_pool<ue_harq_entity_impl>                            ue_entity_pool;
-  std::vector<typename free_list_recycling_object_pool<ue_harq_entity_impl>::ptr> ues;
-  intrusive_double_linked_list<harq_type, pending_retx_list_tag>                  harq_pending_retx_list;
-  std::vector<intrusive_double_linked_list<harq_type>>                            harq_timeout_wheel;
-  unsigned                                                                        ntn_cs_koffset;
-  std::unique_ptr<harq_alloc_history>                                             alloc_hist;
+  ue_entity_pool_type                                            ue_entity_pool;
+  std::vector<ue_entity_pool_ptr>                                ues;
+  intrusive_double_linked_list<harq_type, pending_retx_list_tag> harq_pending_retx_list;
+  std::vector<intrusive_double_linked_list<harq_type>>           harq_timeout_wheel;
+  unsigned                                                       ntn_cs_koffset;
+  std::unique_ptr<harq_alloc_history>                            alloc_hist;
 
   void slot_indication(slot_point sl_tx);
   void stop();

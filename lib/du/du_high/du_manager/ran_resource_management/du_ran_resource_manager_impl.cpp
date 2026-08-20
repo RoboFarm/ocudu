@@ -170,7 +170,7 @@ du_ran_resource_manager_impl::create_ue_resource_configurator(du_ue_index_t   ue
   }
 
   cell_ue_context_count& cell_ctxts = cell_ue_ctxts[pcell_index];
-  if (cell_ctxts.nof_allocated >= cell_ctxts.max_nof_ue_ctxts()) {
+  if (cell_ctxts.full()) {
     logger.warning("cell={}: Refused new UE context. Cause: Reached the maximum number of UE contexts ({} for "
                    "established UEs and {} for UEs to be RRC Rejected)",
                    pcell_index,
@@ -219,7 +219,14 @@ du_ran_resource_manager_impl::update_context(du_ue_index_t                      
   // > Deallocate resources for previously configured cells that have now been removed or changed.
   if (ue_mcg.cell_group.cells.contains(SERVING_PCELL_IDX) and
       ue_mcg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.cell_index != pcell_idx) {
-    // >> PCell changed. Deallocate PCell resources.
+    // >> PCell changed. The new cell needs to have room for the UE context, and it is checked before any resource is
+    // released, so that the UE is left untouched if the update cannot proceed.
+    if (cell_ue_ctxts[pcell_idx].full()) {
+      resp.procedure_error = make_unexpected(fmt::format("No UE contexts left in cell={}", pcell_idx));
+      return resp;
+    }
+
+    // >> Deallocate PCell resources.
     move_ue_ctxt_count(ue_mcg.cell_group.cells.at(SERVING_PCELL_IDX).serv_cell_cfg.cell_index, pcell_idx);
     deallocate_cell_resources(ue_index, SERVING_PCELL_IDX);
   }

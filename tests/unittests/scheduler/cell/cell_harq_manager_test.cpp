@@ -627,6 +627,24 @@ TEST_F(single_ue_harq_entity_test, when_ue_harq_entity_is_deallocated_then_harq_
   }
 }
 
+TEST_F(single_ue_harq_entity_test, when_harq_entity_is_recycled_then_configured_grant_reservation_is_not_inherited)
+{
+  // Reserve HARQs of the UE for Configured Grant use.
+  constexpr unsigned             nof_cg_reserved_harqs = 4;
+  harq_dl_feedback_disabled_mask dl_feedback_disabled;
+  harq_ul_mode_mask              ul_harq_mode_mask;
+  harq_ent.reconfigure(nof_harqs, nof_harqs, dl_feedback_disabled, ul_harq_mode_mask, nof_cg_reserved_harqs);
+
+  // The next UE takes the HARQ entity of the removed one, and must not inherit its reservation.
+  harq_ent.reset();
+  harq_ent = cell_harqs.add_ue(ue_index, rnti, nof_harqs, nof_harqs);
+
+  for (unsigned i = 0; i != nof_harqs; ++i) {
+    ASSERT_TRUE(harq_ent.alloc_ul_harq(current_slot + k2, max_retxs).has_value())
+        << "UL HARQ " << i << " is not available to the new UE";
+  }
+}
+
 TEST_F(single_ue_harq_entity_test, when_max_retxs_reached_then_harq_entity_does_not_find_pending_retx)
 {
   auto h_dl = harq_ent.alloc_dl_harq(current_slot, k1, max_retxs, 0);

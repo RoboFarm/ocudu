@@ -94,8 +94,9 @@ public:
   /// Called on cell deactivation to clear all available buffers.
   void clear();
 
-  /// Allocate DL HARQ buffers for a newly created UE.
-  void allocate_ue_buffers(du_ue_index_t ue_index, unsigned nof_harqs);
+  /// \brief Allocate DL HARQ buffers for a newly created UE.
+  /// \return Whether the buffers were allocated.
+  bool allocate_ue_buffers(du_ue_index_t ue_index, unsigned nof_harqs);
 
   /// Deallocate DL HARQ buffers for a removed UE.
   void deallocate_ue_buffers(du_ue_index_t ue_index);

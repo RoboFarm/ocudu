@@ -119,6 +119,8 @@ private:
     unsigned nof_allocated = 0;
 
     unsigned max_nof_ue_ctxts() const { return max_nof_established + max_nof_rejected_ue_ctxts; }
+
+    bool full() const { return nof_allocated >= max_nof_ue_ctxts(); }
   };
 
   error_type<std::string>

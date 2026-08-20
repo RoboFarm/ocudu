@@ -31,6 +31,34 @@ size_t harq_buffer_size(unsigned max_nof_layers)
 
 } // namespace
 
+TEST(cell_dl_harq_buffer_pool_test, allocation_fails_when_the_cell_runs_out_of_ue_buffer_lists)
+{
+  constexpr unsigned       nof_ue_contexts = 1;
+  cell_dl_harq_buffer_pool pool(test_nof_prbs, 1, MAX_NOF_HARQS, nof_ue_contexts);
+
+  ASSERT_TRUE(pool.allocate_ue_buffers(to_du_ue_index(0), 1));
+  ASSERT_FALSE(pool.allocate_ue_buffers(to_du_ue_index(1), 1));
+
+  // The list of the removed UE becomes available for the refused one.
+  pool.deallocate_ue_buffers(to_du_ue_index(0));
+  ASSERT_TRUE(pool.allocate_ue_buffers(to_du_ue_index(1), 1));
+}
+
+TEST(cell_dl_harq_buffer_pool_test, buffers_are_returned_to_the_cell_when_an_allocation_cannot_be_completed)
+{
+  // The cell holds fewer HARQ buffers than the UE requests, so the allocation cannot be completed.
+  constexpr unsigned       nof_cell_harqs = 4;
+  cell_dl_harq_buffer_pool pool(test_nof_prbs, 1, nof_cell_harqs, 2);
+
+  ASSERT_FALSE(pool.allocate_ue_buffers(to_du_ue_index(0), nof_cell_harqs + 1));
+
+  // The buffers taken by the failed allocation are available again.
+  ASSERT_TRUE(pool.allocate_ue_buffers(to_du_ue_index(1), nof_cell_harqs));
+  for (unsigned i = 0; i != nof_cell_harqs; ++i) {
+    ASSERT_TRUE(pool.allocate_dl_harq_buffer(to_du_ue_index(1), to_harq_id(i)).has_value());
+  }
+}
+
 TEST(cell_dl_harq_buffer_pool_test, buffers_can_be_allocated_for_any_valid_du_ue_index)
 {
   // The pool is dimensioned for the UE contexts of the cell, but it is addressed by DU UE index, whose range is
