@@ -45,7 +45,7 @@
       else
         IMAGE_COMPONENT="${COMPONENT}"
       fi
-    - DATE=$(date +%Y%m%d)
+    - DATE=$(date -u -d "${CI_PIPELINE_CREATED_AT}" +%Y%m%d)
     - export NAME="${IMAGE_COMPONENT}"
     - |
       TAG_OS="${IMAGE_TAG_OS:-${OS}}"

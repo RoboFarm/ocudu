@@ -140,10 +140,11 @@ promote-stable:legacy:
       else
         IMAGE_COMPONENT="${COMPONENT}"
       fi
+      DATE=$(date -u -d "${CI_PIPELINE_CREATED_AT}" +%Y%m%d)
       if [ -n "${PROMOTE_IMAGE_TAG:-}" ]; then
         VERSION="${PROMOTE_IMAGE_TAG}-${OS}-${OS_VERSION}-${SIMD}"
       else
-        VERSION="${OS}-${OS_VERSION}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
+        VERSION="${OS}-${OS_VERSION}-${SIMD}-${DATE}_${CI_COMMIT_SHORT_SHA}"
       fi
       IMAGE_REF="${CI_REGISTRY}/${CI_PROJECT_PATH}/images/${IMAGE_COMPONENT}:${VERSION}"
       export SOURCE_IMAGE="${IMAGE_REF}"
@@ -214,10 +215,11 @@ promote-stable:ubuntu:ru-emulator:
         IMAGE_COMPONENT="${COMPONENT}"
         TAG_DRIVER=""
       fi
+      DATE=$(date -u -d "${CI_PIPELINE_CREATED_AT}" +%Y%m%d)
       if [ -n "${PROMOTE_IMAGE_TAG:-}" ]; then
         VERSION="${PROMOTE_IMAGE_TAG}-ubi9-9.6${TAG_DRIVER}-${SIMD}"
       else
-        VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
+        VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-${DATE}_${CI_COMMIT_SHORT_SHA}"
       fi
       IMAGE_REF="${RH_DOCKERHUB_REGISTRY_URI}/${IMAGE_COMPONENT}:${VERSION}"
       export SOURCE_IMAGE="${IMAGE_REF}"
@@ -290,10 +292,11 @@ promote-stable:rh:ru-emulator:
         IMAGE_COMPONENT="${COMPONENT}"
         TAG_DRIVER=""
       fi
+      DATE=$(date -u -d "${CI_PIPELINE_CREATED_AT}" +%Y%m%d)
       if [ -n "${PROMOTE_IMAGE_TAG:-}" ]; then
         VERSION="${PROMOTE_IMAGE_TAG}-ubi9-9.6${TAG_DRIVER}-${SIMD}"
       else
-        VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-$(date +%Y%m%d)_${CI_COMMIT_SHORT_SHA}"
+        VERSION="ubi9-9.6${TAG_DRIVER}-${SIMD}-${DATE}_${CI_COMMIT_SHORT_SHA}"
       fi
       export IMAGE_REF="${RH_DOCKERHUB_REGISTRY_URI}/${IMAGE_COMPONENT}:${VERSION}"
     - |
