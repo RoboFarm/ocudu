@@ -12,8 +12,8 @@ TEST(free_list_memory_pool_test, pool_starts_with_all_chunks_available)
 {
   free_list_memory_pool pool(4, 32, 8);
 
-  ASSERT_EQ(pool.nof_memory_chunks(), 4);
-  ASSERT_EQ(pool.nof_chunks_available(), 4);
+  ASSERT_EQ(pool.nof_memory_blocks(), 4);
+  ASSERT_EQ(pool.nof_memory_blocks_available(), 4);
   ASSERT_FALSE(pool.full());
   ASSERT_EQ(pool.alignment(), 8);
 }
@@ -22,14 +22,14 @@ TEST(free_list_memory_pool_test, chunk_size_is_rounded_up_to_the_alignment)
 {
   free_list_memory_pool pool(2, 12, 8);
 
-  ASSERT_EQ(pool.chunk_size(), 16);
+  ASSERT_EQ(pool.memory_block_size(), 16);
 }
 
 TEST(free_list_memory_pool_test, chunk_size_fits_the_free_list_link)
 {
   free_list_memory_pool pool(2, 1, 1);
 
-  ASSERT_GE(pool.chunk_size(), sizeof(uint32_t));
+  ASSERT_GE(pool.memory_block_size(), sizeof(uint32_t));
   void* first  = pool.allocate();
   void* second = pool.allocate();
   ASSERT_NE(first, nullptr);
@@ -52,7 +52,7 @@ TEST(free_list_memory_pool_test, chunks_are_relinked_when_deallocated_out_of_ord
   for (size_t i : {2U, 0U, 4U, 1U, 3U}) {
     pool.deallocate(chunks[i]);
   }
-  ASSERT_EQ(pool.nof_chunks_available(), nof_chunks);
+  ASSERT_EQ(pool.nof_memory_blocks_available(), nof_chunks);
 
   std::set<void*> reallocated;
   for (size_t i = 0; i != nof_chunks; ++i) {
@@ -96,7 +96,7 @@ TEST(free_list_memory_pool_test, deallocated_chunk_can_be_allocated_again)
   ASSERT_EQ(pool.allocate(), nullptr);
 
   pool.deallocate(chunk);
-  ASSERT_EQ(pool.nof_chunks_available(), 1);
+  ASSERT_EQ(pool.nof_memory_blocks_available(), 1);
   ASSERT_EQ(pool.allocate(), chunk);
 }
 

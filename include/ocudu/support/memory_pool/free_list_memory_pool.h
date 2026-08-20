@@ -48,22 +48,22 @@ public:
   free_list_memory_pool& operator=(const free_list_memory_pool&) = delete;
   free_list_memory_pool& operator=(free_list_memory_pool&&)      = delete;
 
-  /// Size in bytes of each chunk of the pool.
-  size_t chunk_size() const { return chunk_stride; }
+  /// Size in bytes of each memory block of the pool.
+  size_t memory_block_size() const { return chunk_stride; }
 
-  /// Alignment of each chunk of the pool.
+  /// Alignment of each memory block of the pool.
   size_t alignment() const { return chunk_align; }
 
-  /// Number of chunks held by the pool.
-  size_t nof_memory_chunks() const { return nof_chunks; }
+  /// Number of memory blocks held by the pool.
+  size_t nof_memory_blocks() const { return nof_chunks; }
 
-  /// Number of chunks currently available for allocation.
-  size_t nof_chunks_available() const { return nof_available; }
+  /// Number of memory blocks currently available for allocation.
+  size_t nof_memory_blocks_available() const { return nof_available; }
 
-  /// Whether all the chunks of the pool are allocated.
+  /// Whether all the memory blocks of the pool are allocated.
   bool full() const { return free_head == invalid_chunk_index; }
 
-  /// Allocates a chunk from the pool. Returns nullptr if no chunk is available.
+  /// Allocates a memory block from the pool. Returns nullptr if none is available.
   void* allocate() noexcept
   {
     if (free_head == invalid_chunk_index) {
@@ -75,7 +75,7 @@ public:
     return static_cast<void*>(chunk_address(idx));
   }
 
-  /// Returns a previously allocated chunk back to the pool.
+  /// Returns a previously allocated memory block back to the pool.
   void deallocate(void* p) noexcept
   {
     ocudu_assert(p != nullptr, "Deallocated chunks must have a valid address");
@@ -166,10 +166,10 @@ public:
   explicit free_list_object_pool(size_t nof_objects) : mem_pool(nof_objects, sizeof(T), alignof(T)) {}
 
   /// Number of objects held by the pool.
-  size_t nof_objects() const { return mem_pool.nof_memory_chunks(); }
+  size_t nof_objects() const { return mem_pool.nof_memory_blocks(); }
 
   /// Number of objects that can still be created.
-  size_t nof_objects_available() const { return mem_pool.nof_chunks_available(); }
+  size_t nof_objects_available() const { return mem_pool.nof_memory_blocks_available(); }
 
   /// Whether all the objects of the pool are in use.
   bool full() const { return mem_pool.full(); }

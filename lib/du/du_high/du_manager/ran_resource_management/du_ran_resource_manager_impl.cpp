@@ -128,7 +128,7 @@ unsigned du_ran_resource_manager_impl::get_max_nof_established_ue_contexts(du_ce
   return cell_ue_ctxts[cell_index].max_nof_established;
 }
 
-unsigned du_ran_resource_manager_impl::get_max_nof_rejected_ue_contexts(du_cell_index_t cell_index) const
+unsigned du_ran_resource_manager_impl::get_max_nof_rejected_ue_contexts(du_cell_index_t /* unused */) const
 {
   return max_nof_rejected_ue_ctxts;
 }

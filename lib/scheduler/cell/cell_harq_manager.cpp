@@ -280,6 +280,7 @@ cell_harq_repository<IsDl>::alloc_harq(du_ue_index_t                       ue_id
                                        bool                                select_normal_mode,
                                        uint8_t                             nof_repetitions)
 {
+  ocudu_sanity_check(ue_idx < ues.size() and ues[ue_idx] != nullptr, "Invalid UE index");
   ue_harq_entity_impl& ue_harq_entity = *ues[ue_idx];
   if (ue_harq_entity.free_harq_ids.empty()) {
     return nullptr;
@@ -541,6 +542,7 @@ void cell_harq_repository<IsDl>::reserve_ue_harqs(du_ue_index_t ue_idx, rnti_t r
 template <bool IsDl>
 void cell_harq_repository<IsDl>::extend_ue_harqs(du_ue_index_t ue_idx, rnti_t rnti, unsigned new_nof_harqs)
 {
+  ocudu_sanity_check(ue_idx < ues.size() and ues[ue_idx] != nullptr, "Invalid UE index");
   auto&          ue_harqs          = *ues[ue_idx];
   const unsigned current_nof_harqs = ue_harqs.harqs.size();
 
