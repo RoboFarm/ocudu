@@ -307,6 +307,9 @@ smoke relwithdeb cached:
     - if: $CI_MERGE_REQUEST_LABELS =~ /ci-no-cache/
       when: never
     - if: $ON_MR
+  variables: &mr_build
+    OCUDU_TARGET: "all"
+    CMAKE_GENERATOR: "Ninja"
   cache:
     - *cache_build_get
 
@@ -318,6 +321,8 @@ smoke tsan cached:
     - if: $ON_MR
       when: manual
       allow_failure: true
+  variables:
+    <<: *mr_build
   cache:
     - *cache_build_get
 
@@ -329,6 +334,8 @@ smoke asan cached:
     - if: $ON_MR
       when: manual
       allow_failure: true
+  variables:
+    <<: *mr_build
   cache:
     - *cache_build_get
 
@@ -340,6 +347,8 @@ smoke rtsan cached:
     - if: $ON_MR
       when: manual
       allow_failure: true
+  variables:
+    <<: *mr_build
   cache:
     - *cache_build_get
 
@@ -349,6 +358,8 @@ smoke archlinux cached:
     - if: $CI_MERGE_REQUEST_LABELS =~ /ci-no-cache/
       when: never
     - if: $ON_MR
+  variables:
+    <<: *mr_build
   cache:
     - *cache_build_get
 
@@ -413,6 +424,8 @@ intermediate commits cached:
     - if: $CI_MERGE_REQUEST_LABELS =~ /ci-no-cache/
       when: never
     - if: $ON_MR
+  variables:
+    <<: *mr_build
   script:
     - *script_functions
     - &fetch_branches |
@@ -462,6 +475,9 @@ intermediate commits clean:
   extends: intermediate commits cached
   rules:
     - if: $CI_MERGE_REQUEST_LABELS =~ /ci-no-cache/
+  variables:
+    OCUDU_TARGET: ""
+    CMAKE_GENERATOR: "Unix Makefiles"
 
 valgrind changed tests:
   extends: .smoke valgrind
