@@ -320,7 +320,7 @@ async_task<bool> f1c_other_srb_du_bearer::wait_for_notification(uint32_t        
   }
 
   // Allocate a slot in the event pool.
-  auto event_slot = event_pool.create(pdcp_sn, du_configurator.get_timer_factory(), time_to_wait);
+  auto event_slot = event_pool.get(pdcp_sn, du_configurator.get_timer_factory(), time_to_wait);
   if (event_slot == nullptr) {
     logger.warning("Rx PDU {}: Ignoring {} Rx PDU {} notification. Cause: Failed to allocate notification handler.",
                    ue_ctxt,
