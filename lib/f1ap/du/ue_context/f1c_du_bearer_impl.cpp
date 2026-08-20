@@ -330,8 +330,9 @@ async_task<bool> f1c_other_srb_du_bearer::wait_for_notification(uint32_t        
   }
 
   // Allocation successful. Return awaitable event.
-  auto& ev = pending_events.emplace_back(std::move(event_slot));
-  return launch_async([&ev](coro_context<async_task<bool>>& ctx) {
+  // Note: We capture the raw pointer because its address won't change when other events are added/removed.
+  event_context* ev = pending_events.emplace_back(std::move(event_slot)).get();
+  return launch_async([ev](coro_context<async_task<bool>>& ctx) {
     CORO_BEGIN(ctx);
     CORO_AWAIT_VALUE(auto res, ev->observer);
     // True if there was no cancellation or timeout.
