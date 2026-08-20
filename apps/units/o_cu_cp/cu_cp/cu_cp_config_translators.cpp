@@ -239,13 +239,22 @@ static ocucp::rrc_event_id create_event_id_for_conditional_trigger(const cu_cp_u
   ocudu_assert(report_cfg_item.hysteresis_db, "Invalid hysteresis");
   ocudu_assert(report_cfg_item.time_to_trigger_ms, "Invalid time to trigger");
   ocudu_assert(report_cfg_item.meas_trigger_quantity, "Invalid MEAS trigger quantity");
-  ocudu_assert(report_cfg_item.meas_trigger_quantity_offset_db, "Invalid MEAS trigger quantity offset");
-  ocudu_assert(report_cfg_item.meas_trigger_quantity_threshold_db, "Invalid MEAS trigger threshold");
-  ocudu_assert(report_cfg_item.meas_trigger_quantity_threshold_2_db, "Invalid MEAS trigger threshold two");
 
   const bool is_a3_or_a6 = (report_cfg_item.event_triggered_report_type == ocucp::rrc_event_id::event_id_t::a3 ||
                             report_cfg_item.event_triggered_report_type == ocucp::rrc_event_id::event_id_t::a6);
   const bool is_a5       = report_cfg_item.event_triggered_report_type == ocucp::rrc_event_id::event_id_t::a5;
+
+  // TS 38.331 EventTriggerConfig: a3-Offset/a6-Offset are only present for A3/A6; a1/a2/a4-Threshold and
+  // a5-Threshold1 are only present for A1/A2/A4/A5; a5-Threshold2 is only present for A5.
+  if (is_a3_or_a6) {
+    ocudu_assert(report_cfg_item.meas_trigger_quantity_offset_db, "Invalid MEAS trigger quantity offset");
+  } else {
+    ocudu_assert(report_cfg_item.meas_trigger_quantity_threshold_db, "Invalid MEAS trigger threshold");
+  }
+
+  if (is_a5) {
+    ocudu_assert(report_cfg_item.meas_trigger_quantity_threshold_2_db, "Invalid MEAS trigger threshold two");
+  }
 
   return ocucp::rrc_event_id{
       .id              = *report_cfg_item.event_triggered_report_type,
